@@ -382,13 +382,19 @@ async def ui():
 # ============================================
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 _telegram_app = None
+_telegram_import_error = None
 
-def get_telegram_app():
-    """Initialize Telegram application lazily."""
-    global _telegram_app
-    if _telegram_app is None and TELEGRAM_BOT_TOKEN:
+# Try to import telegram bot module at startup
+try:
+    if TELEGRAM_BOT_TOKEN:
         from telegram_bot import create_telegram_app
         _telegram_app = create_telegram_app(TELEGRAM_BOT_TOKEN)
+except Exception as e:
+    _telegram_import_error = str(e)
+    print(f"⚠️  Warning: Could not initialize Telegram bot: {e}")
+
+def get_telegram_app():
+    """Get the Telegram application instance."""
     return _telegram_app
 
 
