@@ -57,12 +57,22 @@ def format_rows_for_telegram(rows, include_date=False):
     if not rows:
         return "No data found."
     
+    def format_date_display(date_str):
+        """Convert ISO date string to 'dd mmm yyyy' format."""
+        from datetime import datetime
+        try:
+            dt = datetime.fromisoformat(date_str)
+            return dt.strftime('%d %b %Y').lower()
+        except:
+            return date_str
+    
     lines = []
     for row in rows:
         if include_date:
             # RANGE query with date
+            formatted_date = format_date_display(row['date'])
             lines.append(
-                f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')} | {row['date']}\n"
+                f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')} | {formatted_date}\n"
                 f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
             )
         else:
@@ -465,8 +475,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
                         
                         response_text += f"\n📈 *Statistics ({intent.metric}):*\n"
-                        response_text += f"Min: {round(min_val, 2)} | Max: {round(max_val, 2)}\n"
-                        response_text += f"Avg: {round(avg_val, 2)} | StdDev: {round(std_val, 2)}\n"
+                        response_text += f"Min: {min_val:.2f} | Max: {max_val:.2f}\n"
+                        response_text += f"Avg: {avg_val:.2f} | StdDev: {std_val:.2f}\n"
                     
                     response_text += "\n"
                     
