@@ -60,6 +60,23 @@ def format_rows_for_telegram(rows, include_date=False):
     return "\n\n".join(lines)
 
 
+def summarize_intent_result(intent, rows_list):
+    """Produce a short text summary of computed results for LLM context."""
+    if not rows_list:
+        return "No matching data found in the requested period."
+    # Take up to 3 rows for brevity
+    sample = rows_list[:3]
+    parts = []
+    for r in sample:
+        parts.append(
+            f"Series {r['series']} | Tenor {r['tenor'].replace('_',' ')} | "
+            f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
+            + (f" | Date {r.get('date')}" if 'date' in r else "")
+        )
+    header = f"Computed rows ({len(rows_list)} total):"
+    return header + "\n" + "\n".join(parts)
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     welcome_text = (
@@ -126,16 +143,82 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Always state you are an AI simulation, not the real person. "
         "Be concise, professional, and focused on economics, fiscal policy, public finance, and governance. "
         "You do NOT have live news access; note that information may be outdated. "
+        "You may receive precomputed bond data summaries—use them accurately and cite numbers plainly. "
         "Politely decline personal, private, or speculative questions. "
         "Avoid medical, legal, financial, or investment advice. "
         "Keep answers short (120-200 words)."
     )
+
+    # Try to compute bond data for the question (best-effort)
+    data_summary = None
+    try:
+        intent = parse_intent(question)
+        db = get_db()
+        rows_list = []
+
+        if intent.type == 'POINT':
+            d = intent.point_date
+            params = [d.isoformat()]
+            where = 'obs_date = ?'
+            if intent.tenor:
+                where += ' AND tenor = ?'
+                params.append(intent.tenor)
+            if intent.series:
+                where += ' AND series = ?'
+                params.append(intent.series)
+            rows = db.con.execute(
+                f'SELECT series, tenor, price, "yield" FROM ts WHERE {where} ORDER BY series',
+                params
+            ).fetchall()
+            rows_list = [
+                dict(
+                    series=r[0],
+                    tenor=r[1],
+                    price=round(r[2], 2) if r[2] is not None else None,
+                    **{'yield': round(r[3], 2) if r[3] is not None else None}
+                )
+                for r in rows
+            ]
+
+        elif intent.type in ('RANGE', 'AGG_RANGE'):
+            params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
+            where = 'obs_date BETWEEN ? AND ?'
+            if intent.tenor:
+                where += ' AND tenor = ?'
+                params.append(intent.tenor)
+            if intent.series:
+                where += ' AND series = ?'
+                params.append(intent.series)
+            rows = db.con.execute(
+                f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date DESC, series LIMIT 50',
+                params
+            ).fetchall()
+            rows_list = [
+                dict(
+                    series=r[0],
+                    tenor=r[1],
+                    date=r[2].isoformat(),
+                    price=round(r[3], 2) if r[3] is not None else None,
+                    **{'yield': round(r[4], 2) if r[4] is not None else None}
+                )
+                for r in rows
+            ]
+        if rows_list:
+            data_summary = summarize_intent_result(intent, rows_list)
+    except Exception:
+        data_summary = None
+
     try:
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "system", "content": "No live news feed available; information may be outdated."},
-            {"role": "user", "content": question},
         ]
+        if data_summary:
+            messages.append({
+                "role": "system",
+                "content": f"Precomputed bond data summary:\n{data_summary}"
+            })
+        messages.append({"role": "user", "content": question})
 
         resp = await _openai_client.chat.completions.create(
             model="gpt-4o-mini",
@@ -144,7 +227,7 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             temperature=0.5,
         )
         answer = resp.choices[0].message.content.strip()
-        disclaimer = "🤖 Simulated persona — not the real person. No live news; info may be outdated."
+        disclaimer = "🤖 Simulated persona — not the real person. Data is precomputed; no live news; info may be outdated."
         await update.message.reply_text(
             f"{disclaimer}\n\n{answer}",
             parse_mode=ParseMode.MARKDOWN,
