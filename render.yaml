@@ -2,7 +2,11 @@ services:
   - type: web
     name: perisai-api
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    # Explicitly install requirements and ensure python-telegram-bot is present (Render cache can miss it)
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      pip install python-telegram-bot
     startCommand: uvicorn app_fastapi:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
