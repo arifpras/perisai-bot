@@ -9,9 +9,8 @@ from io import BytesIO
 
 # Configuration - can be overridden via environment variable
 # Production: uses Render cloud API
-# Development: can override with BOND_API_URL env var
-# Default to local server for development
-API_URL = os.environ.get("BOND_API_URL", "http://localhost:8000/chat")
+# Development: can override with BOND_API_URL env var to use localhost
+API_URL = os.environ.get("BOND_API_URL", "https://perisai-api.onrender.com/chat")
 API_TIMEOUT = 30
 
 # Page config
