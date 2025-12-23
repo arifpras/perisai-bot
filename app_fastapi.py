@@ -76,6 +76,19 @@ class QueryResponse(BaseModel):
     result: Dict[str, Any]
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize Telegram bot on startup."""
+    if TELEGRAM_BOT_TOKEN:
+        print(f"✅ TELEGRAM_BOT_TOKEN is set (length: {len(TELEGRAM_BOT_TOKEN)})")
+        if _telegram_app:
+            print("✅ Telegram bot initialized successfully!")
+        elif _telegram_import_error:
+            print(f"❌ Telegram bot import error: {_telegram_import_error}")
+    else:
+        print("⚠️  TELEGRAM_BOT_TOKEN not set - Telegram endpoints will return 503")
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
