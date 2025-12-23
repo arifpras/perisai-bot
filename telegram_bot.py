@@ -291,9 +291,19 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         answer = resp.choices[0].message.content.strip()
         disclaimer = "🤖 Simulated persona — not the real person. Data is precomputed; no live news; info may be outdated."
-        await update.message.reply_text(
-            f"{disclaimer}\n\n{answer}"
-        )
+        
+        try:
+            # Try with markdown formatting first
+            await update.message.reply_text(
+                f"{disclaimer}\n\n{answer}",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception as parse_error:
+            # If markdown parsing fails, send as plain text
+            logger.warning("Markdown parse failed, sending as plain text: %s", parse_error)
+            await update.message.reply_text(
+                f"{disclaimer}\n\n{answer}"
+            )
     except Exception as e:
         logger.exception("/ask_admin error: %s", e)
         await update.message.reply_text(
