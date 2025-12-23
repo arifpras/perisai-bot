@@ -181,29 +181,45 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
 
         elif intent.type in ('RANGE', 'AGG_RANGE'):
-            params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
-            where = 'obs_date BETWEEN ? AND ?'
-            if intent.tenor:
-                where += ' AND tenor = ?'
-                params.append(intent.tenor)
-            if intent.series:
-                where += ' AND series = ?'
-                params.append(intent.series)
-            rows = db.con.execute(
-                f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date DESC, series LIMIT 50',
-                params
-            ).fetchall()
-            rows_list = [
-                dict(
-                    series=r[0],
-                    tenor=r[1],
-                    date=r[2].isoformat(),
-                    price=round(r[3], 2) if r[3] is not None else None,
-                    **{'yield': round(r[4], 2) if r[4] is not None else None}
+            if intent.agg:
+                # Compute actual aggregate value
+                val, n = db.aggregate(
+                    intent.start_date, intent.end_date,
+                    intent.metric, intent.agg,
+                    intent.series, intent.tenor
                 )
-                for r in rows
-            ]
-        if rows_list:
+                data_summary = (
+                    f"Aggregate result: {intent.agg.upper()} {intent.metric} = {round(val, 2) if val else 'N/A'} "
+                    f"(computed from {n} data points in period {intent.start_date} to {intent.end_date})"
+                )
+            else:
+                # Range without aggregation - show sample rows
+                params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
+                where = 'obs_date BETWEEN ? AND ?'
+                if intent.tenor:
+                    where += ' AND tenor = ?'
+                    params.append(intent.tenor)
+                if intent.series:
+                    where += ' AND series = ?'
+                    params.append(intent.series)
+                rows = db.con.execute(
+                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date DESC, series LIMIT 50',
+                    params
+                ).fetchall()
+                rows_list = [
+                    dict(
+                        series=r[0],
+                        tenor=r[1],
+                        date=r[2].isoformat(),
+                        price=round(r[3], 2) if r[3] is not None else None,
+                        **{'yield': round(r[4], 2) if r[4] is not None else None}
+                    )
+                    for r in rows
+                ]
+                if rows_list:
+                    data_summary = summarize_intent_result(intent, rows_list)
+        
+        if intent.type == 'POINT' and rows_list:
             data_summary = summarize_intent_result(intent, rows_list)
     except Exception:
         data_summary = None
