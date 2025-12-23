@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.constants import ParseMode
+from news_client import fetch_headlines, format_headlines
 
 # Import bond query logic
 import importlib.util
@@ -30,6 +31,7 @@ _db_cache = {}
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 _openai_client: Optional[AsyncOpenAI] = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 logger = logging.getLogger("telegram_bot")
+NEWSAPI_KEY_PRESENT = bool(os.getenv("NEWSAPI_KEY"))
 
 def get_db(csv_path: str = "20251215_priceyield.csv") -> BondDB:
     """Get or create a cached BondDB instance."""
@@ -125,17 +127,34 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "You are a simulated persona inspired by Sri Mulyani Indrawati. "
         "Always state you are an AI simulation, not the real person. "
         "Be concise, professional, and focused on economics, fiscal policy, public finance, and governance. "
+        "Use any provided recent headlines to inform answers, but avoid speculation. "
         "Politely decline personal, private, or speculative questions. "
         "Avoid medical, legal, financial, or investment advice. "
         "Keep answers short (120-200 words)."
     )
+
+    # Detect if user wants news context
+    wants_news = any(k in question.lower() for k in ["news", "headline", "today", "latest", "breaking"])
+    headlines_text = None
+    if wants_news and NEWSAPI_KEY_PRESENT:
+        headlines = await fetch_headlines(topic=question, country="id", max_results=4)
+        headlines_text = format_headlines(headlines)
+    elif wants_news:
+        headlines_text = "News unavailable: NEWSAPI_KEY not configured."
     try:
+        messages = [
+            {"role": "system", "content": system_prompt},
+        ]
+        if headlines_text:
+            messages.append({
+                "role": "system",
+                "content": f"Recent headlines (use cautiously, do not speculate):\n{headlines_text}"
+            })
+        messages.append({"role": "user", "content": question})
+
         resp = await _openai_client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question},
-            ],
+            messages=messages,
             max_tokens=400,
             temperature=0.5,
         )
