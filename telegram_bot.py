@@ -406,7 +406,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     params.append(intent.series)
                 
                 rows = db.con.execute(
-                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date DESC, series LIMIT 50',
+                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series LIMIT 50',
                     params
                 ).fetchall()
                 
@@ -450,9 +450,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 parse_mode=ParseMode.MARKDOWN
                             )
                 else:
-                    # No plot requested - show data rows
+                    # No plot requested - show data rows with statistics
+                    # Calculate statistics
+                    metric_values = [r.get(intent.metric) for r in rows_list if r.get(intent.metric) is not None]
+                    
                     response_text = f"📊 *Found {len(rows_list)} records*\n"
-                    response_text += f"Period: {intent.start_date} → {intent.end_date}\n\n"
+                    response_text += f"Period: {intent.start_date} → {intent.end_date}\n"
+                    
+                    if metric_values:
+                        import statistics
+                        min_val = min(metric_values)
+                        max_val = max(metric_values)
+                        avg_val = statistics.mean(metric_values)
+                        std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
+                        
+                        response_text += f"\n📈 *Statistics ({intent.metric}):*\n"
+                        response_text += f"Min: {round(min_val, 2)} | Max: {round(max_val, 2)}\n"
+                        response_text += f"Avg: {round(avg_val, 2)} | StdDev: {round(std_val, 2)}\n"
+                    
+                    response_text += "\n"
                     
                     # Show all rows (or split into messages if too many)
                     formatted_rows = format_rows_for_telegram(rows_list, include_date=True)
