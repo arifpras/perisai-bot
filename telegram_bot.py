@@ -4,7 +4,9 @@ Handles incoming messages from Telegram and formats responses.
 import os
 import io
 import base64
+import logging
 from typing import Optional
+from openai import AsyncOpenAI
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.constants import ParseMode
@@ -23,6 +25,11 @@ BondDB = priceyield_mod.BondDB
 
 # Cache DB instances
 _db_cache = {}
+
+# OpenAI client for persona answers
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+_openai_client: Optional[AsyncOpenAI] = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+logger = logging.getLogger("telegram_bot")
 
 def get_db(csv_path: str = "20251215_priceyield.csv") -> BondDB:
     """Get or create a cached BondDB instance."""
@@ -65,7 +72,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• `price FR96 2023-05-15`\n\n"
         "📌 *Commands:*\n"
         "/start - Show this help\n"
-        "/examples - Show more examples\n\n"
+        "/examples - Show more examples\n"
+        "/ask_admin <question> - Ask the virtual admin (simulated persona)\n\n"
         "Just send your question and I'll fetch the data! 🚀"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.MARKDOWN)
@@ -90,6 +98,59 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💡 Tip: Include 'plot' or 'chart' in your query to get a visual graph!"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.MARKDOWN)
+
+
+async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Simulated admin persona powered by OpenAI."""
+    question = " ".join(context.args).strip() if context.args else ""
+    logger.info("/ask_admin invoked chat_id=%s has_key=%s", update.message.chat_id, bool(OPENAI_API_KEY))
+    if not question:
+        await update.message.reply_text(
+            "Usage: /ask_admin <question>\n"
+            "This is a *simulated persona* for informational purposes only.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    
+    if not _openai_client:
+        logger.warning("/ask_admin missing OPENAI_API_KEY")
+        await update.message.reply_text(
+            "⚠️ Persona mode unavailable: OPENAI_API_KEY is not configured.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    
+    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    system_prompt = (
+        "You are a simulated persona inspired by Sri Mulyani Indrawati. "
+        "Always state you are an AI simulation, not the real person. "
+        "Be concise, professional, and focused on economics, fiscal policy, public finance, and governance. "
+        "Politely decline personal, private, or speculative questions. "
+        "Avoid medical, legal, financial, or investment advice. "
+        "Keep answers short (120-200 words)."
+    )
+    try:
+        resp = await _openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question},
+            ],
+            max_tokens=400,
+            temperature=0.5,
+        )
+        answer = resp.choices[0].message.content.strip()
+        disclaimer = "🤖 Simulated persona — not the real person."
+        await update.message.reply_text(
+            f"{disclaimer}\n\n{answer}",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    except Exception as e:
+        logger.exception("/ask_admin error: %s", e)
+        await update.message.reply_text(
+            f"⚠️ Could not generate persona response: {str(e)}",
+            parse_mode=ParseMode.MARKDOWN,
+        )
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -385,6 +446,7 @@ def create_telegram_app(token: str) -> Application:
     # Add handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("examples", examples_command))
+    application.add_handler(CommandHandler("ask_admin", ask_admin_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     return application

@@ -10,3 +10,4 @@ httpx
 rich
 typer
 python-telegram-bot
+openai
