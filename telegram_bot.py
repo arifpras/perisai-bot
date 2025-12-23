@@ -306,17 +306,33 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, highligh
     
     # Plot
     buf = io.BytesIO()
+    
+    # Convert highlight_date to timestamp if provided
+    highlight_ts = None
+    if highlight_date:
+        highlight_ts = pd.Timestamp(highlight_date) if isinstance(highlight_date, str) else highlight_date
+    
     if has_seaborn:
         sns.set_theme(style='darkgrid', context='notebook', palette='bright')
         fig, ax = plt.subplots(figsize=(9, 3.5))
         sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
         
-        if highlight_date:
-            highlight_row = daily[daily['obs_date'] == pd.Timestamp(highlight_date)]
+        # Add highlight marker if date is in the data
+        if highlight_ts is not None:
+            highlight_row = daily[daily['obs_date'] == highlight_ts]
             if not highlight_row.empty:
-                ax.plot(highlight_row['obs_date'], highlight_row[metric], 'ro', markersize=8, 
-                       label=f'Highlight: {format_date(highlight_date)}')
-                ax.legend()
+                y_val = highlight_row[metric].iloc[0]
+                ax.plot(highlight_ts, y_val, 'r*', markersize=20, 
+                       label=f'📍 {format_date(highlight_ts)}', zorder=5)
+                ax.legend(fontsize=10)
+            else:
+                # If exact date not found, find closest date
+                daily['date_diff'] = (daily['obs_date'] - highlight_ts).abs()
+                closest = daily.loc[daily['date_diff'].idxmin()]
+                y_val = closest[metric]
+                ax.plot(closest['obs_date'], y_val, 'r*', markersize=20,
+                       label=f'📍 {format_date(closest["obs_date"])} (closest)', zorder=5)
+                ax.legend(fontsize=10)
         
         ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
         ax.set_xlabel('Date')
@@ -328,13 +344,31 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, highligh
         plt.gcf().autofmt_xdate()
         plt.grid(alpha=0.3)
     else:
-        plt.figure(figsize=(9, 3.5))
-        plt.plot(daily['obs_date'], daily[metric], linewidth=2)
-        plt.title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
-        plt.xlabel('Date')
-        plt.ylabel(metric.capitalize())
+        fig, ax = plt.subplots(figsize=(9, 3.5))
+        ax.plot(daily['obs_date'], daily[metric], linewidth=2)
+        
+        # Add highlight marker if date is in the data
+        if highlight_ts is not None:
+            highlight_row = daily[daily['obs_date'] == highlight_ts]
+            if not highlight_row.empty:
+                y_val = highlight_row[metric].iloc[0]
+                ax.plot(highlight_ts, y_val, 'r*', markersize=20,
+                       label=f'📍 {format_date(highlight_ts)}', zorder=5)
+                ax.legend(fontsize=10)
+            else:
+                # If exact date not found, find closest date
+                daily['date_diff'] = (daily['obs_date'] - highlight_ts).abs()
+                closest = daily.loc[daily['date_diff'].idxmin()]
+                y_val = closest[metric]
+                ax.plot(closest['obs_date'], y_val, 'r*', markersize=20,
+                       label=f'📍 {format_date(closest["obs_date"])} (closest)', zorder=5)
+                ax.legend(fontsize=10)
+        
+        ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
+        ax.set_xlabel('Date')
+        ax.set_ylabel(metric.capitalize())
+        fig.autofmt_xdate()
         plt.grid(alpha=0.3)
-        plt.gcf().autofmt_xdate()
     
     plt.tight_layout()
     plt.savefig(buf, format='png', dpi=150)
