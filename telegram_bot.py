@@ -237,7 +237,7 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         messages.append({"role": "user", "content": question})
 
         resp = await _openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5.2",
             messages=messages,
             max_tokens=400,
             temperature=0.5,
