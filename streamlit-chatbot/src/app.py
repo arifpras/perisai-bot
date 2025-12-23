@@ -8,10 +8,9 @@ import os
 from io import BytesIO
 
 # Configuration - can be overridden via environment variable
-# Use BOND_API_HOST env var to specify the backend host (e.g., your Mac's IP)
-API_HOST = os.environ.get("BOND_API_HOST", "127.0.0.1")
-API_PORT = os.environ.get("BOND_API_PORT", "8000")
-API_URL = f"http://{API_HOST}:{API_PORT}/chat"
+# Production: uses Render cloud API
+# Development: can override with BOND_API_URL env var
+API_URL = os.environ.get("BOND_API_URL", "https://perisai-api.onrender.com/chat")
 API_TIMEOUT = 30
 
 # Page config
