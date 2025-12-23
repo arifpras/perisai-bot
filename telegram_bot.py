@@ -101,14 +101,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     
     try:
-        # Parse the user's intent
-        intent = parse_intent(user_query)
-        db = get_db()
-        
         # Determine if user wants a plot
         lower_q = user_query.lower()
         plot_keywords = ('plot', 'chart', 'show', 'visualize', 'graph')
         wants_plot = any(k in lower_q for k in plot_keywords)
+        
+        # Parse the user's intent
+        intent = parse_intent(user_query)
+        db = get_db()
         
         # POINT query
         if intent.type == 'POINT':
@@ -194,43 +194,53 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     for r in rows
                 ]
                 
-                response_text = f"📊 *Found {len(rows_list)} records*\n"
-                response_text += f"Period: {intent.start_date} → {intent.end_date}\n\n"
-                
-                # Show all rows (or split into messages if too many)
-                formatted_rows = format_rows_for_telegram(rows_list, include_date=True)
-                
-                if len(formatted_rows) > 3500:  # Telegram message limit is 4096, leave buffer
-                    # Send in multiple messages if too long
-                    response_text += formatted_rows[:3500]
-                    await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
-                    response_text = formatted_rows[3500:]
-                    await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+                # If plot is requested, send plot directly without row details
+                if wants_plot:
+                    if len(rows_list) == 0:
+                        await update.message.reply_text(
+                            f"❌ No data found for {intent.tenor or 'bonds'} in this period.",
+                            parse_mode=ParseMode.MARKDOWN
+                        )
+                    else:
+                        # Send summary then plot
+                        response_text = f"📊 *{intent.metric.capitalize()} Chart*\n"
+                        response_text += f"Period: {intent.start_date} → {intent.end_date}\n"
+                        if intent.tenor:
+                            response_text += f"Tenor: {intent.tenor.replace('_', ' ')}\n"
+                        if intent.highlight_date:
+                            response_text += f"📍 Highlighting: {intent.highlight_date}\n"
+                        response_text += f"Data points: {len(rows_list)}"
+                        
+                        await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+                        
+                        await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
+                        try:
+                            png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.highlight_date)
+                            await update.message.reply_photo(photo=io.BytesIO(png))
+                        except Exception as e:
+                            await update.message.reply_text(
+                                f"⚠️ Could not generate plot: {str(e)}",
+                                parse_mode=ParseMode.MARKDOWN
+                            )
                 else:
-                    response_text += formatted_rows
+                    # No plot requested - show data rows
+                    response_text = f"📊 *Found {len(rows_list)} records*\n"
+                    response_text += f"Period: {intent.start_date} → {intent.end_date}\n\n"
+                    
+                    # Show all rows (or split into messages if too many)
+                    formatted_rows = format_rows_for_telegram(rows_list, include_date=True)
+                    
+                    if len(formatted_rows) > 3500:  # Telegram message limit is 4096, leave buffer
+                        # Send in multiple messages if too long
+                        response_text += formatted_rows[:3500]
+                        await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+                        response_text = formatted_rows[3500:]
+                        await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+                    else:
+                        response_text += formatted_rows
                     await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
                 
-                # Generate plot if requested
-                if wants_plot:
-                    await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
-                    png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.highlight_date)
-                    await update.message.reply_photo(photo=io.BytesIO(png))
-                
-                return  # Important: skip the old code below
-                
-                # OLD CODE - TO BE REMOVED
-                response_text += format_rows_for_telegram(rows_list[:10], include_date=True)  # Show first 10
-                
-                if len(rows_list) > 10:
-                    response_text += f"\n\n_...and {len(rows_list) - 10} more rows_"
-                
-                await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
-                
-                # Generate plot if requested
-                if wants_plot:
-                    await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
-                    png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.highlight_date)
-                    await update.message.reply_photo(photo=io.BytesIO(png))
+                return
         
         else:
             await update.message.reply_text(
