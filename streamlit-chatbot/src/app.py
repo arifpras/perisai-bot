@@ -1,5 +1,5 @@
 # Streamlit Bond Chatbot
-# Connects to FastAPI backend at http://127.0.0.1:8000/chat
+# Connects to FastAPI backend on Render Cloud (https://perisai-api.onrender.com/chat)
 
 import streamlit as st
 import requests
@@ -137,10 +137,11 @@ with st.sidebar:
     
     # Option to override API URL
     with st.expander("Change API URL"):
-        custom_host = st.text_input("Backend Host", value=API_HOST, help="e.g., 127.0.0.1 or 192.168.1.100")
-        custom_port = st.text_input("Backend Port", value=API_PORT, help="Usually 8000")
+        custom_host = st.text_input("Backend Host", value="perisai-api.onrender.com", help="e.g., perisai-api.onrender.com or localhost for development")
+        custom_port = st.text_input("Backend Port", value="443", help="Usually 443 for cloud, 8000 for localhost")
+        protocol = st.selectbox("Protocol", options=["https", "http"], index=0)
         if st.button("Update API URL"):
-            st.session_state.custom_api_url = f"http://{custom_host}:{custom_port}/chat"
+            st.session_state.custom_api_url = f"{protocol}://{custom_host}:{custom_port}/chat"
             st.success(f"API URL updated to: {st.session_state.custom_api_url}")
             st.rerun()
     
@@ -167,12 +168,12 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🌐 Network Access")
     st.markdown("""
-    **For local access only:**
-    - API: `http://127.0.0.1:8000`
-    - Streamlit: `http://localhost:8501`
+    **Cloud Deployment:**
+    - API: `https://perisai-api.onrender.com` (Render)
+    - Streamlit: `perisai-bot.streamlit.app` (Streamlit Cloud)
     
-    **For network access:**
-    1. Start FastAPI: `uvicorn app_fastapi:app --host 0.0.0.0 --port 8000`
+    **For local development:**
+    1. Start FastAPI locally: `uvicorn app_fastapi:app --host 0.0.0.0 --port 8000`
     2. Start Streamlit: `streamlit run streamlit-chatbot/src/app.py --server.address 0.0.0.0`
     3. Find your IP: `ipconfig getifaddr en0`
     4. Access from other computers: `http://<your-ip>:8501`
