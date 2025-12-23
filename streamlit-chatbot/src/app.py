@@ -11,7 +11,7 @@ from io import BytesIO
 # Production: uses Render cloud API
 # Development: can override with BOND_API_URL env var
 # Default to local server for development
-API_URL = os.environ.get("BOND_API_URL", "http://10.100.84.39:8000/chat")
+API_URL = os.environ.get("BOND_API_URL", "http://localhost:8000/chat")
 API_TIMEOUT = 30
 
 # Page config
