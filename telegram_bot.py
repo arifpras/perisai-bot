@@ -31,6 +31,20 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 _openai_client: Optional[AsyncOpenAI] = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 logger = logging.getLogger("telegram_bot")
 
+# Access control: allowed user IDs (comma-separated in env var or hardcoded)
+ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS", "")
+if ALLOWED_USER_IDS_STR:
+    ALLOWED_USER_IDS = set(int(uid.strip()) for uid in ALLOWED_USER_IDS_STR.split(",") if uid.strip())
+else:
+    ALLOWED_USER_IDS = set()  # Empty = allow all users
+
+def is_user_authorized(user_id: int) -> bool:
+    """Check if user is authorized to use the bot."""
+    if not ALLOWED_USER_IDS:  # Empty list means no restriction
+        return True
+    return user_id in ALLOWED_USER_IDS
+
+
 def get_db(csv_path: str = "20251215_priceyield.csv") -> BondDB:
     """Get or create a cached BondDB instance."""
     if csv_path not in _db_cache:
@@ -79,6 +93,14 @@ def summarize_intent_result(intent, rows_list):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
+    user_id = update.message.from_user.id
+    if not is_user_authorized(user_id):
+        await update.message.reply_text(
+            "⛔ Access denied. This bot is restricted to authorized users only."
+        )
+        logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        return
+    
     welcome_text = (
         "📈 *Welcome to Bond Price & Yield Bot!*\n\n"
         "Ask questions about Indonesian government bonds:\n\n"
@@ -98,6 +120,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /examples command."""
+    user_id = update.message.from_user.id
+    if not is_user_authorized(user_id):
+        await update.message.reply_text(
+            "⛔ Access denied. This bot is restricted to authorized users only."
+        )
+        logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        return
+    
     examples_text = (
         "📝 *Query Examples:*\n\n"
         "*Point queries (specific date):*\n"
@@ -119,6 +149,14 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Simulated admin persona powered by OpenAI."""
+    user_id = update.message.from_user.id
+    if not is_user_authorized(user_id):
+        await update.message.reply_text(
+            "⛔ Access denied. This bot is restricted to authorized users only."
+        )
+        logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        return
+    
     question = " ".join(context.args).strip() if context.args else ""
     logger.info("/ask_admin invoked chat_id=%s has_key=%s", update.message.chat_id, bool(OPENAI_API_KEY))
     if not question:
@@ -265,6 +303,14 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming text messages with bond queries."""
+    user_id = update.message.from_user.id
+    if not is_user_authorized(user_id):
+        await update.message.reply_text(
+            "⛔ Access denied. This bot is restricted to authorized users only."
+        )
+        logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        return
+    
     user_query = update.message.text
     chat_id = update.message.chat_id
     
