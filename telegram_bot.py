@@ -315,7 +315,7 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, highligh
     
     if has_seaborn:
         sns.set_theme(style='darkgrid', context='notebook', palette='bright')
-        fig, ax = plt.subplots(figsize=(9, 3.5))
+        fig, ax = plt.subplots(figsize=(10, 8))
         sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
         
         # Add highlight marker if date is in the data
@@ -345,7 +345,7 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, highligh
         plt.gcf().autofmt_xdate()
         plt.grid(alpha=0.3)
     else:
-        fig, ax = plt.subplots(figsize=(9, 3.5))
+        fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(daily['obs_date'], daily[metric], linewidth=2)
         
         # Add highlight marker if date is in the data
