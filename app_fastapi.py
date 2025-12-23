@@ -3,11 +3,12 @@
 Endpoints:
 - GET /health
 - POST /query  {"q": "average yield Q1 2023", "csv": "20251215_priceyield.csv"}
+- POST /telegram/webhook - Telegram bot webhook
 
 This file reuses parse_intent and BondDB from the existing module.
 """
 from typing import Optional, Dict, Any, List
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -374,6 +375,91 @@ async def ui():
     </html>
     """
     return HTMLResponse(html)
+
+
+# ============================================
+# TELEGRAM BOT INTEGRATION
+# ============================================
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+_telegram_app = None
+
+def get_telegram_app():
+    """Initialize Telegram application lazily."""
+    global _telegram_app
+    if _telegram_app is None and TELEGRAM_BOT_TOKEN:
+        from telegram_bot import create_telegram_app
+        _telegram_app = create_telegram_app(TELEGRAM_BOT_TOKEN)
+    return _telegram_app
+
+
+@app.post('/telegram/webhook')
+async def telegram_webhook(request: Request):
+    """Webhook endpoint for Telegram bot updates."""
+    if not TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="Telegram bot not configured. Set TELEGRAM_BOT_TOKEN environment variable.")
+    
+    telegram_app = get_telegram_app()
+    if not telegram_app:
+        raise HTTPException(status_code=503, detail="Telegram app not initialized")
+    
+    try:
+        from telegram import Update
+        update_data = await request.json()
+        update = Update.de_json(update_data, telegram_app.bot)
+        await telegram_app.process_update(update)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing update: {str(e)}")
+
+
+@app.get('/telegram/set_webhook')
+async def set_telegram_webhook(webhook_url: str):
+    """Set the webhook URL for the Telegram bot. Call this once after deployment.
+    
+    Example: GET /telegram/set_webhook?webhook_url=https://perisai-api.onrender.com/telegram/webhook
+    """
+    if not TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="Telegram bot not configured. Set TELEGRAM_BOT_TOKEN environment variable.")
+    
+    telegram_app = get_telegram_app()
+    if not telegram_app:
+        raise HTTPException(status_code=503, detail="Telegram app not initialized")
+    
+    try:
+        await telegram_app.bot.set_webhook(webhook_url)
+        info = await telegram_app.bot.get_webhook_info()
+        return {
+            "status": "ok",
+            "webhook_url": info.url,
+            "pending_update_count": info.pending_update_count
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error setting webhook: {str(e)}")
+
+
+@app.get('/telegram/webhook_info')
+async def get_webhook_info():
+    """Get current webhook configuration."""
+    if not TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="Telegram bot not configured")
+    
+    telegram_app = get_telegram_app()
+    if not telegram_app:
+        raise HTTPException(status_code=503, detail="Telegram app not initialized")
+    
+    try:
+        info = await telegram_app.bot.get_webhook_info()
+        return {
+            "url": info.url,
+            "has_custom_certificate": info.has_custom_certificate,
+            "pending_update_count": info.pending_update_count,
+            "last_error_date": info.last_error_date,
+            "last_error_message": info.last_error_message,
+            "max_connections": info.max_connections,
+            "allowed_updates": info.allowed_updates
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting webhook info: {str(e)}")
 
 
 if __name__ == "__main__":
