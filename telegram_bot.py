@@ -62,7 +62,7 @@ def format_rows_for_telegram(rows, include_date=False):
         from datetime import datetime
         try:
             dt = datetime.fromisoformat(date_str)
-            return dt.strftime('%d %b %Y').lower()
+            return dt.strftime('%d %b %Y')
         except:
             return date_str
     
