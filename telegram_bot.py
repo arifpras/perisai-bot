@@ -239,20 +239,18 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         resp = await _openai_client.chat.completions.create(
             model="gpt-5.2",
             messages=messages,
-            max_tokens=400,
+            max_completion_tokens=400,
             temperature=0.5,
         )
         answer = resp.choices[0].message.content.strip()
         disclaimer = "🤖 Simulated persona — not the real person. Data is precomputed; no live news; info may be outdated."
         await update.message.reply_text(
-            f"{disclaimer}\n\n{answer}",
-            parse_mode=ParseMode.MARKDOWN,
+            f"{disclaimer}\n\n{answer}"
         )
     except Exception as e:
         logger.exception("/ask_admin error: %s", e)
         await update.message.reply_text(
-            f"⚠️ Could not generate persona response: {str(e)}",
-            parse_mode=ParseMode.MARKDOWN,
+            f"⚠️ Could not generate persona response: {str(e)}"
         )
 
 
