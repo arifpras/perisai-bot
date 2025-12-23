@@ -307,10 +307,11 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, highligh
     # Plot
     buf = io.BytesIO()
     
-    # Convert highlight_date to timestamp if provided
+    # Convert highlight_date to pandas Timestamp if provided
     highlight_ts = None
     if highlight_date:
-        highlight_ts = pd.Timestamp(highlight_date) if isinstance(highlight_date, str) else highlight_date
+        # Always convert to pd.Timestamp to ensure compatibility with DatetimeArray operations
+        highlight_ts = pd.Timestamp(highlight_date)
     
     if has_seaborn:
         sns.set_theme(style='darkgrid', context='notebook', palette='bright')
