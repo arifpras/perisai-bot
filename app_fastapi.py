@@ -396,6 +396,7 @@ async def ui():
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 _telegram_app = None
 _telegram_import_error = None
+_telegram_initialized = False
 
 # Try to import telegram bot module at startup
 try:
@@ -411,6 +412,19 @@ def get_telegram_app():
     return _telegram_app
 
 
+async def ensure_telegram_initialized():
+    """Ensure Telegram application is initialized before processing updates."""
+    global _telegram_initialized
+    telegram_app = get_telegram_app()
+    if telegram_app and not _telegram_initialized:
+        try:
+            await telegram_app.initialize()
+            _telegram_initialized = True
+        except Exception as e:
+            print(f"⚠️  Error initializing Telegram app: {e}")
+            raise
+
+
 @app.post('/telegram/webhook')
 async def telegram_webhook(request: Request):
     """Webhook endpoint for Telegram bot updates."""
@@ -422,12 +436,18 @@ async def telegram_webhook(request: Request):
         raise HTTPException(status_code=503, detail="Telegram app not initialized")
     
     try:
+        # Ensure app is initialized
+        await ensure_telegram_initialized()
+        
         from telegram import Update
         update_data = await request.json()
         update = Update.de_json(update_data, telegram_app.bot)
         await telegram_app.process_update(update)
         return {"ok": True}
     except Exception as e:
+        print(f"❌ Webhook error: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error processing update: {str(e)}")
 
 
