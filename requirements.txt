@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+duckdb
+pandas
+matplotlib
+python-dateutil
+dateparser
+requests
+httpx
+rich
+typer

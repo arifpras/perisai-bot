@@ -110,3 +110,5 @@ Recommendations:
 - Use the **SHA**-tagged image for deployments that require immutability: `docker run ghcr.io/arifpras/bondbot:<sha>`.
 - Keep `:latest` for quick local testing or CI preview environments.
 - Optionally add semver tags on releases (e.g., `v1.2.0`) by adding a tagging step to the CI or triggering builds on git tags/releases.
+
+---

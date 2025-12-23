@@ -1,0 +1,380 @@
+"""Simple FastAPI wrapper for the bond CLI logic in 20251223_priceyield.py
+
+Endpoints:
+- GET /health
+- POST /query  {"q": "average yield Q1 2023", "csv": "20251215_priceyield.csv"}
+
+This file reuses parse_intent and BondDB from the existing module.
+"""
+from typing import Optional, Dict, Any, List
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+
+from datetime import date
+import os
+import io
+import base64
+import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+try:
+    import seaborn as sns
+    _HAS_SEABORN = True
+    _SNS_STYLE = os.environ.get("BOND_SNS_STYLE", "darkgrid")
+    _SNS_CONTEXT = os.environ.get("BOND_SNS_CONTEXT", "notebook")
+    _SNS_PALETTE = os.environ.get("BOND_SNS_PALETTE", "bright")
+except Exception:
+    _HAS_SEABORN = False
+
+# Import parsing and DB logic from existing script (filename begins with digits so import dynamically)
+import importlib.util
+from pathlib import Path
+_mod_path = Path(__file__).with_name("20251223_priceyield.py")
+if not _mod_path.exists():
+    raise RuntimeError(f"Could not find module file: {_mod_path}")
+spec = importlib.util.spec_from_file_location("priceyield_mod", str(_mod_path))
+priceyield_mod = importlib.util.module_from_spec(spec)
+import sys
+sys.modules["priceyield_mod"] = priceyield_mod
+spec.loader.exec_module(priceyield_mod)
+parse_intent = priceyield_mod.parse_intent
+BondDB = priceyield_mod.BondDB
+Intent = priceyield_mod.Intent
+
+app = FastAPI(title="Bond Query API")
+
+# Allow local browser testing
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Simple in-memory cache of BondDB instances keyed by csv path
+_DB_CACHE: Dict[str, BondDB] = {}
+
+def get_db(csv: str) -> BondDB:
+    if csv not in _DB_CACHE:
+        _DB_CACHE[csv] = BondDB(csv)
+    return _DB_CACHE[csv]
+
+
+class QueryRequest(BaseModel):
+    q: str
+    csv: Optional[str] = "20251215_priceyield.csv"
+
+
+class QueryResponse(BaseModel):
+    intent: Dict[str, Any]
+    result: Dict[str, Any]
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+@app.post("/query", response_model=QueryResponse)
+async def query(req: QueryRequest):
+    q = req.q
+    csv = req.csv
+    try:
+        intent: Intent = parse_intent(q)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not parse intent: {e}")
+
+    db = get_db(csv)
+
+    # POINT
+    if intent.type == "POINT":
+        d: date = intent.point_date
+        params = [d.isoformat()]
+        where = "obs_date = ?"
+        if intent.tenor:
+            where += " AND tenor = ?"
+            params.append(intent.tenor)
+        if intent.series:
+            where += " AND series = ?"
+            params.append(intent.series)
+
+        q_sql = f"SELECT series, tenor, price, \"yield\" FROM ts WHERE {where} ORDER BY series LIMIT 500"
+        rows = db.con.execute(q_sql, params).fetchall()
+        rows_list = [dict(series=r[0], tenor=r[1], price=r[2], **{'yield': r[3]}) for r in rows]
+        return QueryResponse(
+            intent={"type": intent.type, "metric": intent.metric, "point_date": d.isoformat(), "series": intent.series, "tenor": intent.tenor},
+            result={"type": "point_rows", "rows": rows_list, "count": len(rows_list)},
+        )
+
+    # RANGE / AGG_RANGE
+    if intent.type in ("RANGE", "AGG_RANGE"):
+        if not intent.agg:
+            return QueryResponse(
+                intent={"type": intent.type, "start_date": intent.start_date.isoformat(), "end_date": intent.end_date.isoformat()},
+                result={"note": "Range detected. Provide an aggregate like 'avg' to compute an aggregation."},
+            )
+        val, n = db.aggregate(intent.start_date, intent.end_date, intent.metric, intent.agg, intent.series, intent.tenor)
+        return QueryResponse(
+            intent={"type": intent.type, "agg": intent.agg, "metric": intent.metric, "start_date": intent.start_date.isoformat(), "end_date": intent.end_date.isoformat(), "series": intent.series, "tenor": intent.tenor},
+            result={"value": val, "n": n},
+        )
+
+    raise HTTPException(status_code=400, detail="Unhandled intent type")
+
+
+# --- Plot helper: returns PNG bytes for a range query ---
+def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str = 'yield', tenor: Optional[str] = None, highlight_date: Optional[date] = None) -> bytes:
+    # Query the ts view
+    params = [start_date.isoformat(), end_date.isoformat()]
+    q = 'SELECT obs_date, series, tenor, price, "yield" FROM ts WHERE obs_date BETWEEN ? AND ?'
+    if tenor:
+        q += ' AND tenor = ?'
+        params.append(tenor)
+    q += ' ORDER BY obs_date'
+    df = db.con.execute(q, params).fetchdf()
+
+    if df.empty:
+        # return a tiny PNG that says 'no data'
+        plt.figure(figsize=(4,2))
+        plt.text(0.5,0.5,'No data', ha='center', va='center')
+        buf = io.BytesIO()
+        plt.axis('off')
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        plt.close()
+        buf.seek(0)
+        return buf.read()
+
+    df['obs_date'] = pd.to_datetime(df['obs_date'])
+
+    # per-series reindex + ffill to daily frequency then average across series
+    all_dates = pd.date_range(start_date, end_date, freq='D')
+    filled = []
+    for s, g in df.groupby('series'):
+        g2 = g.set_index('obs_date').reindex(all_dates)
+        g2['series'] = s
+        g2[['price','yield']] = g2[['price','yield']].ffill()
+        filled.append(g2.reset_index().rename(columns={'index':'obs_date'}))
+    filled = pd.concat(filled, ignore_index=True)
+
+    daily = filled.groupby('obs_date')[metric].mean().reset_index()
+
+    # Format dates for display
+    def format_date(d):
+        """Convert date to '1 Jan 2023' format"""
+        return d.strftime('%-d %b %Y') if hasattr(d, 'strftime') else str(d)
+    
+    # Format tenor for display (remove underscore)
+    display_tenor = tenor.replace('_', ' ') if tenor else ''
+    
+    # Format title dates
+    title_start = format_date(start_date)
+    title_end = format_date(end_date)
+
+    # plot (prefer seaborn if available)
+    buf = io.BytesIO()
+    try:
+        if _HAS_SEABORN:
+            sns.set_theme(style=_SNS_STYLE, context=_SNS_CONTEXT, palette=_SNS_PALETTE)
+            fig, ax = plt.subplots(figsize=(9, 3.5))
+            sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
+            
+            # Highlight specific date if provided
+            if highlight_date:
+                highlight_row = daily[daily['obs_date'] == pd.Timestamp(highlight_date)]
+                if not highlight_row.empty:
+                    highlight_date_str = format_date(highlight_date)
+                    ax.plot(highlight_row['obs_date'], highlight_row[metric], 'ro', markersize=8, label=f'Highlight: {highlight_date_str}')
+                    ax.legend()
+            
+            # Set title with formatted dates
+            ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
+            ax.set_xlabel('Date')
+            ax.set_ylabel(metric.capitalize())
+            
+            # Format x-axis dates
+            from matplotlib.dates import DateFormatter
+            date_formatter = DateFormatter('%-d %b %Y')
+            ax.xaxis.set_major_formatter(date_formatter)
+            
+            fig.autofmt_xdate()
+            sns.despine(ax=ax)
+            fig.tight_layout()
+            fig.savefig(buf, format='png')
+            plt.close(fig)
+        else:
+            raise RuntimeError('seaborn not available')
+    except Exception:
+        # Fallback to plain matplotlib
+        plt.figure(figsize=(8,3))
+        plt.plot(daily['obs_date'], daily[metric], linestyle='-')
+        
+        # Highlight specific date if provided
+        if highlight_date:
+            highlight_row = daily[daily['obs_date'] == pd.Timestamp(highlight_date)]
+            if not highlight_row.empty:
+                highlight_date_str = format_date(highlight_date)
+                plt.plot(highlight_row['obs_date'], highlight_row[metric], 'ro', markersize=8, label=f'Highlight: {highlight_date_str}')
+                plt.legend()
+        
+        plt.title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
+        plt.xlabel('Date')
+        plt.ylabel(metric.capitalize())
+        
+        # Format x-axis dates
+        from matplotlib.dates import DateFormatter
+        date_formatter = DateFormatter('%-d %b %Y')
+        plt.gca().xaxis.set_major_formatter(date_formatter)
+        plt.gcf().autofmt_xdate()
+        
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(buf, format='png')
+        plt.close()
+    buf.seek(0)
+    return buf.read()
+
+
+@app.post('/plot')
+async def plot(req: QueryRequest):
+    """Return a PNG plot for a range query. Use the same natural language queries that produce a RANGE intent."""
+    try:
+        intent: Intent = parse_intent(req.q)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not parse intent: {e}")
+
+    if intent.type not in ('RANGE','AGG_RANGE'):
+        raise HTTPException(status_code=400, detail='Plot endpoint expects a RANGE query (e.g., "10 year 2023")')
+
+    db = get_db(req.csv)
+    png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor)
+    return StreamingResponse(io.BytesIO(png), media_type='image/png')
+
+
+class ChatRequest(BaseModel):
+    q: str
+    csv: Optional[str] = '20251215_priceyield.csv'
+    plot: Optional[bool] = False
+    highlight_date: Optional[str] = None  # Optional date to highlight on plot (e.g., "2023-05-15")
+
+
+@app.post('/chat')
+async def chat_endpoint(req: ChatRequest):
+    """Higher-level chat endpoint: returns JSON with text and optional base64 PNG if plot=True."""
+    try:
+        intent: Intent = parse_intent(req.q)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not parse intent: {e}")
+
+    db = get_db(req.csv)
+
+    # POINT
+    if intent.type == 'POINT':
+        d = intent.point_date
+        params = [d.isoformat()]
+        where = 'obs_date = ?'
+        if intent.tenor:
+            where += ' AND tenor = ?'; params.append(intent.tenor)
+        if intent.series:
+            where += ' AND series = ?'; params.append(intent.series)
+        rows = db.con.execute(f'SELECT series, tenor, price, "yield" FROM ts WHERE {where} ORDER BY series', params).fetchall()
+        rows_list = [dict(series=r[0], tenor=r[1], price=round(r[2], 2) if r[2] is not None else None, **{'yield': round(r[3], 2) if r[3] is not None else None}) for r in rows]
+        text = f"Found {len(rows_list)} row(s) for {intent.tenor or 'all tenors'} on {d}:"
+        return JSONResponse({"text": text, "rows": rows_list})
+
+    # RANGE / AGG_RANGE handling (support plotting without explicit aggregation)
+    # Determine whether user requested a plot by keywords or by the `plot` flag
+    lower_q = (req.q or '').lower()
+    plot_keywords = ('plot', 'chart', 'show', 'visualize', 'graph')
+    wants_plot = bool(req.plot) or any(k in lower_q for k in plot_keywords)
+
+    if intent.type in ('RANGE', 'AGG_RANGE'):
+        # If an aggregation is present, compute it and optionally plot
+        if intent.agg:
+            val, n = db.aggregate(intent.start_date, intent.end_date, intent.metric, intent.agg, intent.series, intent.tenor)
+            text = f"{intent.agg.upper()} {intent.metric} {intent.start_date} → {intent.end_date} = {round(val, 2) if val is not None else 'N/A'} (N={n})"
+            if wants_plot:
+                # Use highlight_date from intent
+                highlight_date_obj = intent.highlight_date
+                png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, highlight_date=highlight_date_obj)
+                b64 = base64.b64encode(png).decode('ascii')
+                return JSONResponse({"text": text, "image_base64": b64})
+            return JSONResponse({"text": text})
+
+        # No aggregation provided — return all individual rows for the date range
+        params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
+        where = 'obs_date BETWEEN ? AND ?'
+        if intent.tenor:
+            where += ' AND tenor = ?'; params.append(intent.tenor)
+        if intent.series:
+            where += ' AND series = ?'; params.append(intent.series)
+        rows = db.con.execute(f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date DESC, series', params).fetchall()
+        rows_list = [dict(series=r[0], tenor=r[1], date=r[2].isoformat(), price=round(r[3], 2) if r[3] is not None else None, **{'yield': round(r[4], 2) if r[4] is not None else None}) for r in rows]
+        text = f"Found {len(rows_list)} row(s) for {intent.tenor or 'all tenors'} from {intent.start_date} to {intent.end_date}:"
+        
+        # If the user asked for a plot, also include it
+        if wants_plot:
+            # Use highlight_date from intent
+            highlight_date_obj = intent.highlight_date
+            png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, highlight_date=highlight_date_obj)
+            b64 = base64.b64encode(png).decode('ascii')
+            return JSONResponse({"text": text, "rows": rows_list, "image_base64": b64})
+        
+        return JSONResponse({"text": text, "rows": rows_list})
+
+
+# Minimal chat UI (single-file)
+@app.get('/ui')
+async def ui():
+    html = """
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Bond Chat UI</title>
+      <style>body{font-family:system-ui,Segoe UI,Helvetica,Arial;margin:20px}#chat{border:1px solid #ddd;padding:10px;height:400px;overflow:auto} .msg{margin:8px 0} .user{color:blue} .bot{color:green}</style>
+    </head>
+    <body>
+      <h3>Bond Chat (local)</h3>
+      <div id="chat"></div>
+      <div style="margin-top:10px">
+        <input id="q" style="width:70%" placeholder="Ask something like: what's the yield of 10 year on 2 May 2023" />
+        <button id="send">Send</button>
+        <label><input type="checkbox" id="plot" /> plot</label>
+      </div>
+      <script>
+        async function postJSON(url, data){
+          const r = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+          return r.json();
+        }
+        const chat = document.getElementById('chat');
+        function addMsg(who, html){ const d=document.createElement('div'); d.className='msg '+who; d.innerHTML=html; chat.appendChild(d); chat.scrollTop = chat.scrollHeight; }
+        document.getElementById('send').onclick = async ()=>{
+          const q = document.getElementById('q').value; const plot = document.getElementById('plot').checked;
+          if(!q) return;
+          addMsg('user','<b>You:</b> '+q);
+          addMsg('bot','<i>… thinking …</i>');
+          try{
+            const res = await postJSON('/chat',{q:q, plot:plot});
+            chat.lastChild.innerHTML = '<b>Bot:</b> '+(res.text||'');
+            if(res.image_base64){
+              const img = new Image(); img.src = 'data:image/png;base64,'+res.image_base64; img.style.maxWidth='100%'; img.style.marginTop='8px'; chat.appendChild(img); chat.scrollTop = chat.scrollHeight;
+            }
+            if(res.rows){
+              const pre = document.createElement('pre'); pre.textContent = JSON.stringify(res.rows, null, 2); chat.appendChild(pre); chat.scrollTop = chat.scrollHeight;
+            }
+          }catch(e){ chat.lastChild.innerHTML = '<b>Bot:</b> Error - '+e }
+        }
+      </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(html)
+
+
+if __name__ == "__main__":
+    uvicorn.run("app_fastapi:app", host="127.0.0.1", port=8000, reload=True)
