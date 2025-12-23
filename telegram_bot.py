@@ -88,15 +88,58 @@ def summarize_intent_result(intent, rows_list):
     """Produce a short text summary of computed results for LLM context."""
     if not rows_list:
         return "No matching data found in the requested period."
-    # Take up to 3 rows for brevity
-    sample = rows_list[:3]
+    
     parts = []
-    for r in sample:
-        parts.append(
-            f"Series {r['series']} | Tenor {r['tenor'].replace('_',' ')} | "
-            f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
-            + (f" | Date {r.get('date')}" if 'date' in r else "")
-        )
+    
+    # For range queries with statistics, include all rows with stats
+    if intent.type == 'AGG_RANGE' or (intent.type == 'RANGE' and len(rows_list) > 1):
+        # Compute statistics for the metric
+        metric_values = []
+        for r in rows_list:
+            val = r.get(intent.metric if hasattr(intent, 'metric') and intent.metric else 'yield')
+            if val is not None:
+                try:
+                    metric_values.append(float(val))
+                except (ValueError, TypeError):
+                    pass
+        
+        if metric_values:
+            import statistics as stats_module
+            metric_name = intent.metric if hasattr(intent, 'metric') and intent.metric else 'yield'
+            min_val = min(metric_values)
+            max_val = max(metric_values)
+            avg_val = stats_module.mean(metric_values)
+            std_val = stats_module.stdev(metric_values) if len(metric_values) > 1 else 0
+            
+            parts.append(
+                f"Period: {intent.start_date} to {intent.end_date}\n"
+                f"Records found: {len(rows_list)}\n"
+                f"Statistics ({metric_name}): Min={min_val:.2f}, Max={max_val:.2f}, Avg={avg_val:.2f}, StdDev={std_val:.2f}\n"
+                f"Data rows:"
+            )
+            for r in rows_list:
+                if 'date' in r:
+                    parts.append(
+                        f"  {r['series']} | {r['tenor'].replace('_', ' ')} | {r['date']} | "
+                        f"Price {r.get('price', 'N/A')} | Yield {r.get('yield', 'N/A')}"
+                    )
+        else:
+            # Fallback: show first 3 rows
+            for r in rows_list[:3]:
+                parts.append(
+                    f"Series {r['series']} | Tenor {r['tenor'].replace('_',' ')} | "
+                    f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
+                    + (f" | Date {r.get('date')}" if 'date' in r else "")
+                )
+    else:
+        # For point queries or small result sets, show all or up to 5 rows
+        for r in rows_list[:5]:
+            parts.append(
+                f"Series {r['series']} | Tenor {r['tenor'].replace('_',' ')} | "
+                f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
+                + (f" | Date {r.get('date')}" if 'date' in r else "")
+            )
+    
     header = f"Computed rows ({len(rows_list)} total):"
     return header + "\n" + "\n".join(parts)
 
@@ -142,6 +185,7 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📝 *Query Examples:*\n\n"
         "*Point queries (specific date):*\n"
         "• `yield 10 year 2025-06-15`\n"
+        "• `yield 5 year june 2025`\n"
         "• `FR103 price 5 year June 15 2025`\n"
         "• `FR95 yield 2024-03-20`\n\n"
         "*Range queries (with statistics):*\n"
@@ -251,7 +295,7 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"(computed from {n} data points in period {intent.start_date} to {intent.end_date})"
                 )
             else:
-                # Range without aggregation - show sample rows
+                # Range without aggregation - fetch ALL rows for the period
                 params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
                 where = 'obs_date BETWEEN ? AND ?'
                 if intent.tenor:
@@ -261,7 +305,7 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     where += ' AND series = ?'
                     params.append(intent.series)
                 rows = db.con.execute(
-                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date DESC, series LIMIT 50',
+                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
                     params
                 ).fetchall()
                 rows_list = [
