@@ -204,14 +204,17 @@ def parse_intent(text: str) -> Intent:
     # 4) Year-only (range even without aggregation)
     ym = YEAR_RE.findall(text_for_parsing)
     if ym:
-        y = int(ym[-1])
+        # Convert to integers and get min/max for range handling (e.g., "2024 and 2025")
+        years = sorted(set(int(y) for y in ym))
+        start_year = years[0]
+        end_year = years[-1]
         return Intent(
             type="AGG_RANGE" if agg else "RANGE",
             metric=metric,
             series=series,
             tenor=tenor,
-            start_date=date(y,1,1),
-            end_date=date(y,12,31),
+            start_date=date(start_year, 1, 1),
+            end_date=date(end_year, 12, 31),
             agg=agg,
             highlight_date=highlight_date,
         )
