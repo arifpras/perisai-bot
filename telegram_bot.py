@@ -236,10 +236,10 @@ async def ask_kei(question: str) -> str:
 
         "Output style:\n"
         "- Structured, concise, analytical.\n"
-        "- Use equations, definitions, or pseudo-math when helpful.\n"
-        "- Translate results into plain English after presenting the numbers.\n"
-        "- Prefer ranges, confidence intervals, and scenarios over point estimates.\n"
-        "- Keep responses brief and focused (max 200 words).\n\n"
+        "- No headings, no equations, no code blocks.\n"
+        "- Use 3-5 short bullets; each bullet <= 2 lines.\n"
+        "- Plain English summaries; include ranges/uncertainty briefly.\n"
+        "- Keep it under 110 words.\n\n"
 
         "If precomputed bond or market data are provided:\n"
         "- Treat them as given inputs.\n"
@@ -266,7 +266,7 @@ async def ask_kei(question: str) -> str:
         resp = await _openai_client.chat.completions.create(
             model="gpt-5.2",
             messages=messages,
-            max_completion_tokens=300,
+            max_completion_tokens=220,
             temperature=0.3,  # low creativity, high precision
         )
         return resp.choices[0].message.content.strip()
@@ -297,8 +297,8 @@ async def ask_kin(question: str) -> str:
         "- Emphasize 'so what?' and 'what follows?'.\n"
         "- Avoid equations unless strictly necessary.\n"
         "- Explicitly separate facts, interpretation, and judgment.\n"
-        "- No tables, no citations/footnotes, no bracketed references.\n"
-        "- Use 4-5 short bullets (no headings) and keep under 140 words.\n\n"
+        "- No headings, no tables, no citations/footnotes/bracketed refs.\n"
+        "- Use 3-4 bullets; each bullet <= 2 lines; keep under 120 words.\n\n"
 
         "If bond or market data summaries are provided:\n"
         "- Use them as factual anchors.\n"
