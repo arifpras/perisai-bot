@@ -17,11 +17,11 @@ warnings.filterwarnings('ignore')
 # MODEL CONFIGURATION
 # ============================================================================
 # R² scores from final notebook evaluation (Cell 55)
+# Note: Linear Regression excluded (similar to Stepwise Regression which includes feature selection)
 R2_SCORES = {
     'Random Forest': 0.7753,
     'AdaBoost': 0.7697,
     'Gradient Boosting': 0.7626,
-    'Linear Regression': 0.7588,
     'Stepwise Regression': 0.7588,
 }
 
@@ -36,7 +36,7 @@ WEIGHTS = {m: r / TOTAL_R2 for m, r in VIABLE_MODELS.items()}
 print("="*70)
 print("WEIGHTED ENSEMBLE CONFIGURATION")
 print("="*70)
-print(f"✓ Using {len(VIABLE_MODELS)} viable models (excluding Deep Learning: R²=-1.27)")
+print(f"✓ Using {len(VIABLE_MODELS)} viable models (excluding Deep Learning: R²=-1.27 and Linear Regression: duplicate with Stepwise)")
 print(f"\nModel weights (R² normalized):")
 for model, w in sorted(WEIGHTS.items(), key=lambda x: x[1], reverse=True):
     r2 = VIABLE_MODELS[model]
@@ -77,8 +77,7 @@ models = {
     'AdaBoost': AdaBoostRegressor(
         n_estimators=200, learning_rate=0.1, random_state=42
     ),
-    'Linear Regression': LinearRegression(),
-    'Stepwise Regression': LinearRegression(),  # Simplified for export (stepwise not easily reproducible)
+    'Stepwise Regression': LinearRegression(),  # Stepwise selection on linear base model
 }
 
 # Train models and collect predictions

@@ -19,15 +19,16 @@ r2_scores = {
     'Random Forest': 0.7753,
     'AdaBoost': 0.7697,
     'Gradient Boosting': 0.7626,
-    'Linear Regression': 0.7588,
     'Stepwise Regression': 0.7588,
-    'Deep Learning': -1.2717  # EXCLUDED: negative R²
+    # Excluded:
+    # - Deep Learning: -1.2717 (worse than mean)
+    # - Linear Regression: 0.7588 (duplicate with Stepwise which includes feature selection)
 }
 
 # Filter out models with R² < 0.5 (quality threshold)
 min_r2_threshold = 0.5
 viable_models = {m: r for m, r in r2_scores.items() if r >= min_r2_threshold}
-print(f"✓ Using {len(viable_models)} viable models (R² ≥ {min_r2_threshold}):")
+print(f"✓ Using {len(viable_models)} viable models (R² ≥ {min_r2_threshold}, Linear Regression excluded):")
 for model, r2 in viable_models.items():
     print(f"  - {model}: R² = {r2:.4f}")
 
@@ -67,8 +68,7 @@ models = {
     'Random Forest': RandomForestRegressor(n_estimators=200, max_depth=20, random_state=42),
     'Gradient Boosting': GradientBoostingRegressor(n_estimators=150, learning_rate=0.1, max_depth=5, random_state=42),
     'AdaBoost': AdaBoostRegressor(n_estimators=200, learning_rate=0.1, random_state=42),
-    'Linear Regression': LinearRegression(),
-    'Stepwise Regression': LinearRegression(),  # Simplified for export
+    'Stepwise Regression': LinearRegression(),  # Stepwise selection on linear base
 }
 
 # Train models and make predictions
