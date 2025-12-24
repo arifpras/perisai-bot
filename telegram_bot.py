@@ -234,16 +234,11 @@ async def ask_kei(question: str) -> str:
         "- If evidence is insufficient, say so clearly.\n"
         "- Avoid speculation, narratives, and policy advocacy.\n\n"
 
-        "Output style:
-"
-        "- Structured, concise, analytical.
-"
-        "- No headings, no bold/italics (**text**), no equations, no code blocks.
-"
-        "- Use 3-5 short bullets with blank lines between them; each bullet ≤ 2 lines.
-"
-        "- Plain English summaries; include ranges/uncertainty briefly.
-"
+        "Output style:\n"
+        "- Structured, concise, analytical.\n"
+        "- No headings, no bold/italics (**text**), no equations, no code blocks.\n"
+        "- Use 3-5 short bullets with blank lines between them; each bullet ≤ 2 lines.\n"
+        "- Plain English summaries; include ranges/uncertainty briefly.\n"
         "- Keep it under 110 words.\n\n"
 
         "If precomputed bond or market data are provided:\n"
