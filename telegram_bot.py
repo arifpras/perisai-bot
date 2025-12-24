@@ -31,6 +31,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 _openai_client: Optional[AsyncOpenAI] = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 logger = logging.getLogger("telegram_bot")
 
+# Perplexity API (HTTPX-based)
+PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
+PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar-large-online")
+
 # Access control: allowed user IDs (comma-separated in env var or hardcoded)
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS", "")
 if ALLOWED_USER_IDS_STR:
@@ -144,6 +148,214 @@ def summarize_intent_result(intent, rows_list):
     return header + "\n" + "\n".join(parts)
 
 
+async def try_compute_bond_summary(question: str) -> Optional[str]:
+    """Best-effort: parse question and compute a summary for LLM context."""
+    try:
+        intent = parse_intent(question)
+        db = get_db()
+        rows_list = []
+
+        if intent.type == 'POINT':
+            d = intent.point_date
+            params = [d.isoformat()]
+            where = 'obs_date = ?'
+            if intent.tenor:
+                where += ' AND tenor = ?'
+                params.append(intent.tenor)
+            if intent.series:
+                where += ' AND series = ?'
+                params.append(intent.series)
+            rows = db.con.execute(
+                f'SELECT series, tenor, price, "yield" FROM ts WHERE {where} ORDER BY series',
+                params
+            ).fetchall()
+            rows_list = [
+                dict(
+                    series=r[0],
+                    tenor=r[1],
+                    price=round(r[2], 2) if r[2] is not None else None,
+                    **{'yield': round(r[3], 2) if r[3] is not None else None}
+                )
+                for r in rows
+            ]
+            if rows_list:
+                return summarize_intent_result(intent, rows_list)
+
+        elif intent.type in ('RANGE', 'AGG_RANGE'):
+            if intent.agg:
+                val, n = db.aggregate(
+                    intent.start_date, intent.end_date,
+                    intent.metric, intent.agg,
+                    intent.series, intent.tenor
+                )
+                return (
+                    f"Aggregate result: {intent.agg.upper()} {intent.metric} = {round(val, 2) if val is not None else 'N/A'} "
+                    f"(computed from {n} data points in period {intent.start_date} to {intent.end_date})"
+                )
+            else:
+                params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
+                where = 'obs_date BETWEEN ? AND ?'
+                if intent.tenor:
+                    where += ' AND tenor = ?'; params.append(intent.tenor)
+                if intent.series:
+                    where += ' AND series = ?'; params.append(intent.series)
+                rows = db.con.execute(
+                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
+                    params
+                ).fetchall()
+                rows_list = [
+                    dict(
+                        series=r[0], tenor=r[1], date=r[2].isoformat(),
+                        price=round(r[3], 2) if r[3] is not None else None,
+                        **{'yield': round(r[4], 2) if r[4] is not None else None}
+                    ) for r in rows
+                ]
+                if rows_list:
+                    return summarize_intent_result(intent, rows_list)
+    except Exception:
+        return None
+    return None
+
+
+async def ask_kei(question: str) -> str:
+    """Persona /kei — world-class data scientist & econometrician."""
+    if not _openai_client:
+        return "⚠️ Persona /kei unavailable: OPENAI_API_KEY not configured."
+
+    system_prompt = (
+        "You are **Kei**.\n"
+        "Profile: CFA charterholder, PhD (MIT). World-class data scientist with "
+        "deep expertise in mathematics, statistics, econometrics, and forecasting.\n\n"
+
+        "Operating principles:\n"
+        "- Start from data and models, not opinions.\n"
+        "- Be explicit about assumptions, uncertainty, and limitations.\n"
+        "- If evidence is insufficient, say so clearly.\n"
+        "- Avoid speculation, narratives, and policy advocacy.\n\n"
+
+        "Output style:\n"
+        "- Structured, concise, analytical.\n"
+        "- Use equations, definitions, or pseudo-math when helpful.\n"
+        "- Translate results into plain English after presenting the numbers.\n"
+        "- Prefer ranges, confidence intervals, and scenarios over point estimates.\n\n"
+
+        "If precomputed bond or market data are provided:\n"
+        "- Treat them as given inputs.\n"
+        "- Do not fabricate missing data.\n"
+        "- Base conclusions strictly on those inputs."
+    )
+
+    data_summary = await try_compute_bond_summary(question)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": "Constraint: no live news access; information may be outdated."},
+    ]
+
+    if data_summary:
+        messages.append({
+            "role": "system",
+            "content": f"Precomputed quantitative inputs:\n{data_summary}"
+        })
+
+    messages.append({"role": "user", "content": question})
+
+    try:
+        resp = await _openai_client.chat.completions.create(
+            model="gpt-5.2",
+            messages=messages,
+            max_completion_tokens=450,
+            temperature=0.35,  # low creativity, high precision
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        return f"⚠️ OpenAI error: {e}"
+
+
+async def ask_kin(question: str) -> str:
+    """Persona /kin — world-class economist & synthesizer."""
+    if not PERPLEXITY_API_KEY:
+        return "⚠️ Persona /kin unavailable: PERPLEXITY_API_KEY not configured."
+
+    import httpx
+
+    system_prompt = (
+        "You are **Kin**.\n"
+        "Profile: CFA charterholder, PhD (Harvard). World-class economist with "
+        "strong macro, finance, and institutional insight.\n\n"
+
+        "Operating principles:\n"
+        "- Connect numbers, information, incentives, and context.\n"
+        "- Focus on implications, risks, and trade-offs.\n"
+        "- Be pragmatic and decision-oriented.\n"
+        "- You may use informed judgment, but anchor it to evidence.\n\n"
+
+        "Output style:\n"
+        "- Clear bullet points or short sections.\n"
+        "- Emphasize 'so what?' and 'what follows?'.\n"
+        "- Avoid equations unless strictly necessary.\n"
+        "- Explicitly separate facts, interpretation, and judgment.\n\n"
+
+        "If bond or market data summaries are provided:\n"
+        "- Use them as factual anchors.\n"
+        "- Do not redo quantitative analysis already supplied.\n"
+        "- Translate results into economic meaning and implications."
+    )
+
+    data_summary = await try_compute_bond_summary(question)
+
+    messages = [{"role": "system", "content": system_prompt}]
+
+    if data_summary:
+        messages.append({
+            "role": "system",
+            "content": f"Available market context:\n{data_summary}"
+        })
+
+    messages.append({"role": "user", "content": question})
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": PERPLEXITY_MODEL,
+            "messages": messages,
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                "https://api.perplexity.ai/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            r.raise_for_status()
+            data = r.json()
+
+        return (
+            data.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
+        ) or "(empty response)"
+
+    except Exception as e:
+        return f"⚠️ Perplexity error: {e}"
+
+
+async def ask_kei_then_kin(question: str) -> dict:
+    """Chain both personas: Kei analyzes data quantitatively, Kin interprets & concludes."""
+    kei_answer = await ask_kei(question)
+    kin_answer = await ask_kin(
+        f"Based on the following quantitative analysis, interpret and conclude:\n\n{kei_answer}"
+    )
+    return {
+        "kei": kei_answer,
+        "kin": kin_answer,
+    }
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     user_id = update.message.from_user.id
@@ -165,7 +377,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📌 *Commands:*\n"
         "/start - Show this help\n"
         "/examples - Show more examples\n"
-        "/ask_admin <question> - Ask the virtual admin (simulated persona)\n\n"
+        "/kei <question> - Ask persona Kei (ChatGPT)\n"
+        "/kin <question> - Ask persona Kin (Perplexity)\n"
+        "/both <question> - Chain both personas (quantitative → interpretation)\n\n"
+        "Tip: You can also type `\\kei ...` or `\\kin ...` as shortcuts.\n\n"
         "Just send your question and I'll fetch the data! 🚀"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.MARKDOWN)
@@ -196,7 +411,11 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• `plot yield 10 year 2025`\n"
         "• `chart FR103 5 year June 2025`\n"
         "• `show price 5 year Q2 2024`\n\n"
-        "💡 Tip: Use 'plot' or 'chart' to get a visual graph!\n"
+        "💡 Tip: Use 'plot' or 'chart' to get a visual graph!\n\n"
+        "🤖 *Personas:*\n"
+        "• `/kei <question>` — ChatGPT (quantitative analysis)\n"
+        "• `/kin <question>` — Perplexity (economic interpretation)\n"
+        "• `/both <question>` — Chain both: Kei analyzes, Kin concludes\n\n"
         "📊 Data available: 2023-2025 | Series: FR95-FR104 | Tenors: 5Y, 10Y"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.MARKDOWN)
@@ -366,6 +585,77 @@ async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/kei <question> — ask persona Kei (ChatGPT)."""
+    user_id = update.message.from_user.id
+    if not is_user_authorized(user_id):
+        await update.message.reply_text(
+            "⛔ Access denied. This bot is restricted to authorized users only."
+        )
+        logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        return
+
+    question = " ".join(context.args).strip() if context.args else ""
+    if not question:
+        await update.message.reply_text("Usage: /kei <question>")
+        return
+    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    answer = await ask_kei(question)
+    await update.message.reply_text(f"🤖 Kei:\n\n{answer}", parse_mode=ParseMode.MARKDOWN)
+
+
+async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/kin <question> — ask persona Kin (Perplexity)."""
+    user_id = update.message.from_user.id
+    if not is_user_authorized(user_id):
+        await update.message.reply_text(
+            "⛔ Access denied. This bot is restricted to authorized users only."
+        )
+        logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        return
+
+    question = " ".join(context.args).strip() if context.args else ""
+    if not question:
+        await update.message.reply_text("Usage: /kin <question>")
+        return
+    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    answer = await ask_kin(question)
+    await update.message.reply_text(f"🤖 Kin:\n\n{answer}", parse_mode=ParseMode.MARKDOWN)
+
+
+async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/both <question> — chain both personas: Kei (quantitative) → Kin (interpretation)."""
+    user_id = update.message.from_user.id
+    if not is_user_authorized(user_id):
+        await update.message.reply_text(
+            "⛔ Access denied. This bot is restricted to authorized users only."
+        )
+        logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        return
+
+    question = " ".join(context.args).strip() if context.args else ""
+    if not question:
+        await update.message.reply_text("Usage: /both <question>")
+        return
+    
+    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    result = await ask_kei_then_kin(question)
+    
+    kei_answer = result["kei"]
+    kin_answer = result["kin"]
+    
+    response = (
+        "📊 *Dual Persona Analysis*\n\n"
+        "🔬 **Kei** (Quantitative Analysis):\n"
+        f"{kei_answer}\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "💡 **Kin** (Economic Interpretation):\n"
+        f"{kin_answer}"
+    )
+    
+    await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN)
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming text messages with bond queries."""
     user_id = update.message.from_user.id
@@ -376,13 +666,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning("Unauthorized access attempt from user_id=%s", user_id)
         return
     
-    user_query = update.message.text
+    user_query = update.message.text or ""
     chat_id = update.message.chat_id
     
     # Send typing indicator
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     
     try:
+        # Persona routing: \kei (OpenAI) and \kin (Perplexity)
+        lowered = user_query.strip().lower()
+        if lowered.startswith("\\kei"):
+            question = user_query.strip()[4:].strip()  # remove prefix
+            if not question:
+                await update.message.reply_text("Usage: \\kei <question>")
+                return
+            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+            answer = await ask_kei(question)
+            await update.message.reply_text(f"🤖 Kei:\n\n{answer}", parse_mode=ParseMode.MARKDOWN)
+            return
+
+        if lowered.startswith("\\kin"):
+            question = user_query.strip()[4:].strip()
+            if not question:
+                await update.message.reply_text("Usage: \\kin <question>")
+                return
+            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+            answer = await ask_kin(question)
+            await update.message.reply_text(f"🤖 Kin:\n\n{answer}", parse_mode=ParseMode.MARKDOWN)
+            return
+
         # Determine if user wants a plot
         lower_q = user_query.lower()
         plot_keywords = ('plot', 'chart', 'show', 'visualize', 'graph')
@@ -683,6 +995,11 @@ def create_telegram_app(token: str) -> Application:
     # Add handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("examples", examples_command))
+    # Personas
+    application.add_handler(CommandHandler("kei", kei_command))
+    application.add_handler(CommandHandler("kin", kin_command))
+    application.add_handler(CommandHandler("both", both_command))
+    # Deprecated: /ask_admin (still available but not advertised)
     application.add_handler(CommandHandler("ask_admin", ask_admin_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
