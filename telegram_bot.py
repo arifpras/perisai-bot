@@ -297,7 +297,8 @@ async def ask_kin(question: str) -> str:
         "- Emphasize 'so what?' and 'what follows?'.\n"
         "- Avoid equations unless strictly necessary.\n"
         "- Explicitly separate facts, interpretation, and judgment.\n"
-        "- Keep responses concise and actionable (max 250 words).\n\n"
+        "- No tables, no citations/footnotes, no bracketed references.\n"
+        "- Use 4-5 short bullets (no headings) and keep under 140 words.\n\n"
 
         "If bond or market data summaries are provided:\n"
         "- Use them as factual anchors.\n"
