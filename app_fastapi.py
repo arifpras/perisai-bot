@@ -142,13 +142,22 @@ async def query(req: QueryRequest):
 
 
 # --- Plot helper: returns PNG bytes for a range query ---
-def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str = 'yield', tenor: Optional[str] = None, highlight_date: Optional[date] = None) -> bytes:
+def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str = 'yield', tenor: Optional[str] = None, tenors: Optional[list] = None, highlight_date: Optional[date] = None) -> bytes:
     # Query the ts view
     params = [start_date.isoformat(), end_date.isoformat()]
     q = 'SELECT obs_date, series, tenor, price, "yield" FROM ts WHERE obs_date BETWEEN ? AND ?'
-    if tenor:
+    
+    # Handle multi-tenor or single tenor
+    if tenors and len(tenors) > 1:
+        # Multi-tenor query
+        placeholders = ','.join(['?'] * len(tenors))
+        q += f' AND tenor IN ({placeholders})'
+        params.extend(tenors)
+    elif tenor:
+        # Single tenor (backward compatibility)
         q += ' AND tenor = ?'
         params.append(tenor)
+    
     q += ' ORDER BY obs_date'
     df = db.con.execute(q, params).fetchdf()
 
@@ -164,46 +173,94 @@ def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str
         return buf.read()
 
     df['obs_date'] = pd.to_datetime(df['obs_date'])
+    
+    # Determine if multi-tenor plot
+    is_multi_tenor = tenors and len(tenors) > 1
 
     # per-series reindex + ffill to daily frequency then average across series
     all_dates = pd.date_range(start_date, end_date, freq='D')
-    filled = []
-    for s, g in df.groupby('series'):
-        g2 = g.set_index('obs_date').reindex(all_dates)
-        g2['series'] = s
-        g2[['price','yield']] = g2[['price','yield']].ffill()
-        filled.append(g2.reset_index().rename(columns={'index':'obs_date'}))
-    filled = pd.concat(filled, ignore_index=True)
-
-    daily = filled.groupby('obs_date')[metric].mean().reset_index()
+    
+    if is_multi_tenor:
+        # Multi-tenor: group by tenor and date, keep separate lines
+        filled = []
+        for (s, t), g in df.groupby(['series', 'tenor']):
+            g2 = g.set_index('obs_date').reindex(all_dates)
+            g2['series'] = s
+            g2['tenor'] = t
+            g2[['price', 'yield']] = g2[['price', 'yield']].ffill()
+            filled.append(g2.reset_index().rename(columns={'index': 'obs_date'}))
+        filled = pd.concat(filled, ignore_index=True)
+        # Group by tenor and date (average across series if multiple)
+        daily = filled.groupby(['obs_date', 'tenor'])[metric].mean().reset_index()
+        # Format tenor labels nicely for display
+        daily['tenor_label'] = daily['tenor'].str.replace('_', ' ').str.replace('0', '', 1)
+    else:
+        # Single tenor: original aggregation logic
+        filled = []
+        for s, g in df.groupby('series'):
+            g2 = g.set_index('obs_date').reindex(all_dates)
+            g2['series'] = s
+            g2[['price','yield']] = g2[['price','yield']].ffill()
+            filled.append(g2.reset_index().rename(columns={'index':'obs_date'}))
+        filled = pd.concat(filled, ignore_index=True)
+        daily = filled.groupby('obs_date')[metric].mean().reset_index()
 
     # Format dates for display
     def format_date(d):
         """Convert date to '1 Jan 2023' format"""
         return d.strftime('%-d %b %Y') if hasattr(d, 'strftime') else str(d)
     
-    # Format tenor for display (remove underscore)
-    display_tenor = tenor.replace('_', ' ') if tenor else ''
+    # Format tenor for display
+    if is_multi_tenor:
+        display_tenor = ', '.join([t.replace('_', ' ') for t in tenors])
+    else:
+        display_tenor = tenor.replace('_', ' ') if tenor else ''
     
     # Format title dates
     title_start = format_date(start_date)
     title_end = format_date(end_date)
+    
+    # Convert highlight_date to pandas Timestamp if provided
+    highlight_ts = None
+    if highlight_date:
+        highlight_ts = pd.Timestamp(highlight_date)
 
     # plot (prefer seaborn if available)
     buf = io.BytesIO()
     try:
         if _HAS_SEABORN:
             sns.set_theme(style=_SNS_STYLE, context=_SNS_CONTEXT, palette=_SNS_PALETTE)
-            fig, ax = plt.subplots(figsize=(9, 3.5))
-            sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
+            fig, ax = plt.subplots(figsize=(10, 6))
             
-            # Highlight specific date if provided
-            if highlight_date:
-                highlight_row = daily[daily['obs_date'] == pd.Timestamp(highlight_date)]
-                if not highlight_row.empty:
-                    highlight_date_str = format_date(highlight_date)
-                    ax.plot(highlight_row['obs_date'], highlight_row[metric], 'ro', markersize=8, label=f'Highlight: {highlight_date_str}')
-                    ax.legend()
+            if is_multi_tenor:
+                # Multi-tenor: plot separate lines for each tenor with distinct colors
+                sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor_label', 
+                            linewidth=2.5, ax=ax, errorbar=None, palette='Set1', legend='full')
+                # Improve legend
+                ax.legend(title='Tenor', fontsize=11, title_fontsize=12, 
+                         loc='best', frameon=True, fancybox=True, shadow=True)
+                
+                # Add highlight marker if date is in the data
+                if highlight_ts is not None:
+                    for tenor_val in tenors:
+                        tenor_label = tenor_val.replace('_', ' ').replace('0', '', 1)
+                        daily_tenor = daily[daily['tenor'] == tenor_val]
+                        daily_tenor['date_diff'] = (daily_tenor['obs_date'] - highlight_ts).abs()
+                        if not daily_tenor.empty:
+                            closest = daily_tenor.loc[daily_tenor['date_diff'].idxmin()]
+                            y_val = closest[metric]
+                            ax.plot(closest['obs_date'], y_val, 'r*', markersize=15, zorder=5)
+            else:
+                # Single tenor: original single-line plot
+                sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
+                
+                # Highlight specific date if provided
+                if highlight_ts is not None:
+                    highlight_row = daily[daily['obs_date'] == highlight_ts]
+                    if not highlight_row.empty:
+                        highlight_date_str = format_date(highlight_date)
+                        ax.plot(highlight_row['obs_date'], highlight_row[metric], 'ro', markersize=8, label=f'Highlight: {highlight_date_str}')
+                        ax.legend()
             
             # Set title with formatted dates
             ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
@@ -265,7 +322,7 @@ async def plot(req: QueryRequest):
         raise HTTPException(status_code=400, detail='Plot endpoint expects a RANGE query (e.g., "10 year 2023")')
 
     db = get_db(req.csv)
-    png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor)
+    png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=intent.tenors)
     return StreamingResponse(io.BytesIO(png), media_type='image/png')
 
 
@@ -314,7 +371,7 @@ async def chat_endpoint(req: ChatRequest):
             if wants_plot:
                 # Use highlight_date from intent
                 highlight_date_obj = intent.highlight_date
-                png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, highlight_date=highlight_date_obj)
+                png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=intent.tenors, highlight_date=highlight_date_obj)
                 b64 = base64.b64encode(png).decode('ascii')
                 return JSONResponse({"text": text, "image_base64": b64})
             return JSONResponse({"text": text})
@@ -334,7 +391,7 @@ async def chat_endpoint(req: ChatRequest):
         if wants_plot:
             # Use highlight_date from intent
             highlight_date_obj = intent.highlight_date
-            png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, highlight_date=highlight_date_obj)
+            png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=intent.tenors, highlight_date=highlight_date_obj)
             b64 = base64.b64encode(png).decode('ascii')
             return JSONResponse({"text": text, "rows": rows_list, "image_base64": b64})
         
