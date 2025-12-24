@@ -570,8 +570,14 @@ async def get_webhook_info():
 
 @app.get("/bot/stats")
 async def bot_stats():
-    """Get bot traffic and performance metrics."""
+    """Get bot traffic and performance metrics (JSON)."""
     return metrics.get_stats()
+
+
+@app.get("/bot/dashboard")
+async def bot_dashboard():
+    """Get bot traffic dashboard (HTML)."""
+    return HTMLResponse(content=metrics.get_html_dashboard())
 
 
 @app.get("/bot/stats/user/{user_id}")
