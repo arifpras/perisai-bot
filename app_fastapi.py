@@ -346,9 +346,15 @@ class ChatRequest(BaseModel):
 async def chat_endpoint(req: ChatRequest):
     """Higher-level chat endpoint: returns JSON with text and optional base64 PNG if plot=True."""
     start_time = time.time()
+    error_msg = None
+    query_type = "unknown"
+    
     try:
         intent: Intent = parse_intent(req.q)
+        query_type = intent.type.lower() if intent.type else "unknown"
     except Exception as e:
+        error_msg = str(e)
+        metrics.log_query(0, "api", req.q, "parse_error", time.time() - start_time, False, error_msg, "api")
         raise HTTPException(status_code=400, detail=f"Could not parse intent: {e}")
 
     db = get_db(req.csv)
@@ -566,6 +572,51 @@ async def get_webhook_info():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting webhook info: {str(e)}")
+
+
+@app.get("/bot/sample-data")
+async def bot_sample_data():
+    """Populate dashboard with sample data for demo purposes."""
+    import random
+    from datetime import datetime, timedelta
+    
+    # Sample queries
+    sample_questions = [
+        "yield 10 year 2025",
+        "chart yield 5 year and 10 year June 2025",
+        "average yield 10 year 2024",
+        "auction demand January 2026",
+        "plot yield FR95 2025",
+        "price 5 year March 2025",
+        "bid to cover Q1 2026",
+    ]
+    
+    sample_personas = ["kei", "kin", "both"]
+    sample_types = ["text", "plot"]
+    
+    # Add 20 sample queries
+    for i in range(20):
+        query = random.choice(sample_questions)
+        persona = random.choice(sample_personas)
+        qtype = random.choice(sample_types)
+        response_time = random.uniform(100, 3000)
+        success = random.random() > 0.2  # 80% success rate
+        
+        username = f"user_{random.randint(1000, 5000)}"
+        user_id = random.randint(100000000, 999999999)
+        
+        metrics.log_query(
+            user_id, 
+            username, 
+            query, 
+            qtype, 
+            response_time,
+            success,
+            error=None if success else "Sample error",
+            persona=persona
+        )
+    
+    return {"status": "Sample data loaded", "queries_added": 20}
 
 
 @app.get("/bot/stats")
