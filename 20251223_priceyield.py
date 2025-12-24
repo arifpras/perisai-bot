@@ -69,7 +69,8 @@ def parse_metric(text: str) -> MetricType:
     text_lower = text.lower()
     if "auction" in text_lower or "demand" in text_lower or "incoming" in text_lower or "awarded" in text_lower:
         return "auction"
-    return "yield" if "yield" in text_lower else "price"
+    # Default to yield for bond queries (industry standard); only use price if explicitly requested
+    return "price" if "price" in text_lower else "yield"
 
 def parse_series(text: str):
     m = SERIES_RE.search(text)
