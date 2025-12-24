@@ -549,7 +549,6 @@ async def ask_kei_then_kin(question: str) -> dict:
         f"Based on the following quantitative analysis, interpret and conclude:\n\n{kei_answer}",
         dual_mode=True
     )
-    )
     return {
         "kei": kei_answer,
         "kin": kin_answer,
