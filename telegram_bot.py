@@ -124,44 +124,41 @@ def summarize_intent_result(intent, rows_list):
     if not rows_list:
         return "No matching data found in the requested period."
     
-        # Handle auction forecasts
-        if intent.type == 'AUCTION_FORECAST':
-            if not rows_list:
-                return "No auction forecast data available for the requested period."
+    # Handle auction forecasts
+    if intent.type == 'AUCTION_FORECAST':
+        parts = []
+        for row in rows_list:
+            from datetime import datetime
+            try:
+                dt = datetime.fromisoformat(str(row['date']))
+                date_str = dt.strftime('%B %Y')
+            except:
+                date_str = str(row['date'])
         
-            parts = []
-            for row in rows_list:
-                from datetime import datetime
-                try:
-                    dt = datetime.fromisoformat(str(row['date']))
-                    date_str = dt.strftime('%B %Y')
-                except:
-                    date_str = str(row['date'])
-            
-                parts.append(
-                    f"{date_str}: Incoming demand Rp {row['incoming_billions']:.2f} trillion, "
-                    f"Awarded Rp {row['awarded_billions']:.2f} trillion, "
-                    f"Bid-to-cover {row['bid_to_cover']:.2f}x, "
-                    f"{row['number_series']} series, "
-                    f"BI rate {row['bi_rate']:.2f}%, "
-                    f"Inflation {row['inflation_rate']:.2f}%"
-                )
+            parts.append(
+                f"{date_str}: Incoming demand Rp {row['incoming_billions']:.2f} trillion, "
+                f"Awarded Rp {row['awarded_billions']:.2f} trillion, "
+                f"Bid-to-cover {row['bid_to_cover']:.2f}x, "
+                f"{row['number_series']} series, "
+                f"BI rate {row['bi_rate']:.2f}%, "
+                f"Inflation {row['inflation_rate']:.2f}%"
+            )
+    
+        summary = "\n".join(parts)
+    
+        # Add statistics if multiple months
+        if len(rows_list) > 1:
+            incoming_vals = [r['incoming_billions'] for r in rows_list]
+            awarded_vals = [r['awarded_billions'] for r in rows_list]
+            btc_vals = [r['bid_to_cover'] for r in rows_list]
         
-            summary = "\n".join(parts)
-        
-            # Add statistics if multiple months
-            if len(rows_list) > 1:
-                incoming_vals = [r['incoming_billions'] for r in rows_list]
-                awarded_vals = [r['awarded_billions'] for r in rows_list]
-                btc_vals = [r['bid_to_cover'] for r in rows_list]
-            
-                import statistics
-                summary += f"\n\nStatistics ({len(rows_list)} months):\n"
-                summary += f"Incoming: avg Rp {statistics.mean(incoming_vals):.2f}T, range Rp {min(incoming_vals):.2f}T - Rp {max(incoming_vals):.2f}T\n"
-                summary += f"Awarded: avg Rp {statistics.mean(awarded_vals):.2f}T, range Rp {min(awarded_vals):.2f}T - Rp {max(awarded_vals):.2f}T\n"
-                summary += f"Bid-to-cover: avg {statistics.mean(btc_vals):.2f}x, range {min(btc_vals):.2f}x - {max(btc_vals):.2f}x"
-        
-            return summary
+            import statistics
+            summary += f"\n\nStatistics ({len(rows_list)} months):\n"
+            summary += f"Incoming: avg Rp {statistics.mean(incoming_vals):.2f}T, range Rp {min(incoming_vals):.2f}T - Rp {max(incoming_vals):.2f}T\n"
+            summary += f"Awarded: avg Rp {statistics.mean(awarded_vals):.2f}T, range Rp {min(awarded_vals):.2f}T - Rp {max(awarded_vals):.2f}T\n"
+            summary += f"Bid-to-cover: avg {statistics.mean(btc_vals):.2f}x, range {min(btc_vals):.2f}x - {max(btc_vals):.2f}x"
+    
+        return summary
     
     parts = []
     
@@ -321,7 +318,7 @@ async def ask_kei(question: str) -> str:
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
-            "Data access:\n- Historical bond prices and yields (2023-2025)\n- Auction demand forecasts through 2026 (incoming bids, awarded amounts, bid-to-cover ratios)\n- Macroeconomic indicators (BI rate, inflation, etc.)\n"
+            "Data access:\n- Historical bond prices and yields (2023-2025)\n- Auction demand forecasts through 2026 (incoming bids, awarded amounts, bid-to-cover ratios; generated using ensemble ML methods combining XGBoost, Random Forest, and time-series models with macroeconomic features: BI rate, inflation, industrial production, JKSE index, and FX rates)\n- Macroeconomic indicators (BI rate, inflation, etc.)\n"
         )
     else:
         # For general knowledge, use a more flexible prompt
