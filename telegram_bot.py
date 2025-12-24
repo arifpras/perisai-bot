@@ -310,7 +310,7 @@ async def ask_kei(question: str) -> str:
         "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
         "Body (Kei): exactly 2 paragraphs, max 3 sentences each, ≤140 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
         "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
-        "Signature: blank line, then '________', then 'Kei | Quant Research'.\n"
+        "Signature: blank line, then '________', then blank line, then 'Kei | Quant Research'.\n"
         "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
         "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
@@ -362,9 +362,9 @@ async def ask_kin(question: str) -> str:
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
-            "Body (Kin): exactly 3 paragraphs, max 3 sentences each, ≤220 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
-            "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
-            "Signature: blank line, then '________', then 'Kin | Economics & Strategy'.\n"
+            "Body (Kin): exactly 3 paragraphs separated by a blank line, max 3 sentences each, ≤220 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
+            "Signature: blank line, then '________', then blank line, then 'Kin | Economics & Strategy'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
@@ -378,9 +378,9 @@ async def ask_kin(question: str) -> str:
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
-            "Body (Kin): exactly 3 paragraphs, max 3 sentences each, ≤220 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
-            "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
-            "Signature: blank line, then '________', then 'Kin | Economics & Strategy'.\n"
+            "Body (Kin): exactly 3 paragraphs separated by a blank line, max 3 sentences each, ≤220 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
+            "Signature: blank line, then '________', then blank line, then 'Kin | Economics & Strategy'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
@@ -547,10 +547,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kei(question)
-    formatted_response = (
-        "🔬 <b>Kei</b>\n\n"
-        f"{html_module.escape(answer)}"
-    )
+    formatted_response = f"{html_module.escape(answer)}"
     await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
 
 
@@ -570,10 +567,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kin(question)
-    formatted_response = (
-        "💡 <b>Kin</b>\n\n"
-        f"{html_module.escape(answer)}"
-    )
+    formatted_response = f"{html_module.escape(answer)}"
     await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
 
 
@@ -600,9 +594,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     response = (
         "📊 <b>Dual Persona Analysis</b>\n\n"
-        "🔬 <b>Kei</b>\n\n"
         f"{html_module.escape(kei_answer)}\n\n"
-        "💡 <b>Kin</b>\n\n"
+        "---\n\n"
         f"{html_module.escape(kin_answer)}"
     )
     
@@ -635,10 +628,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kei(question)
-            formatted_response = (
-                "🔬 <b>Kei</b>\n\n"
-                f"{html_module.escape(answer)}"
-            )
+            formatted_response = f"{html_module.escape(answer)}"
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
             return
 
@@ -649,10 +639,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kin(question)
-            formatted_response = (
-                "💡 <b>Kin</b> (Economic Interpretation)\n\n"
-                f"{html_module.escape(answer)}"
-            )
+            formatted_response = f"{html_module.escape(answer)}"
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
             return
 
