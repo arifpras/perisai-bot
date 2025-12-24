@@ -11,3 +11,5 @@ rich
 typer
 python-telegram-bot
 openai
+
+seaborn
