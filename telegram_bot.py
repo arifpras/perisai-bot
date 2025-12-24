@@ -243,7 +243,7 @@ async def ask_kei(question: str) -> str:
         "- ZERO headings, tables, equations.\n"
         "- TOTAL response: under 130 words (accommodates trailing questions).\n"
         "- Start immediately with content. No preamble.\n"
-        "- End with 'Follow-up angles: [1-2 quantitative next-step questions]' on a new line.\n\n"
+        "- Add a blank line, then end with 'Follow-up angles: [1-2 quantitative next-step questions]' on a new line.\n\n"
 
         "If precomputed bond or market data are provided:\n"
         "- Treat them as given inputs.\n"
@@ -311,8 +311,8 @@ async def ask_kin(question: str) -> str:
             "- ZERO headings, tables, equations, code blocks.\n"
             "- TOTAL response: under 200 words (accommodates sources and trailing questions).\n"
             "- Start immediately with bullet 1. No preamble.\n"
-            "- End with 'Sources: [ONLY list actual bond data series/tenors/date ranges used, e.g., FR96 10-year 2024-2025]' on its own line.\n"
-            "- Then add 'Follow-up angles: [1-2 strategic next-step questions]' on a new line.\n\n"
+            "- Add a blank line, then 'Sources: [ONLY list actual bond data series/tenors/date ranges used, e.g., FR96 10-year 2024-2025]' on its own line.\n"
+            "- Add another blank line, then 'Follow-up angles: [1-2 strategic next-step questions]' on a new line.\n\n"
 
             "Bond data is provided - use it as the ONLY factual basis:\n"
             "- Cite specific values, dates, tenors, or ranges from the data.\n"
@@ -342,8 +342,8 @@ async def ask_kin(question: str) -> str:
             "- ZERO headings, tables, equations, code blocks.\n"
             "- TOTAL response: under 250 words (accommodates sources and trailing questions).\n"
             "- Start immediately with bullet 1. No preamble.\n"
-            "- End with 'Sources:' line listing actual URLs or publications cited.\n"
-            "- Then add 'Follow-up angles: [1-2 strategic next-step questions]' on a new line.\n\n"
+            "- Add a blank line, then 'Sources:' line listing actual URLs or publications cited.\n"
+            "- Add another blank line, then 'Follow-up angles: [1-2 strategic next-step questions]' on a new line.\n\n"
 
             "No bond data provided - use web search for authoritative analysis:\n"
             "- Search for recent research, news, and data on the topic.\n"
