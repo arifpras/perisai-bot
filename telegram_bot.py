@@ -235,15 +235,21 @@ async def ask_kei(question: str) -> str:
         "- Avoid speculation, narratives, and policy advocacy.\n\n"
 
         "Output style (MANDATORY):\n"
-        "- FOR CODING/PROGRAMMING REQUESTS: Do NOT use bullets. Provide code examples in plain format with brief explanations above/below.\n"
-        "- FOR ANALYTICAL REQUESTS: EXACTLY 3 OR 4 bullets. No more, no fewer.\n"
-        "- Each bullet is 1-2 sentences MAX (approximately 15-20 words).\n"
-        "- Blank line between each bullet.\n"
+        "- FOR CODING/PROGRAMMING REQUESTS: Plain format with code examples and brief explanations.\n"
+        "- FOR ANALYTICAL REQUESTS: Use short paragraphs (NOT bullets). 2-4 paragraphs maximum.\n"
+        "- Each paragraph is 1-3 sentences.\n"
+        "- Blank line between each paragraph.\n"
         "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
-        "- ZERO headings, tables, equations.\n"
-        "- TOTAL response: under 130 words (accommodates trailing questions).\n"
-        "- Start immediately with content. No preamble.\n"
-        "- Add a blank line, then end with 'Follow-up angles: [1-2 quantitative next-step questions]' on a new line.\n\n"
+        "- ZERO headings, tables, equations, bullet points (•).\n"
+        "- TOTAL response: under 130 words.\n"
+        "- Start immediately with content. No preamble.\n\n"
+        
+        "Ending format:\n"
+        "- Add blank line\n"
+        "- Add 'Follow-up angles: [1-2 quantitative questions]'\n"
+        "- Add blank line\n"
+        "- Add separator: ________\n"
+        "- Add signature: 🔬 Kei, the data scientist\n\n"
 
         "If precomputed bond or market data are provided:\n"
         "- Treat them as given inputs.\n"
@@ -304,15 +310,21 @@ async def ask_kin(question: str) -> str:
             "- Be pragmatic and decision-oriented.\n\n"
 
             "Output style (MANDATORY):\n"
-            "- EXACTLY 3 OR 4 bullets. No more, no fewer.\n"
-            "- Each bullet is 1-3 sentences (can be longer if needed for nuance).\n"
-            "- Blank line between each bullet.\n"
+            "- Use short paragraphs (NOT bullets). 2-4 paragraphs maximum.\n"
+            "- Each paragraph is 1-3 sentences.\n"
+            "- Blank line between each paragraph.\n"
             "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
-            "- ZERO headings, tables, equations, code blocks.\n"
-            "- TOTAL response: under 200 words (accommodates sources and trailing questions).\n"
-            "- Start immediately with bullet 1. No preamble.\n"
-            "- Add a blank line, then 'Sources: [ONLY list actual bond data series/tenors/date ranges used, e.g., FR96 10-year 2024-2025]' on its own line.\n"
-            "- Add another blank line, then 'Follow-up angles: [1-2 strategic next-step questions]' on a new line.\n\n"
+            "- ZERO headings, tables, equations, code blocks, bullet points (•).\n"
+            "- TOTAL response: under 200 words.\n"
+            "- Start immediately with content. No preamble.\n\n"
+            
+            "Ending format:\n"
+            "- Add blank line\n"
+            "- Add '[Sumber: actual bond data series/tenors/date ranges, e.g., FR96 10-year 2024-2025]'\n"
+            "- Add 'Follow-up angles: [1-2 strategic questions]'\n"
+            "- Add blank line\n"
+            "- Add separator: ________\n"
+            "- Add signature: 💡 Kin, the economist\n\n"
 
             "Bond data is provided - use it as the ONLY factual basis:\n"
             "- Cite specific values, dates, tenors, or ranges from the data.\n"
@@ -335,15 +347,21 @@ async def ask_kin(question: str) -> str:
             "- Be pragmatic and decision-oriented.\n\n"
 
             "Output style (MANDATORY):\n"
-            "- EXACTLY 3 OR 4 bullets. No more, no fewer.\n"
-            "- Each bullet is 1-3 sentences (can be longer if needed for nuance).\n"
-            "- Blank line between each bullet.\n"
+            "- Use short paragraphs (NOT bullets). 2-4 paragraphs maximum.\n"
+            "- Each paragraph is 1-3 sentences.\n"
+            "- Blank line between each paragraph.\n"
             "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
-            "- ZERO headings, tables, equations, code blocks.\n"
-            "- TOTAL response: under 250 words (accommodates sources and trailing questions).\n"
-            "- Start immediately with bullet 1. No preamble.\n"
-            "- Add a blank line, then 'Sources:' line listing actual URLs or publications cited.\n"
-            "- Add another blank line, then 'Follow-up angles: [1-2 strategic next-step questions]' on a new line.\n\n"
+            "- ZERO headings, tables, equations, code blocks, bullet points (•).\n"
+            "- TOTAL response: under 250 words.\n"
+            "- Start immediately with content. No preamble.\n\n"
+            
+            "Ending format:\n"
+            "- Add blank line\n"
+            "- Add '[Sumber: actual URLs or publications cited]'\n"
+            "- Add 'Follow-up angles: [1-2 strategic questions]'\n"
+            "- Add blank line\n"
+            "- Add separator: ________\n"
+            "- Add signature: 💡 Kin, the economist\n\n"
 
             "No bond data provided - use web search for authoritative analysis:\n"
             "- Search for recent research, news, and data on the topic.\n"
@@ -503,7 +521,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kei(question)
     formatted_response = (
-        "🔬 <b>Kei</b> (Quantitative Analysis)\n\n"
+        "🔬 <b>Kei</b>\n\n"
         f"{html_module.escape(answer)}"
     )
     await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
@@ -526,7 +544,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kin(question)
     formatted_response = (
-        "💡 <b>Kin</b> (Economic Interpretation)\n\n"
+        "💡 <b>Kin</b>\n\n"
         f"{html_module.escape(answer)}"
     )
     await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
@@ -555,9 +573,9 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     response = (
         "📊 <b>Dual Persona Analysis</b>\n\n"
-        "🔬 <b>Kei</b> (Quantitative Analysis)\n\n"
+        "🔬 <b>Kei</b>\n\n"
         f"{html_module.escape(kei_answer)}\n\n"
-        "💡 <b>Kin</b> (Economic Interpretation)\n\n"
+        "💡 <b>Kin</b>\n\n"
         f"{html_module.escape(kin_answer)}"
     )
     
@@ -591,7 +609,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kei(question)
             formatted_response = (
-                "🔬 <b>Kei</b> (Quantitative Analysis)\n\n"
+                "🔬 <b>Kei</b>\n\n"
                 f"{html_module.escape(answer)}"
             )
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
