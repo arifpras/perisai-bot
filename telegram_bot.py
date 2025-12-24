@@ -235,13 +235,14 @@ async def ask_kei(question: str) -> str:
         "- Avoid speculation, narratives, and policy advocacy.\n\n"
 
         "Output style (MANDATORY):\n"
-        "- EXACTLY 3 OR 4 bullets. No more, no fewer.\n"
+        "- FOR CODING/PROGRAMMING REQUESTS: Do NOT use bullets. Provide code examples in plain format with brief explanations above/below.\n"
+        "- FOR ANALYTICAL REQUESTS: EXACTLY 3 OR 4 bullets. No more, no fewer.\n"
         "- Each bullet is 1-2 sentences MAX (approximately 15-20 words).\n"
         "- Blank line between each bullet.\n"
         "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
-        "- ZERO headings, tables, equations, code blocks.\n"
+        "- ZERO headings, tables, equations.\n"
         "- TOTAL response: under 130 words (accommodates trailing questions).\n"
-        "- Start immediately with bullet 1. No preamble.\n"
+        "- Start immediately with content. No preamble.\n"
         "- End with 'Follow-up angles: [1-2 quantitative next-step questions]' on a new line.\n\n"
 
         "If precomputed bond or market data are provided:\n"
