@@ -5,6 +5,7 @@ import os
 import io
 import base64
 import logging
+import time
 from typing import Optional
 from openai import AsyncOpenAI
 from telegram import Update
@@ -24,6 +25,9 @@ spec.loader.exec_module(priceyield_mod)
 parse_intent = priceyield_mod.parse_intent
 BondDB = priceyield_mod.BondDB
 AuctionDB = priceyield_mod.AuctionDB
+
+# Import metrics
+from metrics import metrics
 
 # Cache DB instances
 _db_cache = {}
@@ -648,12 +652,16 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/kei <question> — ask persona Kei (ChatGPT)."""
+    start_time = time.time()
     user_id = update.message.from_user.id
+    username = update.message.from_user.username or f"user_{user_id}"
+    
     if not is_user_authorized(user_id):
         await update.message.reply_text(
             "⛔ Access denied. This bot is restricted to authorized users only."
         )
         logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        metrics.log_error("/kei", "Unauthorized access", user_id)
         return
 
     question = " ".join(context.args).strip() if context.args else ""
@@ -684,28 +692,48 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                     else:
                         await update.message.reply_text(f"📊 <b>Kei | Quant Research</b>\n\n{html_module.escape(data.get('analysis', ''))}", parse_mode=ParseMode.HTML)
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kei")
                 else:
                     await update.message.reply_text(f"⚠️ Error from API: {resp.status_code}")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, False, f"API error {resp.status_code}", "kei")
         except Exception as e:
             logger.error(f"Error calling /chat endpoint: {e}")
             await update.message.reply_text("⚠️ Error generating plot. Please try again.")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kei")
     else:
-        answer = await ask_kei(question)
-        if not answer or not answer.strip():
-            await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
-            return
-        formatted_response = f"{html_module.escape(answer)}"
-        await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+        try:
+            answer = await ask_kei(question)
+            if not answer or not answer.strip():
+                await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kei")
+                return
+            formatted_response = f"{html_module.escape(answer)}"
+            await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "text", response_time, True, persona="kei")
+        except Exception as e:
+            logger.error(f"Error in /kei command: {e}")
+            await update.message.reply_text("⚠️ Error processing query. Please try again.")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kei")
 
 
 async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/kin <question> — ask persona Kin (Perplexity)."""
+    start_time = time.time()
     user_id = update.message.from_user.id
+    username = update.message.from_user.username or f"user_{user_id}"
+    
     if not is_user_authorized(user_id):
         await update.message.reply_text(
             "⛔ Access denied. This bot is restricted to authorized users only."
         )
         logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        metrics.log_error("/kin", "Unauthorized access", user_id)
         return
 
     question = " ".join(context.args).strip() if context.args else ""
@@ -736,28 +764,48 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                     else:
                         await update.message.reply_text(f"📊 <b>Kin | Economics & Strategy</b>\n\n{html_module.escape(data.get('analysis', ''))}", parse_mode=ParseMode.HTML)
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kin")
                 else:
                     await update.message.reply_text(f"⚠️ Error from API: {resp.status_code}")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, False, f"API error {resp.status_code}", "kin")
         except Exception as e:
             logger.error(f"Error calling /chat endpoint: {e}")
             await update.message.reply_text("⚠️ Error generating plot. Please try again.")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kin")
     else:
-        answer = await ask_kin(question)
-        if not answer or not answer.strip():
-            await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
-            return
-        formatted_response = f"{html_module.escape(answer)}"
-        await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+        try:
+            answer = await ask_kin(question)
+            if not answer or not answer.strip():
+                await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kin")
+                return
+            formatted_response = f"{html_module.escape(answer)}"
+            await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "text", response_time, True, persona="kin")
+        except Exception as e:
+            logger.error(f"Error in /kin command: {e}")
+            await update.message.reply_text("⚠️ Error processing query. Please try again.")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kin")
 
 
 async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/both <question> — chain both personas: Kei (quantitative) → Kin (interpretation)."""
+    start_time = time.time()
     user_id = update.message.from_user.id
+    username = update.message.from_user.username or f"user_{user_id}"
+    
     if not is_user_authorized(user_id):
         await update.message.reply_text(
             "⛔ Access denied. This bot is restricted to authorized users only."
         )
         logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        metrics.log_error("/both", "Unauthorized access", user_id)
         return
 
     question = " ".join(context.args).strip() if context.args else ""
@@ -788,32 +836,50 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                     else:
                         await update.message.reply_text(f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{html_module.escape(data.get('analysis', ''))}", parse_mode=ParseMode.HTML)
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, True, persona="both")
                 else:
                     await update.message.reply_text(f"⚠️ Error from API: {resp.status_code}")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, False, f"API error {resp.status_code}", "both")
         except Exception as e:
             logger.error(f"Error calling /chat endpoint: {e}")
             await update.message.reply_text("⚠️ Error generating plot. Please try again.")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "both")
     else:
-        result = await ask_kei_then_kin(question)
-        
-        kei_answer = result["kei"]
-        kin_answer = result["kin"]
-        
-        if not kei_answer or not kei_answer.strip():
-            await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
-            return
-        if not kin_answer or not kin_answer.strip():
-            await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
-            return
-        
-        response = (
-            "📊 <b>Dual Persona Analysis</b>\n\n"
-            f"{html_module.escape(kei_answer)}\n\n"
-            "---\n\n"
-            f"{html_module.escape(kin_answer)}"
-        )
-        
-        await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+        try:
+            result = await ask_kei_then_kin(question)
+            
+            kei_answer = result["kei"]
+            kin_answer = result["kin"]
+            
+            if not kei_answer or not kei_answer.strip():
+                await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, "Kei empty response", "both")
+                return
+            if not kin_answer or not kin_answer.strip():
+                await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, "Kin empty response", "both")
+                return
+            
+            response = (
+                "📊 <b>Dual Persona Analysis</b>\n\n"
+                f"{html_module.escape(kei_answer)}\n\n"
+                "---\n\n"
+                f"{html_module.escape(kin_answer)}"
+            )
+            
+            await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "text", response_time, True, persona="both")
+        except Exception as e:
+            logger.error(f"Error in /both command: {e}")
+            await update.message.reply_text("⚠️ Error processing query. Please try again.")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "both")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):

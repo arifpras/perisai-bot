@@ -4,6 +4,7 @@ Endpoints:
 - GET /health
 - POST /query  {"q": "average yield Q1 2023", "csv": "20251215_priceyield.csv"}
 - POST /telegram/webhook - Telegram bot webhook
+- GET /bot/stats - Bot traffic and metrics
 
 This file reuses parse_intent and BondDB from the existing module.
 """
@@ -13,6 +14,8 @@ from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import time
+import logging
 
 from datetime import date
 import os
@@ -46,7 +49,13 @@ parse_intent = priceyield_mod.parse_intent
 BondDB = priceyield_mod.BondDB
 Intent = priceyield_mod.Intent
 
+# Import metrics
+from metrics import metrics
+
 app = FastAPI(title="Bond Query API")
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 # Allow local browser testing
 app.add_middleware(
@@ -336,6 +345,7 @@ class ChatRequest(BaseModel):
 @app.post('/chat')
 async def chat_endpoint(req: ChatRequest):
     """Higher-level chat endpoint: returns JSON with text and optional base64 PNG if plot=True."""
+    start_time = time.time()
     try:
         intent: Intent = parse_intent(req.q)
     except Exception as e:
@@ -556,6 +566,18 @@ async def get_webhook_info():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting webhook info: {str(e)}")
+
+
+@app.get("/bot/stats")
+async def bot_stats():
+    """Get bot traffic and performance metrics."""
+    return metrics.get_stats()
+
+
+@app.get("/bot/stats/user/{user_id}")
+async def bot_user_stats(user_id: int):
+    """Get stats for a specific user."""
+    return metrics.get_user_stats(user_id)
 
 
 if __name__ == "__main__":
