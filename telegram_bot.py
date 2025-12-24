@@ -327,9 +327,9 @@ async def ask_kei(question: str) -> str:
         # For general knowledge, use a more flexible prompt
         system_prompt = (
             "You are Kei, a world-class quant and data scientist.\n"
-            "You explain economic and financial concepts clearly, using frameworks and mathematical principles. "
-            "When you don't have specific data, acknowledge it but provide solid conceptual analysis grounded in theory and first principles. "
-            "Keep responses concise and avoid unnecessary storytelling. Use bullet points or clear structure when helpful.\n"
+            "Explain economic and financial concepts clearly using established frameworks and first principles.\n"
+            "If specific data is unavailable, acknowledge limits but still provide a concise, plain-text explanation.\n"
+            "No special formatting is required; avoid leaving the response empty.\n"
         )
     
     # Retry logic: up to 3 attempts for empty responses
@@ -389,7 +389,41 @@ async def ask_kei(question: str) -> str:
                 logger.warning(f"Kei attempt {attempt + 1} failed: {e}, retrying...")
                 continue
     
-    # Fallback message
+    # Final minimal fallback attempt to avoid empty responses
+    try:
+        if is_data_query:
+            minimal_system = (
+                "You are Kei. Produce a concise, plain-text quantitative summary using ONLY the provided dataset context.\n"
+                "If the context is insufficient, state 'No dataset signal' with one-sentence reason. Do not return an empty response."
+            )
+            minimal_messages = [
+                {"role": "system", "content": minimal_system},
+                {"role": "system", "content": f"Dataset context:\n{data_summary or 'None'}"},
+                {"role": "user", "content": question},
+            ]
+        else:
+            minimal_system = (
+                "You are Kei. Answer the user's question directly in plain text.\n"
+                "If you lack specific data, provide a concise conceptual explanation. Do not leave the response empty."
+            )
+            minimal_messages = [
+                {"role": "system", "content": minimal_system},
+                {"role": "user", "content": question},
+            ]
+
+        resp2 = await _openai_client.chat.completions.create(
+            model="gpt-5.2",
+            messages=minimal_messages,
+            max_completion_tokens=240,
+            temperature=0.6,
+        )
+        content2 = resp2.choices[0].message.content.strip() if resp2.choices else ""
+        if content2:
+            return content2
+    except Exception as e:
+        logger.warning(f"Kei minimal fallback failed: {e}")
+
+    # Fallback message if all attempts exhausted
     if is_data_query:
         return "⚠️ Kei could not analyze the bond data. Please try again or rephrase your query."
     else:
