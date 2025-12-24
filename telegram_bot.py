@@ -610,7 +610,11 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔄 <b>/both</b> — Chain analysis\n"
         "• Kei analyzes quantitatively → Kin interprets strategically\n\n"
         "⚡ <b>Shortcuts:</b> \\kei, \\kin (same as /kei, /kin)\n\n"
-        "📊 <b>Data Coverage:</b>\n"
+        "� <b>When to use which persona:</b>\n"
+        "• Use <b>/kei</b> for bond prices, yields, auction forecasts, or dataset-specific queries\n"
+        "• Use <b>/kin</b> for macro outlook, policy analysis, market trends, or general economic questions\n"
+        "• Use <b>/both</b> for comprehensive analysis combining quantitative + strategic insights\n\n"
+        "�📊 <b>Data Coverage:</b>\n"
         "• Bond prices/yields: 2023-2025 (FR95-FR104, 5Y/10Y tenors)\n"
         "• Auction forecasts: Dec 2025 - Dec 2026 (demand, awarded, bid-to-cover)"
     )
