@@ -249,7 +249,7 @@ async def ask_kei(question: str) -> str:
         "- Add 'Follow-up angles: [1-2 quantitative questions]'\n"
         "- Add blank line\n"
         "- Add separator: ________\n"
-        "- Add signature: 🔬 Kei, the data scientist\n\n"
+        "- Add signature: 🔬 Kei | Quant Research\n\n"
 
         "If precomputed bond or market data are provided:\n"
         "- Treat them as given inputs.\n"
@@ -324,7 +324,7 @@ async def ask_kin(question: str) -> str:
             "- Add 'Follow-up angles: [1-2 strategic questions]'\n"
             "- Add blank line\n"
             "- Add separator: ________\n"
-            "- Add signature: 💡 Kin, the economist\n\n"
+            "- Add signature: 💡 Kin | Economics & Strategy\n\n"
 
             "Bond data is provided - use it as the ONLY factual basis:\n"
             "- Cite specific values, dates, tenors, or ranges from the data.\n"
@@ -361,7 +361,7 @@ async def ask_kin(question: str) -> str:
             "- Add 'Follow-up angles: [1-2 strategic questions]'\n"
             "- Add blank line\n"
             "- Add separator: ________\n"
-            "- Add signature: 💡 Kin, the economist\n\n"
+            "- Add signature: 💡 Kin | Economics & Strategy\n\n"
 
             "No bond data provided - use web search for authoritative analysis:\n"
             "- Search for recent research, news, and data on the topic.\n"
