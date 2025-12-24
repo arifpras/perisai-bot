@@ -11,6 +11,12 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.5
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PERPLEXITY_API_KEY
+        sync: false
 
   - type: worker
     name: perisai-telegram-bot
