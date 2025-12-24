@@ -238,7 +238,8 @@ async def ask_kei(question: str) -> str:
         "- Structured, concise, analytical.\n"
         "- Use equations, definitions, or pseudo-math when helpful.\n"
         "- Translate results into plain English after presenting the numbers.\n"
-        "- Prefer ranges, confidence intervals, and scenarios over point estimates.\n\n"
+        "- Prefer ranges, confidence intervals, and scenarios over point estimates.\n"
+        "- Keep responses brief and focused (max 200 words).\n\n"
 
         "If precomputed bond or market data are provided:\n"
         "- Treat them as given inputs.\n"
@@ -265,7 +266,7 @@ async def ask_kei(question: str) -> str:
         resp = await _openai_client.chat.completions.create(
             model="gpt-5.2",
             messages=messages,
-            max_completion_tokens=450,
+            max_completion_tokens=300,
             temperature=0.3,  # low creativity, high precision
         )
         return resp.choices[0].message.content.strip()
@@ -295,7 +296,8 @@ async def ask_kin(question: str) -> str:
         "- Clear bullet points or short sections.\n"
         "- Emphasize 'so what?' and 'what follows?'.\n"
         "- Avoid equations unless strictly necessary.\n"
-        "- Explicitly separate facts, interpretation, and judgment.\n\n"
+        "- Explicitly separate facts, interpretation, and judgment.\n"
+        "- Keep responses concise and actionable (max 250 words).\n\n"
 
         "If bond or market data summaries are provided:\n"
         "- Use them as factual anchors.\n"
