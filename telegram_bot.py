@@ -660,13 +660,42 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not question:
         await update.message.reply_text("Usage: /kei <question>")
         return
+    
+    # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
+    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize"])
+    
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-    answer = await ask_kei(question)
-    if not answer or not answer.strip():
-        await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
-        return
-    formatted_response = f"{html_module.escape(answer)}"
-    await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+    
+    if needs_plot:
+        try:
+            import httpx
+            import base64
+            async with httpx.AsyncClient() as client:
+                payload = {"q": question, "plot": True}
+                resp = await client.post("http://127.0.0.1:8000/chat", json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("image"):
+                        image_bytes = base64.b64decode(data["image"])
+                        await update.message.reply_photo(
+                            photo=image_bytes,
+                            caption=f"📊 <b>Kei | Quant Research</b>\n\n{html_module.escape(data.get('analysis', ''))}"[:1024],
+                            parse_mode=ParseMode.HTML
+                        )
+                    else:
+                        await update.message.reply_text(f"📊 <b>Kei | Quant Research</b>\n\n{html_module.escape(data.get('analysis', ''))}", parse_mode=ParseMode.HTML)
+                else:
+                    await update.message.reply_text(f"⚠️ Error from API: {resp.status_code}")
+        except Exception as e:
+            logger.error(f"Error calling /chat endpoint: {e}")
+            await update.message.reply_text("⚠️ Error generating plot. Please try again.")
+    else:
+        answer = await ask_kei(question)
+        if not answer or not answer.strip():
+            await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+            return
+        formatted_response = f"{html_module.escape(answer)}"
+        await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
 
 
 async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -683,13 +712,42 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not question:
         await update.message.reply_text("Usage: /kin <question>")
         return
+    
+    # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
+    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize"])
+    
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-    answer = await ask_kin(question)
-    if not answer or not answer.strip():
-        await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
-        return
-    formatted_response = f"{html_module.escape(answer)}"
-    await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+    
+    if needs_plot:
+        try:
+            import httpx
+            import base64
+            async with httpx.AsyncClient() as client:
+                payload = {"q": question, "plot": True, "persona": "kin"}
+                resp = await client.post("http://127.0.0.1:8000/chat", json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("image"):
+                        image_bytes = base64.b64decode(data["image"])
+                        await update.message.reply_photo(
+                            photo=image_bytes,
+                            caption=f"📊 <b>Kin | Economics & Strategy</b>\n\n{html_module.escape(data.get('analysis', ''))}"[:1024],
+                            parse_mode=ParseMode.HTML
+                        )
+                    else:
+                        await update.message.reply_text(f"📊 <b>Kin | Economics & Strategy</b>\n\n{html_module.escape(data.get('analysis', ''))}", parse_mode=ParseMode.HTML)
+                else:
+                    await update.message.reply_text(f"⚠️ Error from API: {resp.status_code}")
+        except Exception as e:
+            logger.error(f"Error calling /chat endpoint: {e}")
+            await update.message.reply_text("⚠️ Error generating plot. Please try again.")
+    else:
+        answer = await ask_kin(question)
+        if not answer or not answer.strip():
+            await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
+            return
+        formatted_response = f"{html_module.escape(answer)}"
+        await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
 
 
 async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -707,27 +765,55 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Usage: /both <question>")
         return
     
+    # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
+    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize"])
+    
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-    result = await ask_kei_then_kin(question)
     
-    kei_answer = result["kei"]
-    kin_answer = result["kin"]
-    
-    if not kei_answer or not kei_answer.strip():
-        await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
-        return
-    if not kin_answer or not kin_answer.strip():
-        await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
-        return
-    
-    response = (
-        "📊 <b>Dual Persona Analysis</b>\n\n"
-        f"{html_module.escape(kei_answer)}\n\n"
-        "---\n\n"
-        f"{html_module.escape(kin_answer)}"
-    )
-    
-    await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+    if needs_plot:
+        try:
+            import httpx
+            import base64
+            async with httpx.AsyncClient() as client:
+                payload = {"q": question, "plot": True, "persona": "both"}
+                resp = await client.post("http://127.0.0.1:8000/chat", json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("image"):
+                        image_bytes = base64.b64decode(data["image"])
+                        await update.message.reply_photo(
+                            photo=image_bytes,
+                            caption=f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{html_module.escape(data.get('analysis', ''))}"[:1024],
+                            parse_mode=ParseMode.HTML
+                        )
+                    else:
+                        await update.message.reply_text(f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{html_module.escape(data.get('analysis', ''))}", parse_mode=ParseMode.HTML)
+                else:
+                    await update.message.reply_text(f"⚠️ Error from API: {resp.status_code}")
+        except Exception as e:
+            logger.error(f"Error calling /chat endpoint: {e}")
+            await update.message.reply_text("⚠️ Error generating plot. Please try again.")
+    else:
+        result = await ask_kei_then_kin(question)
+        
+        kei_answer = result["kei"]
+        kin_answer = result["kin"]
+        
+        if not kei_answer or not kei_answer.strip():
+            await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+            return
+        if not kin_answer or not kin_answer.strip():
+            await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
+            return
+        
+        response = (
+            "📊 <b>Dual Persona Analysis</b>\n\n"
+            f"{html_module.escape(kei_answer)}\n\n"
+            "---\n\n"
+            f"{html_module.escape(kin_answer)}"
+        )
+        
+        await update.message.reply_text(response, parse_mode=ParseMode.HTML)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
