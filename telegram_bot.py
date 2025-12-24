@@ -995,6 +995,8 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         filled = pd.concat(filled, ignore_index=True)
         # Group by tenor and date (average across series if multiple)
         daily = filled.groupby(['obs_date', 'tenor'])[metric].mean().reset_index()
+        # Format tenor labels nicely for display
+        daily['tenor_label'] = daily['tenor'].str.replace('_', ' ').str.replace('0', '', 1)
     else:
         # Single tenor: original aggregation logic
         filled = []
@@ -1032,8 +1034,12 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         fig, ax = plt.subplots(figsize=(10, 8))
         
         if is_multi_tenor:
-            # Multi-tenor: plot separate lines for each tenor
-            sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor', linewidth=2, ax=ax, ci=None)
+            # Multi-tenor: plot separate lines for each tenor with distinct colors
+            sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor_label', 
+                        linewidth=2.5, ax=ax, ci=None, palette='Set1', legend='full')
+            # Improve legend
+            ax.legend(title='Tenor', fontsize=11, title_fontsize=12, 
+                     loc='best', frameon=True, fancybox=True, shadow=True)
         else:
             # Single tenor: original single-line plot
             sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
@@ -1064,11 +1070,13 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
                            label=f'📍 {format_date(closest["obs_date"])} (closest)', zorder=5)
                     ax.legend(fontsize=10)
         
-        ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
+        ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}', 
+                    fontsize=14, fontweight='bold', pad=20)
         if is_multi_tenor:
-            ax.legend(title='Tenor', fontsize=10)
-        ax.set_xlabel('Date')
-        ax.set_ylabel(metric.capitalize())
+            # Legend already set above with better styling
+            pass
+        ax.set_xlabel('Date', fontsize=12)
+        ax.set_ylabel(metric.capitalize(), fontsize=12)
         
         from matplotlib.dates import DateFormatter
         date_formatter = DateFormatter('%-d %b %Y')
