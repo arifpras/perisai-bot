@@ -33,7 +33,7 @@ logger = logging.getLogger("telegram_bot")
 
 # Perplexity API (HTTPX-based)
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
-PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar-large-online")
+PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar-pro")
 
 # Access control: allowed user IDs (comma-separated in env var or hardcoded)
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS", "")
@@ -262,7 +262,7 @@ async def ask_kei(question: str) -> str:
 
     try:
         resp = await _openai_client.chat.completions.create(
-            model="gpt-5.2",
+            model="gpt-4o",
             messages=messages,
             max_completion_tokens=450,
             temperature=0.35,  # low creativity, high precision
@@ -340,6 +340,13 @@ async def ask_kin(question: str) -> str:
             .strip()
         ) or "(empty response)"
 
+    except httpx.HTTPStatusError as e:
+        error_detail = ""
+        try:
+            error_detail = f"\nAPI response: {e.response.json()}"
+        except:
+            error_detail = f"\nResponse text: {e.response.text[:200]}"
+        return f"⚠️ Perplexity API error: {e.response.status_code} {e.response.reason_phrase}{error_detail}"
     except Exception as e:
         return f"⚠️ Perplexity error: {e}"
 
