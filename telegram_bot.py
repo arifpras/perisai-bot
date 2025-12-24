@@ -7,7 +7,7 @@ import base64
 import logging
 from typing import Optional
 from openai import AsyncOpenAI
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.constants import ParseMode
 
@@ -419,170 +419,6 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📊 Data available: 2023-2025 | Series: FR95-FR104 | Tenors: 5Y, 10Y"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.MARKDOWN)
-
-
-async def ask_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Simulated admin persona powered by OpenAI."""
-    user_id = update.message.from_user.id
-    if not is_user_authorized(user_id):
-        await update.message.reply_text(
-            "⛔ Access denied. This bot is restricted to authorized users only."
-        )
-        logger.warning("Unauthorized access attempt from user_id=%s", user_id)
-        return
-    
-    question = " ".join(context.args).strip() if context.args else ""
-    logger.info("/ask_admin invoked chat_id=%s has_key=%s", update.message.chat_id, bool(OPENAI_API_KEY))
-    if not question:
-        await update.message.reply_text(
-            "Usage: /ask_admin <question>\n"
-            "This is a *simulated persona* for informational purposes only.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-    
-    if not _openai_client:
-        logger.warning("/ask_admin missing OPENAI_API_KEY")
-        await update.message.reply_text(
-            "⚠️ Persona mode unavailable: OPENAI_API_KEY is not configured.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-    
-    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-    system_prompt = (
-        "You are an AI simulation inspired by Sri Mulyani Indrawati (not the real person). "
-        "Adopt a calm, disciplined, and policy-oriented tone. "
-        "Do NOT mention any specific person's name in your responses—simply state you are an AI assistant.\n\n"
-
-        "Domain focus: macroeconomics, fiscal policy, public finance, debt management, and governance. "
-        "Do not provide political advocacy or normative opinions.\n\n"
-
-        "Knowledge limits: you have no live news access. "
-        "When discussing data or policies, state uncertainty if timing matters. "
-        "If given precomputed summaries (e.g., bond data), use them verbatim and cite figures precisely.\n\n"
-
-        "Safety rules: politely refuse personal, private, speculative, medical, legal, financial, "
-        "or investment advice. Use a brief, neutral refusal and redirect to policy-level discussion.\n\n"
-
-        "Style constraints: professional, concise, analytical. "
-        "Structure answers in short paragraphs or bullets. "
-        "Target length: 120–180 words. Do not exceed 200 words."
-    )
-
-    # Try to compute bond data for the question (best-effort)
-    data_summary = None
-    try:
-        intent = parse_intent(question)
-        db = get_db()
-        rows_list = []
-
-        if intent.type == 'POINT':
-            d = intent.point_date
-            params = [d.isoformat()]
-            where = 'obs_date = ?'
-            if intent.tenor:
-                where += ' AND tenor = ?'
-                params.append(intent.tenor)
-            if intent.series:
-                where += ' AND series = ?'
-                params.append(intent.series)
-            rows = db.con.execute(
-                f'SELECT series, tenor, price, "yield" FROM ts WHERE {where} ORDER BY series',
-                params
-            ).fetchall()
-            rows_list = [
-                dict(
-                    series=r[0],
-                    tenor=r[1],
-                    price=round(r[2], 2) if r[2] is not None else None,
-                    **{'yield': round(r[3], 2) if r[3] is not None else None}
-                )
-                for r in rows
-            ]
-
-        elif intent.type in ('RANGE', 'AGG_RANGE'):
-            if intent.agg:
-                # Compute actual aggregate value
-                val, n = db.aggregate(
-                    intent.start_date, intent.end_date,
-                    intent.metric, intent.agg,
-                    intent.series, intent.tenor
-                )
-                data_summary = (
-                    f"Aggregate result: {intent.agg.upper()} {intent.metric} = {round(val, 2) if val else 'N/A'} "
-                    f"(computed from {n} data points in period {intent.start_date} to {intent.end_date})"
-                )
-            else:
-                # Range without aggregation - fetch ALL rows for the period
-                params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
-                where = 'obs_date BETWEEN ? AND ?'
-                if intent.tenor:
-                    where += ' AND tenor = ?'
-                    params.append(intent.tenor)
-                if intent.series:
-                    where += ' AND series = ?'
-                    params.append(intent.series)
-                rows = db.con.execute(
-                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
-                    params
-                ).fetchall()
-                rows_list = [
-                    dict(
-                        series=r[0],
-                        tenor=r[1],
-                        date=r[2].isoformat(),
-                        price=round(r[3], 2) if r[3] is not None else None,
-                        **{'yield': round(r[4], 2) if r[4] is not None else None}
-                    )
-                    for r in rows
-                ]
-                if rows_list:
-                    data_summary = summarize_intent_result(intent, rows_list)
-        
-        if intent.type == 'POINT' and rows_list:
-            data_summary = summarize_intent_result(intent, rows_list)
-    except Exception:
-        data_summary = None
-
-    try:
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "system", "content": "No live news feed available; information may be outdated."},
-        ]
-        if data_summary:
-            messages.append({
-                "role": "system",
-                "content": f"Precomputed bond data summary:\n{data_summary}"
-            })
-        messages.append({"role": "user", "content": question})
-
-        resp = await _openai_client.chat.completions.create(
-            model="gpt-5.2",
-            messages=messages,
-            max_completion_tokens=400,
-            temperature=0.5,
-        )
-        answer = resp.choices[0].message.content.strip()
-        disclaimer = "🤖 Simulated persona — not the real person. Data is precomputed; no live news; info may be outdated."
-        
-        try:
-            # Try with markdown formatting first
-            await update.message.reply_text(
-                f"{disclaimer}\n\n{answer}",
-                parse_mode=ParseMode.MARKDOWN
-            )
-        except Exception as parse_error:
-            # If markdown parsing fails, send as plain text
-            logger.warning("Markdown parse failed, sending as plain text: %s", parse_error)
-            await update.message.reply_text(
-                f"{disclaimer}\n\n{answer}"
-            )
-    except Exception as e:
-        logger.exception("/ask_admin error: %s", e)
-        await update.message.reply_text(
-            f"⚠️ Could not generate persona response: {str(e)}"
-        )
 
 
 async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -999,8 +835,6 @@ def create_telegram_app(token: str) -> Application:
     application.add_handler(CommandHandler("kei", kei_command))
     application.add_handler(CommandHandler("kin", kin_command))
     application.add_handler(CommandHandler("both", both_command))
-    # Deprecated: /ask_admin (still available but not advertised)
-    application.add_handler(CommandHandler("ask_admin", ask_admin_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     return application
