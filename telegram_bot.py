@@ -234,11 +234,16 @@ async def ask_kei(question: str) -> str:
         "- If evidence is insufficient, say so clearly.\n"
         "- Avoid speculation, narratives, and policy advocacy.\n\n"
 
-        "Output style:\n"
-        "- Structured, concise, analytical.\n"
-        "- No headings, no equations, no code blocks.\n"
-        "- Use 3-5 short bullets; each bullet <= 2 lines.\n"
-        "- Plain English summaries; include ranges/uncertainty briefly.\n"
+        "Output style:
+"
+        "- Structured, concise, analytical.
+"
+        "- No headings, no bold/italics (**text**), no equations, no code blocks.
+"
+        "- Use 3-5 short bullets with blank lines between them; each bullet ≤ 2 lines.
+"
+        "- Plain English summaries; include ranges/uncertainty briefly.
+"
         "- Keep it under 110 words.\n\n"
 
         "If precomputed bond or market data are provided:\n"
@@ -293,12 +298,11 @@ async def ask_kin(question: str) -> str:
         "- You may use informed judgment, but anchor it to evidence.\n\n"
 
         "Output style:\n"
-        "- Clear bullet points or short sections.\n"
+        "- Clear bullet points with blank lines between them.\n"
         "- Emphasize 'so what?' and 'what follows?'.\n"
         "- Avoid equations unless strictly necessary.\n"
-        "- Explicitly separate facts, interpretation, and judgment.\n"
-        "- No headings, no tables, no citations/footnotes/bracketed refs.\n"
-        "- Use 3-4 bullets; each bullet <= 2 lines; keep under 120 words.\n\n"
+        "- No headings, no bold/italics (**text**), no tables, no citations/footnotes/refs.\n"
+        "- Use 3-4 bullets; each bullet ≤ 2 lines; keep under 120 words.\n\n"
 
         "If bond or market data summaries are provided:\n"
         "- Use them as factual anchors.\n"
@@ -449,8 +453,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kei(question)
     formatted_response = (
-        "🔬 <b>Kei</b> (Quantitative Analysis)\n"
-        "─────────────────────────────\n\n"
+        "🔬 <b>Kei</b> (Quantitative Analysis)\n\n"
         f"{html_module.escape(answer)}"
     )
     await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
@@ -473,8 +476,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kin(question)
     formatted_response = (
-        "💡 <b>Kin</b> (Economic Interpretation)\n"
-        "─────────────────────────────\n\n"
+        "💡 <b>Kin</b> (Economic Interpretation)\n\n"
         f"{html_module.escape(answer)}"
     )
     await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
@@ -502,11 +504,9 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kin_answer = result["kin"]
     
     response = (
-        "📊 <b>Dual Persona Analysis</b>\n"
-        "═════════════════════════════\n\n"
+        "📊 <b>Dual Persona Analysis</b>\n\n"
         "🔬 <b>Kei</b> (Quantitative Analysis)\n\n"
         f"{html_module.escape(kei_answer)}\n\n"
-        "─────────────────────────────\n\n"
         "💡 <b>Kin</b> (Economic Interpretation)\n\n"
         f"{html_module.escape(kin_answer)}"
     )
@@ -541,8 +541,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kei(question)
             formatted_response = (
-                "🔬 <b>Kei</b> (Quantitative Analysis)\n"
-                "─────────────────────────────\n\n"
+                "🔬 <b>Kei</b> (Quantitative Analysis)\n\n"
                 f"{html_module.escape(answer)}"
             )
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
@@ -556,8 +555,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kin(question)
             formatted_response = (
-                "💡 <b>Kin</b> (Economic Interpretation)\n"
-                "─────────────────────────────\n\n"
+                "💡 <b>Kin</b> (Economic Interpretation)\n\n"
                 f"{html_module.escape(answer)}"
             )
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
