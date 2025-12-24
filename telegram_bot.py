@@ -339,8 +339,12 @@ async def ask_kei(question: str) -> str:
             max_completion_tokens=220,
             temperature=0.3,  # low creativity, high precision
         )
-        return resp.choices[0].message.content.strip()
+        content = resp.choices[0].message.content.strip() if resp.choices else ""
+        if not content:
+            logger.error(f"OpenAI returned empty content. Messages count: {len(messages)}")
+        return content
     except Exception as e:
+        logger.error(f"OpenAI error: {e}")
         return f"⚠️ OpenAI error: {e}"
 
 
