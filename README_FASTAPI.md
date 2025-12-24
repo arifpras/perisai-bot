@@ -44,6 +44,26 @@ Notes
 - The server reuses `parse_intent` and `BondDB` from `20251223_priceyield.py` and caches BondDB instances by CSV path. If you need a fresh DB instance, restart the server.
 - Tests are available in `tests/test_app_fastapi.py` (run with `pytest`).
 
+### Environment variables
+
+- Copy `.env.example` to `.env` and fill in required secrets.
+- At minimum set `TELEGRAM_BOT_TOKEN` if you want Telegram endpoints enabled.
+- `.env` is git-ignored.
+
+```bash
+cp .env.example .env
+sed -i 's/YOUR_TELEGRAM_BOT_TOKEN/<your-token>/' .env
+```
+
+### Docker Compose with `.env`
+
+Docker Compose is configured to load variables from `.env`.
+
+```bash
+docker-compose up --build
+# visit http://127.0.0.1:8000
+```
+
 ---
 
 ## Containerization (Docker) 🐳

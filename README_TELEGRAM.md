@@ -19,6 +19,15 @@ This guide explains how to set up and deploy the Telegram bot integration.
 export TELEGRAM_BOT_TOKEN="your-bot-token-here"
 ```
 
+Or use a `.env` file (recommended):
+
+```bash
+cp .env.example .env
+sed -i 's/YOUR_TELEGRAM_BOT_TOKEN/your-bot-token-here/' .env
+```
+
+Docker Compose will load `.env` automatically when you run `docker-compose up`.
+
 #### For Render Cloud:
 1. Go to your Render dashboard
 2. Select your service (`perisai-api`)
