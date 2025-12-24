@@ -41,6 +41,9 @@ logger = logging.getLogger("telegram_bot")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
 PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar-pro")
 
+# API base URL for plot requests (defaults to localhost, override for production)
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+
 # Access control: allowed user IDs (comma-separated in env var or hardcoded)
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS", "")
 if ALLOWED_USER_IDS_STR:
@@ -677,9 +680,9 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             import httpx
             import base64
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 payload = {"q": question, "plot": True}
-                resp = await client.post("http://127.0.0.1:8000/chat", json=payload)
+                resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get("image"):
@@ -749,9 +752,9 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             import httpx
             import base64
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 payload = {"q": question, "plot": True, "persona": "kin"}
-                resp = await client.post("http://127.0.0.1:8000/chat", json=payload)
+                resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get("image"):
@@ -821,9 +824,9 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             import httpx
             import base64
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 payload = {"q": question, "plot": True, "persona": "both"}
-                resp = await client.post("http://127.0.0.1:8000/chat", json=payload)
+                resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get("image"):
