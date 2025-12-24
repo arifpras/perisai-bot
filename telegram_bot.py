@@ -867,11 +867,26 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 metrics.log_query(user_id, username, question, "text", response_time, False, "Kin empty response", "both")
                 return
             
+            # Strip individual persona signatures (they each end with ________ and signature line)
+            # Remove the trailing signature section from both answers
+            def strip_signature(answer):
+                """Remove trailing ________ and persona line from response."""
+                lines = answer.rstrip().split('\n')
+                # Find and remove the ________ line and everything after it
+                for i in range(len(lines) - 1, -1, -1):
+                    if '________' in lines[i]:
+                        return '\n'.join(lines[:i]).rstrip()
+                return answer
+            
+            kei_clean = strip_signature(kei_answer)
+            kin_clean = strip_signature(kin_answer)
+            
             response = (
-                "📊 <b>Dual Persona Analysis</b>\n\n"
-                f"{html_module.escape(kei_answer)}\n\n"
+                "📊 <b>Kei & Kin | Data → Insight</b>\n\n"
+                f"{html_module.escape(kei_clean)}\n\n"
                 "---\n\n"
-                f"{html_module.escape(kin_answer)}"
+                f"{html_module.escape(kin_clean)}\n\n"
+                "________"
             )
             
             await update.message.reply_text(response, parse_mode=ParseMode.HTML)
