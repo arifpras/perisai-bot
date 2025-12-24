@@ -302,50 +302,98 @@ async def ask_kei(question: str) -> str:
     if not _openai_client:
         return "⚠️ Persona /kei unavailable: OPENAI_API_KEY not configured."
 
-    system_prompt = (
-        "You are Kei.\n"
-        "Profile: CFA charterholder, PhD (MIT). World-class data scientist with deep expertise in mathematics, statistics, econometrics, and forecasting. Because you are a CFA/MIT quant, lead with numbers, ranges/uncertainty, and concise math; avoid narrative or storytelling. Briefly name the forecasting method and key drivers you relied on when citing auction demand forecasts.\n\n"
-
-        "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-        "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
-        "Body (Kei): exactly 2 paragraphs, max 3 sentences each, ≤140 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
-        "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
-        "Signature: blank line, then '________', then blank line, then 'Kei | Quant Research'.\n"
-        "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
-        "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
-
-        "Data access:\n- Historical bond prices and yields (2023-2025)\n- Auction demand forecasts through 2026 (incoming bids, awarded amounts, bid-to-cover ratios)\n- Macroeconomic indicators (BI rate, inflation, etc.)\n"
-    )
-
     data_summary = await try_compute_bond_summary(question)
+    
+    # Determine if this is a bond/data query or general knowledge question
+    is_data_query = data_summary is not None
+    
+    if is_data_query:
+        # For bond data queries, use strict HL-CU format
+        system_prompt = (
+            "You are Kei.\n"
+            "Profile: CFA charterholder, PhD (MIT). World-class data scientist with deep expertise in mathematics, statistics, econometrics, and forecasting. Because you are a CFA/MIT quant, lead with numbers, ranges/uncertainty, and concise math; avoid narrative or storytelling. Briefly name the forecasting method and key drivers you relied on when citing auction demand forecasts.\n\n"
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "system", "content": "Constraint: no live news access; information may be outdated."},
-    ]
+            "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
+            "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
+            "Body (Kei): exactly 2 paragraphs, max 3 sentences each, ≤140 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
+            "Signature: blank line, then '________', then blank line, then 'Kei | Quant Research'.\n"
+            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
+            "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
-    if data_summary:
-        messages.append({
-            "role": "system",
-            "content": f"Precomputed quantitative inputs:\n{data_summary}"
-        })
-
-    messages.append({"role": "user", "content": question})
-
-    try:
-        resp = await _openai_client.chat.completions.create(
-            model="gpt-5.2",
-            messages=messages,
-            max_completion_tokens=220,
-            temperature=0.3,  # low creativity, high precision
+            "Data access:\n- Historical bond prices and yields (2023-2025)\n- Auction demand forecasts through 2026 (incoming bids, awarded amounts, bid-to-cover ratios)\n- Macroeconomic indicators (BI rate, inflation, etc.)\n"
         )
-        content = resp.choices[0].message.content.strip() if resp.choices else ""
-        if not content:
-            logger.error(f"OpenAI returned empty content. Messages count: {len(messages)}")
-        return content
-    except Exception as e:
-        logger.error(f"OpenAI error: {e}")
-        return f"⚠️ OpenAI error: {e}"
+    else:
+        # For general knowledge, use a more flexible prompt
+        system_prompt = (
+            "You are Kei, a world-class quant and data scientist.\n"
+            "You explain economic and financial concepts clearly, using frameworks and mathematical principles. "
+            "When you don't have specific data, acknowledge it but provide solid conceptual analysis grounded in theory and first principles. "
+            "Keep responses concise and avoid unnecessary storytelling. Use bullet points or clear structure when helpful.\n"
+        )
+    
+    # Retry logic: up to 3 attempts for empty responses
+    max_retries = 3
+    for attempt in range(max_retries):
+        messages = [
+            {"role": "system", "content": system_prompt},
+        ]
+
+        if is_data_query:
+            messages.append({"role": "system", "content": "Constraint: no live news access; information may be outdated."})
+            messages.append({
+                "role": "system",
+                "content": f"Precomputed quantitative inputs:\n{data_summary}"
+            })
+        else:
+            messages.append({
+                "role": "system",
+                "content": "You have no access to live data. Provide analysis based on established economic frameworks and available public knowledge."
+            })
+
+        messages.append({"role": "user", "content": question})
+
+        try:
+            # Use lower temperature for data queries (stricter), higher for general knowledge (more flexible)
+            temperature = 0.3 if is_data_query else 0.7
+            # Increase token budget for general knowledge that may need more explanation
+            max_tokens = 220 if is_data_query else 300
+            
+            resp = await _openai_client.chat.completions.create(
+                model="gpt-5.2",
+                messages=messages,
+                max_completion_tokens=max_tokens,
+                temperature=temperature,
+            )
+            content = resp.choices[0].message.content.strip() if resp.choices else ""
+            
+            if content:
+                # Format general knowledge responses with HL-CU style if possible
+                if not is_data_query:
+                    # Ensure it has a headline
+                    if not content.startswith("📰"):
+                        content = f"📰 {content}"
+                return content
+            
+            # Log retry attempt
+            if attempt < max_retries - 1:
+                logger.warning(f"Kei attempt {attempt + 1}: empty response, retrying (query_type={'data' if is_data_query else 'general'})...")
+            else:
+                logger.error(f"Kei: empty response after {max_retries} attempts (query_type={'data' if is_data_query else 'general'}).")
+        
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.error(f"OpenAI error on final attempt: {e}")
+                return f"⚠️ OpenAI error: {e}"
+            else:
+                logger.warning(f"Kei attempt {attempt + 1} failed: {e}, retrying...")
+                continue
+    
+    # Fallback message
+    if is_data_query:
+        return "⚠️ Kei could not analyze the bond data. Please try again or rephrase your query."
+    else:
+        return "⚠️ Kei is currently unable to provide a response. Please try rephrasing your question."
 
 
 async def ask_kin(question: str) -> str:
