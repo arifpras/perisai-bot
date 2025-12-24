@@ -547,6 +547,9 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kei(question)
+    if not answer or not answer.strip():
+        await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+        return
     formatted_response = f"{html_module.escape(answer)}"
     await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
 
@@ -567,6 +570,9 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kin(question)
+    if not answer or not answer.strip():
+        await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
+        return
     formatted_response = f"{html_module.escape(answer)}"
     await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
 
@@ -591,6 +597,13 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     kei_answer = result["kei"]
     kin_answer = result["kin"]
+    
+    if not kei_answer or not kei_answer.strip():
+        await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+        return
+    if not kin_answer or not kin_answer.strip():
+        await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
+        return
     
     response = (
         "📊 <b>Dual Persona Analysis</b>\n\n"
@@ -628,6 +641,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kei(question)
+            if not answer or not answer.strip():
+                await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+                return
             formatted_response = f"{html_module.escape(answer)}"
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
             return
@@ -639,6 +655,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kin(question)
+            if not answer or not answer.strip():
+                await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
+                return
             formatted_response = f"{html_module.escape(answer)}"
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
             return
