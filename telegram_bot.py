@@ -326,7 +326,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
             "Body (Kei): exactly 2 paragraphs, max 3 sentences each, ≤140 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
             "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
-            f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Numbers to Meaning' if dual_mode else 'Kei | Quant Research'}'.\n"
+            f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kei | Quant Research'}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
@@ -475,7 +475,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
             "Body (Kin): exactly 3 paragraphs separated by a blank line, max 3 sentences each, ≤220 words total. Plain text only; absolutely no markdown formatting (no **, no #, no ###, no underscores for emphasis), no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Numbers to Meaning' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
+            f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do not use markdown formatting anywhere in the response.\n"
             "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
@@ -491,7 +491,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
             "Body (Kin): exactly 3 paragraphs separated by a blank line, max 3 sentences each, ≤220 words total. Plain text only; absolutely no markdown formatting (no **, no #, no ###, no underscores for emphasis), no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Numbers to Meaning' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
+            f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do not use markdown formatting anywhere in the response.\n"
             "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
