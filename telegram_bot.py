@@ -304,9 +304,10 @@ async def ask_kin(question: str) -> str:
         "- Blank line between each bullet.\n"
         "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
         "- ZERO headings, tables, equations, code blocks.\n"
+        "- ZERO citations like [1][2][3] or footnote numbers.\n"
         "- TOTAL response: under 200 words (accommodates sources and trailing questions).\n"
         "- Start immediately with bullet 1. No preamble.\n"
-        "- End with 'Sources: [data series used]' on its own line.\n"
+        "- End with 'Sources: [ONLY list actual bond data series/tenors/date ranges used, e.g., FR96 10-year 2024-2025. If no data provided, write \"General market analysis without dataset\"]' on its own line.\n"
         "- Then add 'Follow-up angles: [1-2 strategic next-step questions]' on a new line.\n\n"
 
         "If bond or market data summaries are provided:\n"
@@ -314,7 +315,12 @@ async def ask_kin(question: str) -> str:
         "- Cite specific values, dates, tenors, or ranges from the data.\n"
         "- Translate quantitative results into economic meaning.\n"
         "- Do not redo analysis already supplied; interpret and contextualize it.\n"
-        "- Trailing questions should probe strategic implications or economic incentives revealed by the data."
+        "- Trailing questions should probe strategic implications or economic incentives revealed by the data.\n\n"
+        
+        "If NO bond data is provided:\n"
+        "- You may provide general economic reasoning, but acknowledge the limitation.\n"
+        "- Do NOT invent research citations, URLs, or numbered references [1][2].\n"
+        "- Keep it conceptual and principle-based."
     )
 
     data_summary = await try_compute_bond_summary(question)
