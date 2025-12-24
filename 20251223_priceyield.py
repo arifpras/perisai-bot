@@ -34,7 +34,8 @@ class Intent:
     type: IntentType
     metric: MetricType
     series: Optional[str]
-    tenor: Optional[str]
+    tenor: Optional[str]  # Single tenor (backward compatibility)
+    tenors: Optional[list] = None  # Multiple tenors for multi-tenor plots
     point_date: Optional[date] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -71,6 +72,13 @@ def parse_series(text: str):
 def parse_tenor(text: str):
     m = TENOR_RE.search(text)
     return f"{int(m.group(1)):02d}_year" if m else None
+
+def parse_tenors(text: str):
+    """Extract all tenors mentioned in text (e.g., '5 year and 10 year' -> ['05_year', '10_year'])"""
+    matches = TENOR_RE.findall(text)
+    if matches:
+        return [f"{int(m):02d}_year" for m in matches]
+    return None
 
 def parse_agg(text: str):
     m = AGG_RE.search(text)
@@ -125,6 +133,7 @@ def parse_intent(text: str) -> Intent:
     metric = parse_metric(text_for_parsing)
     series = parse_series(text_for_parsing)
     tenor  = parse_tenor(text_for_parsing)
+    tenors = parse_tenors(text_for_parsing)  # Extract all tenors
     agg    = parse_agg(text_for_parsing)
 
     # 1) Single date (incl. relative, natural language like "2 may 2023")
@@ -138,6 +147,7 @@ def parse_intent(text: str) -> Intent:
                 metric=metric,
                 series=series,
                 tenor=tenor,
+                tenors=tenors,
                 point_date=d,
                 highlight_date=highlight_date,
             )
@@ -163,6 +173,7 @@ def parse_intent(text: str) -> Intent:
                 metric=metric,
                 series=series,
                 tenor=tenor,
+                tenors=tenors,
                 point_date=dt.date(),
                 highlight_date=highlight_date,
             )
@@ -176,6 +187,7 @@ def parse_intent(text: str) -> Intent:
             metric=metric,
             series=series,
             tenor=tenor,
+            tenors=tenors,
             start_date=s,
             end_date=e,
             agg=agg,
@@ -195,6 +207,7 @@ def parse_intent(text: str) -> Intent:
             metric=metric,
             series=series,
             tenor=tenor,
+            tenors=tenors,
             start_date=s,
             end_date=e,
             agg=agg,
@@ -213,6 +226,7 @@ def parse_intent(text: str) -> Intent:
             metric=metric,
             series=series,
             tenor=tenor,
+            tenors=tenors,
             start_date=date(start_year, 1, 1),
             end_date=date(end_year, 12, 31),
             agg=agg,

@@ -674,7 +674,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Generate plot if requested
                 if wants_plot:
                     await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
-                    png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.highlight_date)
+                    png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.tenors, intent.highlight_date)
                     await update.message.reply_photo(photo=io.BytesIO(png))
             
             else:
@@ -725,7 +725,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
                         try:
-                            png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.highlight_date)
+                            png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.tenors, intent.highlight_date)
                             await update.message.reply_photo(photo=io.BytesIO(png))
                         except Exception as e:
                             await update.message.reply_text(
@@ -779,8 +779,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(error_text, parse_mode=ParseMode.MARKDOWN)
 
 
-def generate_plot(db, start_date, end_date, metric='yield', tenor=None, highlight_date=None):
-    """Generate a plot and return PNG bytes."""
+def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=None, highlight_date=None):
+    """Generate a plot and return PNG bytes. Supports single tenor or multiple tenors."""
     import pandas as pd
     import matplotlib
     matplotlib.use('Agg')
@@ -793,9 +793,18 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, highligh
     
     params = [start_date.isoformat(), end_date.isoformat()]
     q = 'SELECT obs_date, series, tenor, price, "yield" FROM ts WHERE obs_date BETWEEN ? AND ?'
-    if tenor:
+    
+    # Handle multi-tenor or single tenor
+    if tenors and len(tenors) > 1:
+        # Multi-tenor query
+        placeholders = ','.join(['?'] * len(tenors))
+        q += f' AND tenor IN ({placeholders})'
+        params.extend(tenors)
+    elif tenor:
+        # Single tenor (backward compatibility)
         q += ' AND tenor = ?'
         params.append(tenor)
+    
     q += ' ORDER BY obs_date'
     df = db.con.execute(q, params).fetchdf()
     
@@ -811,22 +820,44 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, highligh
     
     df['obs_date'] = pd.to_datetime(df['obs_date'])
     
+    # Determine if multi-tenor plot
+    is_multi_tenor = tenors and len(tenors) > 1
+    
     # Fill missing dates and aggregate
     all_dates = pd.date_range(start_date, end_date, freq='D')
-    filled = []
-    for s, g in df.groupby('series'):
-        g2 = g.set_index('obs_date').reindex(all_dates)
-        g2['series'] = s
-        g2[['price', 'yield']] = g2[['price', 'yield']].ffill()
-        filled.append(g2.reset_index().rename(columns={'index': 'obs_date'}))
-    filled = pd.concat(filled, ignore_index=True)
-    daily = filled.groupby('obs_date')[metric].mean().reset_index()
+    
+    if is_multi_tenor:
+        # Multi-tenor: group by tenor and date, keep separate lines
+        filled = []
+        for (s, t), g in df.groupby(['series', 'tenor']):
+            g2 = g.set_index('obs_date').reindex(all_dates)
+            g2['series'] = s
+            g2['tenor'] = t
+            g2[['price', 'yield']] = g2[['price', 'yield']].ffill()
+            filled.append(g2.reset_index().rename(columns={'index': 'obs_date'}))
+        filled = pd.concat(filled, ignore_index=True)
+        # Group by tenor and date (average across series if multiple)
+        daily = filled.groupby(['obs_date', 'tenor'])[metric].mean().reset_index()
+    else:
+        # Single tenor: original aggregation logic
+        filled = []
+        for s, g in df.groupby('series'):
+            g2 = g.set_index('obs_date').reindex(all_dates)
+            g2['series'] = s
+            g2[['price', 'yield']] = g2[['price', 'yield']].ffill()
+            filled.append(g2.reset_index().rename(columns={'index': 'obs_date'}))
+        filled = pd.concat(filled, ignore_index=True)
+        daily = filled.groupby('obs_date')[metric].mean().reset_index()
     
     # Format display
     def format_date(d):
         return d.strftime('%-d %b %Y') if hasattr(d, 'strftime') else str(d)
     
-    display_tenor = tenor.replace('_', ' ') if tenor else ''
+    if is_multi_tenor:
+        display_tenor = ', '.join([t.replace('_', ' ') for t in tenors])
+    else:
+        display_tenor = tenor.replace('_', ' ') if tenor else ''
+    
     title_start = format_date(start_date)
     title_end = format_date(end_date)
     
@@ -842,24 +873,39 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, highligh
     if has_seaborn:
         sns.set_theme(style='darkgrid', context='notebook', palette='bright')
         fig, ax = plt.subplots(figsize=(10, 8))
-        sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
+        
+        if is_multi_tenor:
+            # Multi-tenor: plot separate lines for each tenor
+            sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor', linewidth=2, ax=ax)
+        else:
+            # Single tenor: original single-line plot
+            sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
         
         # Add highlight marker if date is in the data
         if highlight_ts is not None:
-            highlight_row = daily[daily['obs_date'] == highlight_ts]
-            if not highlight_row.empty:
-                y_val = highlight_row[metric].iloc[0]
-                ax.plot(highlight_ts, y_val, 'r*', markersize=20, 
-                       label=f'📍 {format_date(highlight_ts)}', zorder=5)
-                ax.legend(fontsize=10)
+            if is_multi_tenor:
+                # Highlight all tenors at the date
+                highlight_rows = daily[daily['obs_date'] == highlight_ts]
+                if not highlight_rows.empty:
+                    for _, row in highlight_rows.iterrows():
+                        ax.plot(highlight_ts, row[metric], 'r*', markersize=15, zorder=5)
+                    ax.text(highlight_ts, highlight_rows[metric].mean(), 
+                           f'  📍 {format_date(highlight_ts)}', fontsize=9, va='center')
             else:
-                # If exact date not found, find closest date
-                daily['date_diff'] = (daily['obs_date'] - highlight_ts).abs()
-                closest = daily.loc[daily['date_diff'].idxmin()]
-                y_val = closest[metric]
-                ax.plot(closest['obs_date'], y_val, 'r*', markersize=20,
-                       label=f'📍 {format_date(closest["obs_date"])} (closest)', zorder=5)
-                ax.legend(fontsize=10)
+                highlight_row = daily[daily['obs_date'] == highlight_ts]
+                if not highlight_row.empty:
+                    y_val = highlight_row[metric].iloc[0]
+                    ax.plot(highlight_ts, y_val, 'r*', markersize=20, 
+                           label=f'📍 {format_date(highlight_ts)}', zorder=5)
+                    ax.legend(fontsize=10)
+                else:
+                    # If exact date not found, find closest date
+                    daily['date_diff'] = (daily['obs_date'] - highlight_ts).abs()
+                    closest = daily.loc[daily['date_diff'].idxmin()]
+                    y_val = closest[metric]
+                    ax.plot(closest['obs_date'], y_val, 'r*', markersize=20,
+                           label=f'📍 {format_date(closest["obs_date"])} (closest)', zorder=5)
+                    ax.legend(fontsize=10)
         
         ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
         ax.set_xlabel('Date')
