@@ -306,7 +306,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     
     Args:
         question: The user question
-        dual_mode: If True, use "Kei & Kin | Numbers to Meaning" signature (for /both command)
+        dual_mode: If True, use "Kei & Kin | Data → Insight" signature (for /both command)
     """
     if not _openai_client:
         return "⚠️ Persona /kei unavailable: OPENAI_API_KEY not configured."
@@ -455,7 +455,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
     
     Args:
         question: The user question
-        dual_mode: If True, use "Kei & Kin | Numbers to Meaning" signature (for /both command)
+        dual_mode: If True, use "Kei & Kin | Data → Insight" signature (for /both command)
     """
     if not PERPLEXITY_API_KEY:
         return "⚠️ Persona /kin unavailable: PERPLEXITY_API_KEY not configured."
