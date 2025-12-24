@@ -11,3 +11,20 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.5
+
+  - type: worker
+    name: perisai-telegram-bot
+    runtime: python
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: python telegram_bot.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.5
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PERPLEXITY_API_KEY
+        sync: false
