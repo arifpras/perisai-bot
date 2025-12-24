@@ -28,6 +28,8 @@ CSV_PATH_DEFAULT = "20251215_priceyield.csv"
 # -----------------------------
 IntentType = Literal["POINT", "RANGE", "AGG_RANGE", "AGG_YEAR"]
 MetricType = Literal["price", "yield"]
+IntentType = Literal["POINT", "RANGE", "AGG_RANGE", "AGG_YEAR", "AUCTION_FORECAST"]
+MetricType = Literal["price", "yield", "auction"]
 
 @dataclass
 class Intent:
@@ -42,6 +44,7 @@ class Intent:
     agg: Optional[str] = None
     year: Optional[int] = None
     highlight_date: Optional[date] = None
+    forecast_type: Optional[str] = None  # For auction: 'incoming', 'awarded', 'bidtocover'
 
 # -----------------------------
 # Regex
@@ -63,7 +66,10 @@ AGG_RE = re.compile(r"\b(avg|average|mean|sum|total|min|max|count)\b", re.IGNORE
 # Parsing helpers
 # -----------------------------
 def parse_metric(text: str) -> MetricType:
-    return "yield" if "yield" in text.lower() else "price"
+    text_lower = text.lower()
+    if "auction" in text_lower or "demand" in text_lower or "incoming" in text_lower or "awarded" in text_lower:
+        return "auction"
+    return "yield" if "yield" in text_lower else "price"
 
 def parse_series(text: str):
     m = SERIES_RE.search(text)
@@ -124,6 +130,69 @@ def extract_highlight_date(text: str) -> Optional[date]:
 # Intent parser (FIXED)
 # -----------------------------
 def parse_intent(text: str) -> Intent:
+    text_lower = text.lower()
+    
+    # Check for auction-related queries
+    is_auction = any(kw in text_lower for kw in ['auction', 'demand', 'incoming', 'awarded', 'bid to cover', 'bid-to-cover'])
+    
+    if is_auction:
+        # Determine forecast type
+        forecast_type = None
+        if 'incoming' in text_lower or 'demand' in text_lower:
+            forecast_type = 'incoming'
+        elif 'awarded' in text_lower:
+            forecast_type = 'awarded'
+        elif 'bid' in text_lower and 'cover' in text_lower:
+            forecast_type = 'bidtocover'
+        
+        # Parse date for auction forecast
+        # Try month-year first
+        mm = MONTH_YEAR_RE.search(text)
+        if mm:
+            m = mm.group(1)[:3].lower()
+            mon_map = {
+                'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+                'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+            }
+            y = int(mm.group(2))
+            s, e = monthyear_range(mon_map[m], y)
+            return Intent(
+                type="AUCTION_FORECAST",
+                metric="auction",
+                series=None,
+                tenor=None,
+                tenors=None,
+                start_date=s,
+                end_date=e,
+                forecast_type=forecast_type,
+            )
+        
+        # Try year
+        ym = YEAR_RE.findall(text)
+        if ym:
+            years = sorted(set(int(y) for y in ym))
+            y_val = years[0]
+            return Intent(
+                type="AUCTION_FORECAST",
+                metric="auction",
+                series=None,
+                tenor=None,
+                tenors=None,
+                start_date=date(y_val, 1, 1),
+                end_date=date(y_val, 12, 31),
+                forecast_type=forecast_type,
+            )
+        
+        # Default to all available forecasts
+        return Intent(
+            type="AUCTION_FORECAST",
+            metric="auction",
+            series=None,
+            tenor=None,
+            tenors=None,
+            forecast_type=forecast_type,
+        )
+    
     # First, extract highlight_date before modifying the text
     highlight_date = extract_highlight_date(text)
     
@@ -299,6 +368,71 @@ class BondDB:
             {("AND "+where) if where else ""}
         """
         return self.con.execute(q, params).fetchone()
+
+
+# -----------------------------
+# Auction Forecast DB
+# -----------------------------
+class AuctionDB:
+    def __init__(self, csv):
+        self.con = duckdb.connect(":memory:")
+        # Load auction forecast data
+        self.con.execute(f"""
+            CREATE VIEW auction_forecast AS
+            SELECT
+                TRY_CAST(date AS DATE) AS forecast_date,
+                auction_month,
+                auction_year,
+                TRY_CAST(bi_rate AS DOUBLE) AS bi_rate,
+                TRY_CAST(yield01_ibpa AS DOUBLE) AS yield01_ibpa,
+                TRY_CAST(yield05_ibpa AS DOUBLE) AS yield05_ibpa,
+                TRY_CAST(yield10_ibpa AS DOUBLE) AS yield10_ibpa,
+                TRY_CAST(inflation_rate AS DOUBLE) AS inflation_rate,
+                TRY_CAST(idprod_rate AS DOUBLE) AS idprod_rate,
+                TRY_CAST(incoming_billions AS DOUBLE) AS incoming_billions,
+                TRY_CAST(awarded_billions AS DOUBLE) AS awarded_billions,
+                TRY_CAST(bid_to_cover AS DOUBLE) AS bid_to_cover,
+                TRY_CAST(number_series AS INTEGER) AS number_series,
+                TRY_CAST(move AS DOUBLE) AS move,
+                TRY_CAST(forh_avg AS DOUBLE) AS forh_avg
+            FROM read_csv_auto('{csv}', header=True)
+        """)
+
+    def query_forecast(self, intent: Intent):
+        """Query auction forecasts based on intent."""
+        where_parts = []
+
+        if intent.start_date and intent.end_date:
+            where_parts.append(f"forecast_date BETWEEN '{intent.start_date}' AND '{intent.end_date}'")
+        elif intent.start_date:
+            where_parts.append(f"forecast_date >= '{intent.start_date}'")
+
+        where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+        query = f"""
+            SELECT
+                forecast_date AS date,
+                auction_month,
+                auction_year,
+                bi_rate,
+                inflation_rate,
+                incoming_billions,
+                awarded_billions,
+                bid_to_cover,
+                number_series,
+                yield01_ibpa,
+                yield05_ibpa,
+                yield10_ibpa
+            FROM auction_forecast
+            {where_clause}
+            ORDER BY forecast_date
+        """
+
+        result = self.con.execute(query).fetchall()
+        columns = ['date', 'auction_month', 'auction_year', 'bi_rate', 'inflation_rate',
+                   'incoming_billions', 'awarded_billions', 'bid_to_cover', 'number_series',
+                   'yield01_ibpa', 'yield05_ibpa', 'yield10_ibpa']
+        return [dict(zip(columns, row)) for row in result]
 
 # -----------------------------
 # CLI

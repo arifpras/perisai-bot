@@ -23,6 +23,7 @@ sys.modules["priceyield_mod"] = priceyield_mod
 spec.loader.exec_module(priceyield_mod)
 parse_intent = priceyield_mod.parse_intent
 BondDB = priceyield_mod.BondDB
+AuctionDB = priceyield_mod.AuctionDB
 
 # Cache DB instances
 _db_cache = {}
@@ -56,6 +57,13 @@ def get_db(csv_path: str = "20251215_priceyield.csv") -> BondDB:
         _db_cache[csv_path] = BondDB(csv_path)
     return _db_cache[csv_path]
 
+def get_auction_db(csv_path: str = "20251224_auction_forecast.csv"):
+    """Get or create a cached AuctionDB instance."""
+    cache_key = f"auction_{csv_path}"
+    if cache_key not in _db_cache:
+        _db_cache[cache_key] = AuctionDB(csv_path)
+    return _db_cache[cache_key]
+
 
 def format_rows_for_telegram(rows, include_date=False):
     """Format data rows for Telegram message (monospace style)."""
@@ -88,11 +96,72 @@ def format_rows_for_telegram(rows, include_date=False):
             )
     return "\n\n".join(lines)
 
+def format_auction_rows_for_telegram(rows):
+    """Format auction forecast rows for Telegram message."""
+    if not rows:
+        return "No forecast data found for the specified period."
+    
+    from datetime import datetime
+    lines = []
+    for row in rows:
+        try:
+            dt = datetime.fromisoformat(str(row['date']))
+            date_str = dt.strftime('%b %Y')
+        except:
+            date_str = str(row['date'])
+        
+        lines.append(
+            f"📊 <b>{date_str}</b>\n"
+            f"   Incoming: Rp {row['incoming_billions']:.2f}T | Awarded: Rp {row['awarded_billions']:.2f}T\n"
+            f"   Bid-to-Cover: {row['bid_to_cover']:.2f}x | Series: {row['number_series']}\n"
+            f"   BI Rate: {row['bi_rate']:.2f}% | Inflation: {row['inflation_rate']:.2f}%"
+        )
+    return "\n\n".join(lines)
+
 
 def summarize_intent_result(intent, rows_list):
     """Produce a short text summary of computed results for LLM context."""
     if not rows_list:
         return "No matching data found in the requested period."
+    
+        # Handle auction forecasts
+        if intent.type == 'AUCTION_FORECAST':
+            if not rows_list:
+                return "No auction forecast data available for the requested period."
+        
+            parts = []
+            for row in rows_list:
+                from datetime import datetime
+                try:
+                    dt = datetime.fromisoformat(str(row['date']))
+                    date_str = dt.strftime('%B %Y')
+                except:
+                    date_str = str(row['date'])
+            
+                parts.append(
+                    f"{date_str}: Incoming demand Rp {row['incoming_billions']:.2f} trillion, "
+                    f"Awarded Rp {row['awarded_billions']:.2f} trillion, "
+                    f"Bid-to-cover {row['bid_to_cover']:.2f}x, "
+                    f"{row['number_series']} series, "
+                    f"BI rate {row['bi_rate']:.2f}%, "
+                    f"Inflation {row['inflation_rate']:.2f}%"
+                )
+        
+            summary = "\n".join(parts)
+        
+            # Add statistics if multiple months
+            if len(rows_list) > 1:
+                incoming_vals = [r['incoming_billions'] for r in rows_list]
+                awarded_vals = [r['awarded_billions'] for r in rows_list]
+                btc_vals = [r['bid_to_cover'] for r in rows_list]
+            
+                import statistics
+                summary += f"\n\nStatistics ({len(rows_list)} months):\n"
+                summary += f"Incoming: avg Rp {statistics.mean(incoming_vals):.2f}T, range Rp {min(incoming_vals):.2f}T - Rp {max(incoming_vals):.2f}T\n"
+                summary += f"Awarded: avg Rp {statistics.mean(awarded_vals):.2f}T, range Rp {min(awarded_vals):.2f}T - Rp {max(awarded_vals):.2f}T\n"
+                summary += f"Bid-to-cover: avg {statistics.mean(btc_vals):.2f}x, range {min(btc_vals):.2f}x - {max(btc_vals):.2f}x"
+        
+            return summary
     
     parts = []
     
@@ -153,8 +222,18 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
     """Best-effort: parse question and compute a summary for LLM context."""
     try:
         intent = parse_intent(question)
-        db = get_db()
         rows_list = []
+        
+        # Handle auction forecasts
+        if intent.type == 'AUCTION_FORECAST':
+            auction_db = get_auction_db()
+            rows_list = auction_db.query_forecast(intent)
+            if rows_list:
+                return summarize_intent_result(intent, rows_list)
+            return None
+        
+        # Handle bond data queries
+        db = get_db()
 
         if intent.type == 'POINT':
             d = intent.point_date
@@ -224,38 +303,18 @@ async def ask_kei(question: str) -> str:
         return "⚠️ Persona /kei unavailable: OPENAI_API_KEY not configured."
 
     system_prompt = (
-        "You are **Kei**.\n"
-        "Profile: CFA charterholder, PhD (MIT). World-class data scientist with "
-        "deep expertise in mathematics, statistics, econometrics, and forecasting.\n\n"
+        "You are Kei.\n"
+        "Profile: CFA charterholder, PhD (MIT). World-class data scientist with deep expertise in mathematics, statistics, econometrics, and forecasting.\n\n"
 
-        "Operating principles:\n"
-        "- Start from data and models, not opinions.\n"
-        "- Be explicit about assumptions, uncertainty, and limitations.\n"
-        "- If evidence is insufficient, say so clearly.\n"
-        "- Avoid speculation, narratives, and policy advocacy.\n\n"
+        "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
+        "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
+        "Body (Kei): exactly 2 paragraphs, max 3 sentences each, ≤140 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+        "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
+        "Signature: blank line, then '________', then 'Kei | Quant Research'.\n"
+        "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
+        "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
-        "Output style (MANDATORY):\n"
-        "- FOR CODING/PROGRAMMING REQUESTS: Plain format with code examples and brief explanations.\n"
-        "- FOR ANALYTICAL REQUESTS: Use short paragraphs (NOT bullets). 2-4 paragraphs maximum.\n"
-        "- Each paragraph is 1-3 sentences.\n"
-        "- Blank line between each paragraph.\n"
-        "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
-        "- ZERO headings, tables, equations, bullet points (•).\n"
-        "- TOTAL response: under 130 words.\n"
-        "- Start immediately with content. No preamble.\n\n"
-        
-        "Ending format:\n"
-        "- Add blank line\n"
-        "- Add 'Follow-up angles: [1-2 quantitative questions]'\n"
-        "- Add blank line\n"
-        "- Add separator: ________\n"
-        "- Add signature: 🔬 Kei | Quant Research\n\n"
-
-        "If precomputed bond or market data are provided:\n"
-        "- Treat them as given inputs.\n"
-        "- Do not fabricate missing data.\n"
-        "- Base conclusions strictly on those inputs.\n"
-        "- Trailing questions should probe deeper into the quantitative patterns or comparisons revealed."
+        "Data access:\n- Historical bond prices and yields (2023-2025)\n- Auction demand forecasts through 2026 (incoming bids, awarded amounts, bid-to-cover ratios)\n- Macroeconomic indicators (BI rate, inflation, etc.)\n"
     )
 
     data_summary = await try_compute_bond_summary(question)
@@ -299,75 +358,33 @@ async def ask_kin(question: str) -> str:
         # MODE 1: Bond data available - strict data-only mode
         system_prompt = (
             "You are Kin.\n"
-            "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, "
-            "economic incentives, and financial data into clear, compelling narratives that drive decisions.\n\n"
+            "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions.\n\n"
 
-            "Operating principles (STRICT):\n"
-            "- ONLY use data and numbers explicitly provided. NO hallucination, speculation, or outside information.\n"
-            "- When citing numbers, cite exact values from the provided data.\n"
-            "- Connect data, incentives, and context with zero invention.\n"
-            "- Focus on implications, risks, and trade-offs grounded in evidence.\n"
-            "- Be pragmatic and decision-oriented.\n\n"
+            "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
+            "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
+            "Body (Kin): exactly 3 paragraphs, max 3 sentences each, ≤220 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
+            "Signature: blank line, then '________', then 'Kin | Economics & Strategy'.\n"
+            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
+            "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
-            "Output style (MANDATORY):\n"
-            "- Use short paragraphs (NOT bullets). 2-4 paragraphs maximum.\n"
-            "- Each paragraph is 1-3 sentences.\n"
-            "- Blank line between each paragraph.\n"
-            "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
-            "- ZERO headings, tables, equations, code blocks, bullet points (•).\n"
-            "- TOTAL response: under 200 words.\n"
-            "- Start immediately with content. No preamble.\n\n"
-            
-            "Ending format:\n"
-            "- Add blank line\n"
-            "- Add '[Sumber: actual bond data series/tenors/date ranges, e.g., FR96 10-year 2024-2025]'\n"
-            "- Add 'Follow-up angles: [1-2 strategic questions]'\n"
-            "- Add blank line\n"
-            "- Add separator: ________\n"
-            "- Add signature: 💡 Kin | Economics & Strategy\n\n"
-
-            "Bond data is provided - use it as the ONLY factual basis:\n"
-            "- Cite specific values, dates, tenors, or ranges from the data.\n"
-            "- Translate quantitative results into economic meaning.\n"
-            "- Do not redo analysis already supplied; interpret and contextualize it.\n"
-            "- Trailing questions should probe strategic implications revealed by the data."
+            "Bond data is provided - use it as the ONLY factual basis: cite specific values, dates, tenors, or ranges from the data. Translate quantitative results into economic meaning. Do not redo analysis already supplied; interpret and contextualize it."
         )
     else:
         # MODE 2: No bond data - enable full web search capabilities
         system_prompt = (
             "You are Kin.\n"
-            "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, "
-            "economic incentives, and financial data into clear, compelling narratives that drive decisions.\n\n"
+            "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions.\n\n"
 
-            "Operating principles (RESEARCH MODE):\n"
-            "- Use your web search capabilities to find current, authoritative information.\n"
-            "- Cite real sources with URLs when available.\n"
-            "- Connect research findings with economic reasoning and strategic implications.\n"
-            "- Focus on evidence-based analysis with proper attribution.\n"
-            "- Be pragmatic and decision-oriented.\n\n"
+            "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
+            "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
+            "Body (Kin): exactly 3 paragraphs, max 3 sentences each, ≤220 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
+            "Signature: blank line, then '________', then 'Kin | Economics & Strategy'.\n"
+            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
+            "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
 
-            "Output style (MANDATORY):\n"
-            "- Use short paragraphs (NOT bullets). 2-4 paragraphs maximum.\n"
-            "- Each paragraph is 1-3 sentences.\n"
-            "- Blank line between each paragraph.\n"
-            "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
-            "- ZERO headings, tables, equations, code blocks, bullet points (•).\n"
-            "- TOTAL response: under 250 words.\n"
-            "- Start immediately with content. No preamble.\n\n"
-            
-            "Ending format:\n"
-            "- Add blank line\n"
-            "- Add '[Sumber: actual URLs or publications cited]'\n"
-            "- Add 'Follow-up angles: [1-2 strategic questions]'\n"
-            "- Add blank line\n"
-            "- Add separator: ________\n"
-            "- Add signature: 💡 Kin | Economics & Strategy\n\n"
-
-            "No bond data provided - use web search for authoritative analysis:\n"
-            "- Search for recent research, news, and data on the topic.\n"
-            "- Provide real, clickable URLs when citing sources.\n"
-            "- Synthesize findings into actionable economic insights.\n"
-            "- Trailing questions should guide toward deeper strategic exploration."
+            "No bond data provided - use web search for authoritative analysis; cite real URLs when available."
         )
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -484,22 +501,32 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• <code>plot yield 10 year 2025</code>\n"
         "• <code>chart FR103 5 year June 2025</code>\n"
         "• <code>show price 5 year 2024 and 2025</code>\n\n"
+            "<b>Multi-tenor plots:</b>\n"
+            "• <code>plot 5 year and 10 year 2025</code>\n"
+            "• <code>chart yield 5 year and 10 year June 2025</code>\n\n"
+            "<b>Auction forecasts (NEW!):</b>\n"
+            "• <code>auction demand January 2026</code>\n"
+            "• <code>incoming bids February 2026</code>\n"
+            "• <code>awarded amount Q1 2026</code>\n"
+            "• <code>bid to cover 2026</code>\n\n"
         "💡 Tip: Use 'plot' or 'chart' to get a visual graph!\n\n"
         "🤖 <b>Personas:</b>\n\n"
-        "🔬 <b>/kei</b> — Quantitative analyst (OpenAI GPT)\n"
-        "• Data-driven, rigorous, explicit about limitations\n"
-        "• Bond data queries: Strict dataset-only analysis\n"
-        "• Coding requests: Plain format with examples\n"
-        "• Output: 3-4 bullets, ~130 words, trailing questions\n\n"
-        "💡 <b>/kin</b> — Economic strategist (Perplexity)\n"
-        "• Data-driven storyteller, decision-oriented\n"
-        "• Bond data queries: Strict dataset + strategic insights\n"
-        "• General queries: Full web search with real URLs\n"
-        "• Output: 3-4 bullets, ~200-250 words, sources + trailing questions\n\n"
+        "🔬 <b>/kei</b> — Quantitative analyst (OpenAI GPT-5.2)\n"
+        "• World-class data scientist (CFA, PhD MIT)\n"
+        "• HL-CU format: 📰 headline + 2 paragraphs (≤140 words)\n"
+        "• Bond data: Strict dataset-only factual analysis\n"
+        "• Plain text, no speculation, signature: Kei | Quant Research\n\n"
+        "💡 <b>/kin</b> — Economic strategist (Perplexity Sonar-Pro)\n"
+        "• World-class economist (CFA, PhD Harvard)\n"
+        "• HL-CU format: 📰 headline + 3 paragraphs (≤220 words)\n"
+        "• Bond data: Dataset + strategic insights; Web queries: Full search\n"
+        "• Plain text, conditional sources, signature: Kin | Economics & Strategy\n\n"
         "🔄 <b>/both</b> — Chain analysis\n"
         "• Kei analyzes quantitatively → Kin interprets strategically\n\n"
         "⚡ <b>Shortcuts:</b> \\kei, \\kin (same as /kei, /kin)\n\n"
-        "📊 Data: 2023-2025 | Series: FR95-FR104 | Tenors: 5Y, 10Y"
+        "📊 <b>Data Coverage:</b>\n"
+        "• Bond prices/yields: 2023-2025 (FR95-FR104, 5Y/10Y tenors)\n"
+        "• Auction forecasts: Dec 2025 - Dec 2026 (demand, awarded, bid-to-cover)"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
 
@@ -699,15 +726,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Range without aggregation - return individual rows
                 params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
                 where = 'obs_date BETWEEN ? AND ?'
-                if intent.tenor:
+                if intent.tenors and len(intent.tenors) > 1:
+                    placeholders = ','.join(['?'] * len(intent.tenors))
+                    where += f' AND tenor IN ({placeholders})'
+                    params.extend(intent.tenors)
+                elif intent.tenor:
                     where += ' AND tenor = ?'
                     params.append(intent.tenor)
                 if intent.series:
                     where += ' AND series = ?'
                     params.append(intent.series)
                 
+                # Fetch without a hard limit so data_points reflects the full window
                 rows = db.con.execute(
-                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series LIMIT 50',
+                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
                     params
                 ).fetchall()
                 
@@ -733,7 +765,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send summary then plot
                         response_text = f"📊 *{intent.metric.capitalize()} Chart*\n"
                         response_text += f"Period: {intent.start_date} → {intent.end_date}\n"
-                        if intent.tenor:
+                        if intent.tenors and len(intent.tenors) > 1:
+                            display_tenors = ', '.join(t.replace('_', ' ') for t in intent.tenors)
+                            response_text += f"Tenors: {display_tenors}\n"
+                        elif intent.tenor:
                             response_text += f"Tenor: {intent.tenor.replace('_', ' ')}\n"
                         if intent.highlight_date:
                             response_text += f"📍 Highlighting: {intent.highlight_date}\n"
@@ -894,7 +929,7 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         
         if is_multi_tenor:
             # Multi-tenor: plot separate lines for each tenor
-            sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor', linewidth=2, ax=ax)
+            sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor', linewidth=2, ax=ax, ci=None)
         else:
             # Single tenor: original single-line plot
             sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
@@ -926,6 +961,8 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
                     ax.legend(fontsize=10)
         
         ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
+        if is_multi_tenor:
+            ax.legend(title='Tenor', fontsize=10)
         ax.set_xlabel('Date')
         ax.set_ylabel(metric.capitalize())
         
