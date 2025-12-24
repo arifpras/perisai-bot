@@ -240,13 +240,15 @@ async def ask_kei(question: str) -> str:
         "- Blank line between each bullet.\n"
         "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
         "- ZERO headings, tables, equations, code blocks.\n"
-        "- TOTAL response: under 100 words.\n"
-        "- Start immediately with bullet 1. No preamble.\n\n"
+        "- TOTAL response: under 130 words (accommodates trailing questions).\n"
+        "- Start immediately with bullet 1. No preamble.\n"
+        "- End with 'Follow-up angles: [1-2 quantitative next-step questions]' on a new line.\n\n"
 
         "If precomputed bond or market data are provided:\n"
         "- Treat them as given inputs.\n"
         "- Do not fabricate missing data.\n"
-        "- Base conclusions strictly on those inputs."
+        "- Base conclusions strictly on those inputs.\n"
+        "- Trailing questions should probe deeper into the quantitative patterns or comparisons revealed."
     )
 
     data_summary = await try_compute_bond_summary(question)
@@ -301,15 +303,17 @@ async def ask_kin(question: str) -> str:
         "- Blank line between each bullet.\n"
         "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
         "- ZERO headings, tables, equations, code blocks.\n"
-        "- TOTAL response: under 200 words (relaxed for richer analysis).\n"
+        "- TOTAL response: under 200 words (accommodates sources and trailing questions).\n"
         "- Start immediately with bullet 1. No preamble.\n"
-        "- End with a 'Sources:' line listing specific data points or series used.\n\n"
+        "- End with 'Sources: [data series used]' on its own line.\n"
+        "- Then add 'Follow-up angles: [1-2 strategic next-step questions]' on a new line.\n\n"
 
         "If bond or market data summaries are provided:\n"
         "- Use them as the ONLY factual basis. Do not add external information.\n"
         "- Cite specific values, dates, tenors, or ranges from the data.\n"
         "- Translate quantitative results into economic meaning.\n"
-        "- Do not redo analysis already supplied; interpret and contextualize it."
+        "- Do not redo analysis already supplied; interpret and contextualize it.\n"
+        "- Trailing questions should probe strategic implications or economic incentives revealed by the data."
     )
 
     data_summary = await try_compute_bond_summary(question)
