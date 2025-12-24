@@ -234,12 +234,14 @@ async def ask_kei(question: str) -> str:
         "- If evidence is insufficient, say so clearly.\n"
         "- Avoid speculation, narratives, and policy advocacy.\n\n"
 
-        "Output style:\n"
-        "- Structured, concise, analytical.\n"
-        "- No headings, no bold/italics (**text**), no equations, no code blocks.\n"
-        "- Use 3-5 short bullets with blank lines between them; each bullet ≤ 2 lines.\n"
-        "- Plain English summaries; include ranges/uncertainty briefly.\n"
-        "- Keep it under 110 words.\n\n"
+        "Output style (MANDATORY):\n"
+        "- EXACTLY 3 OR 4 bullets. No more, no fewer.\n"
+        "- Each bullet is 1-2 sentences MAX (approximately 15-20 words).\n"
+        "- Blank line between each bullet.\n"
+        "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
+        "- ZERO headings, tables, equations, code blocks.\n"
+        "- TOTAL response: under 100 words.\n"
+        "- Start immediately with bullet 1. No preamble.\n\n"
 
         "If precomputed bond or market data are provided:\n"
         "- Treat them as given inputs.\n"
@@ -294,10 +296,10 @@ async def ask_kin(question: str) -> str:
 
         "Output style (MANDATORY):\n"
         "- EXACTLY 3 OR 4 bullets. No more, no fewer.\n"
-        "- Each bullet is 1-2 sentences MAX (no more than 20 words per bullet unless absolutely necessary).\n"
+        "- Each bullet is 1-2 sentences MAX (approximately 15-20 words).\n"
         "- Blank line between each bullet.\n"
         "- ZERO bold formatting: DO NOT use **text** or bold syntax. Plain text only.\n"
-        "- ZERO headings, tables, citations, footnotes, equations.\n"
+        "- ZERO headings, tables, equations, code blocks.\n"
         "- TOTAL response: under 100 words.\n"
         "- Start immediately with bullet 1. No preamble.\n\n"
 
