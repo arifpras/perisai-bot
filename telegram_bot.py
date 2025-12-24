@@ -262,10 +262,10 @@ async def ask_kei(question: str) -> str:
 
     try:
         resp = await _openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.2",
             messages=messages,
             max_completion_tokens=450,
-            temperature=0.35,  # low creativity, high precision
+            temperature=0.3,  # low creativity, high precision
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
@@ -444,7 +444,12 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kei(question)
-    await update.message.reply_text(f"🤖 Kei:\n\n{answer}", parse_mode=ParseMode.MARKDOWN)
+    formatted_response = (
+        "🔬 *Kei* (Quantitative Analysis)\n"
+        "─────────────────────────────\n\n"
+        f"{answer}"
+    )
+    await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
 
 
 async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -463,7 +468,12 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kin(question)
-    await update.message.reply_text(f"🤖 Kin:\n\n{answer}", parse_mode=ParseMode.MARKDOWN)
+    formatted_response = (
+        "💡 *Kin* (Economic Interpretation)\n"
+        "─────────────────────────────\n\n"
+        f"{answer}"
+    )
+    await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
 
 
 async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -488,11 +498,12 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kin_answer = result["kin"]
     
     response = (
-        "📊 *Dual Persona Analysis*\n\n"
-        "🔬 **Kei** (Quantitative Analysis):\n"
+        "📊 *Dual Persona Analysis*\n"
+        "═════════════════════════════\n\n"
+        "🔬 *Kei* (Quantitative Analysis)\n\n"
         f"{kei_answer}\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "💡 **Kin** (Economic Interpretation):\n"
+        "─────────────────────────────\n\n"
+        "💡 *Kin* (Economic Interpretation)\n\n"
         f"{kin_answer}"
     )
     
@@ -525,7 +536,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kei(question)
-            await update.message.reply_text(f"🤖 Kei:\n\n{answer}", parse_mode=ParseMode.MARKDOWN)
+            formatted_response = (
+                "🔬 *Kei* (Quantitative Analysis)\n"
+                "─────────────────────────────\n\n"
+                f"{answer}"
+            )
+            await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
             return
 
         if lowered.startswith("\\kin"):
@@ -535,7 +551,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kin(question)
-            await update.message.reply_text(f"🤖 Kin:\n\n{answer}", parse_mode=ParseMode.MARKDOWN)
+            formatted_response = (
+                "💡 *Kin* (Economic Interpretation)\n"
+                "─────────────────────────────\n\n"
+                f"{answer}"
+            )
+            await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
             return
 
         # Determine if user wants a plot
