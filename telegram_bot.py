@@ -10,6 +10,7 @@ from openai import AsyncOpenAI
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.constants import ParseMode
+import html as html_module
 
 # Import bond query logic
 import importlib.util
@@ -445,11 +446,11 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kei(question)
     formatted_response = (
-        "🔬 *Kei* (Quantitative Analysis)\n"
+        "🔬 <b>Kei</b> (Quantitative Analysis)\n"
         "─────────────────────────────\n\n"
-        f"{answer}"
+        f"{html_module.escape(answer)}"
     )
-    await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
 
 
 async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -469,11 +470,11 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     answer = await ask_kin(question)
     formatted_response = (
-        "💡 *Kin* (Economic Interpretation)\n"
+        "💡 <b>Kin</b> (Economic Interpretation)\n"
         "─────────────────────────────\n\n"
-        f"{answer}"
+        f"{html_module.escape(answer)}"
     )
-    await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
 
 
 async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -498,16 +499,16 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kin_answer = result["kin"]
     
     response = (
-        "📊 *Dual Persona Analysis*\n"
+        "📊 <b>Dual Persona Analysis</b>\n"
         "═════════════════════════════\n\n"
-        "🔬 *Kei* (Quantitative Analysis)\n\n"
-        f"{kei_answer}\n\n"
+        "🔬 <b>Kei</b> (Quantitative Analysis)\n\n"
+        f"{html_module.escape(kei_answer)}\n\n"
         "─────────────────────────────\n\n"
-        "💡 *Kin* (Economic Interpretation)\n\n"
-        f"{kin_answer}"
+        "💡 <b>Kin</b> (Economic Interpretation)\n\n"
+        f"{html_module.escape(kin_answer)}"
     )
     
-    await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(response, parse_mode=ParseMode.HTML)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -537,11 +538,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kei(question)
             formatted_response = (
-                "🔬 *Kei* (Quantitative Analysis)\n"
+                "🔬 <b>Kei</b> (Quantitative Analysis)\n"
                 "─────────────────────────────\n\n"
-                f"{answer}"
+                f"{html_module.escape(answer)}"
             )
-            await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
             return
 
         if lowered.startswith("\\kin"):
@@ -552,11 +553,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             answer = await ask_kin(question)
             formatted_response = (
-                "💡 *Kin* (Economic Interpretation)\n"
+                "💡 <b>Kin</b> (Economic Interpretation)\n"
                 "─────────────────────────────\n\n"
-                f"{answer}"
+                f"{html_module.escape(answer)}"
             )
-            await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
             return
 
         # Determine if user wants a plot
