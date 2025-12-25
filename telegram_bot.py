@@ -702,15 +702,27 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
+                    analysis = data.get('analysis', '')
                     if data.get("image"):
                         image_bytes = base64.b64decode(data["image"])
+                        # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption=f"📊 <b>Kei | Quant Research</b>\n\n{html_module.escape(data.get('analysis', ''))}"[:1024],
+                            caption="📊 <b>Kei | Quant Research</b>",
                             parse_mode=ParseMode.HTML
                         )
+                        # Send full analysis as follow-up message (no truncation)
+                        if analysis and analysis.strip():
+                            await update.message.reply_text(
+                                html_module.escape(analysis),
+                                parse_mode=ParseMode.HTML
+                            )
                     else:
-                        await update.message.reply_text(f"📊 <b>Kei | Quant Research</b>\n\n{html_module.escape(data.get('analysis', ''))}", parse_mode=ParseMode.HTML)
+                        # No image, send analysis-only response
+                        await update.message.reply_text(
+                            f"📊 <b>Kei | Quant Research</b>\n\n{html_module.escape(analysis)}",
+                            parse_mode=ParseMode.HTML
+                        )
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kei")
                 else:
@@ -774,15 +786,27 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
+                    analysis = data.get('analysis', '')
                     if data.get("image"):
                         image_bytes = base64.b64decode(data["image"])
+                        # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption=f"📊 <b>Kin | Economics & Strategy</b>\n\n{html_module.escape(data.get('analysis', ''))}"[:1024],
+                            caption="📊 <b>Kin | Economics & Strategy</b>",
                             parse_mode=ParseMode.HTML
                         )
+                        # Send full analysis as follow-up message (no truncation)
+                        if analysis and analysis.strip():
+                            await update.message.reply_text(
+                                html_module.escape(analysis),
+                                parse_mode=ParseMode.HTML
+                            )
                     else:
-                        await update.message.reply_text(f"📊 <b>Kin | Economics & Strategy</b>\n\n{html_module.escape(data.get('analysis', ''))}", parse_mode=ParseMode.HTML)
+                        # No image, send analysis-only response
+                        await update.message.reply_text(
+                            f"📊 <b>Kin | Economics & Strategy</b>\n\n{html_module.escape(analysis)}",
+                            parse_mode=ParseMode.HTML
+                        )
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kin")
                 else:
@@ -846,15 +870,27 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
+                    analysis = data.get('analysis', '')
                     if data.get("image"):
                         image_bytes = base64.b64decode(data["image"])
+                        # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption=f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{html_module.escape(data.get('analysis', ''))}"[:1024],
+                            caption="📊 <b>Kei & Kin | Numbers to Meaning</b>",
                             parse_mode=ParseMode.HTML
                         )
+                        # Send full analysis as follow-up message (no truncation)
+                        if analysis and analysis.strip():
+                            await update.message.reply_text(
+                                html_module.escape(analysis),
+                                parse_mode=ParseMode.HTML
+                            )
                     else:
-                        await update.message.reply_text(f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{html_module.escape(data.get('analysis', ''))}", parse_mode=ParseMode.HTML)
+                        # No image, send analysis-only response
+                        await update.message.reply_text(
+                            f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{html_module.escape(analysis)}",
+                            parse_mode=ParseMode.HTML
+                        )
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="both")
                 else:
