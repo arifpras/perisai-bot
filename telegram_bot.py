@@ -584,26 +584,23 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     welcome_text = (
-        "🏛️ <b>Bond Price & Yield Assistant</b>\n\n"
-        "Fast answers on Indonesian govvies: prices, yields, auction forecasts.\n\n"
-        "<b>📌 Quick Start:</b>\n"
-        "/kei <question> — Quantitative analyst (💹 data-driven)\n"
-        "/kin <question> — Macro strategist (🌍 context-aware)\n"
-        "/both <question> — Chain both (⚡ data + insight)\n\n"
-        "<b>📝 Try these:</b>\n"
-        "/kei yield 5 and 10 years 2025\n"
-        "/kei plot 10 year 2024\n"
-        "/kin auction demand 2026\n"
-        "/both average yield 2024 vs 2025\n\n"
-        "<b>💡 Features:</b>\n"
-        "✅ Multi-tenor comparison (e.g., 5 & 10 year together)\n"
-        "✅ Charts with analysis (plot, chart, show, graph)\n"
-        "✅ Auction demand forecasts\n"
-        "✅ Custom date formats (dates, months, quarters, years)\n\n"
-        "More examples: /examples\n"
-        "Questions? Just ask! 🚀"
+        "🏛️ <b>PerisAI</b>\n\n"
+        "Pengelolaan Pembiayaan dan Risiko Berbasis AI\n"
+        "<i>©arifpras</i>\n\n"
+        "─────────────────────────────\n\n"
+        "<b>Commands</b>\n"
+        "/kei — Quant analyst (💹 data)\n"
+        "/kin — Macro strategist (🌍 context)\n"
+        "/both — Combined (⚡ insight)\n\n"
+        "<b>Examples</b>\n"
+        "• Yield 5 and 10 years 2025\n"
+        "• Plot 10 year 2024\n"
+        "• Auction demand 2026\n"
+        "• Average yield 2024 vs 2025\n\n"
+        "Type /examples for more\n"
+        "Type /start anytime"
     )
-    await update.message.reply_text(welcome_text, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
 
 
 async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
