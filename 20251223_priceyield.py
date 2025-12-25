@@ -50,7 +50,7 @@ class Intent:
 # Regex
 # -----------------------------
 SERIES_RE = re.compile(r"\bFR\d+\b", re.IGNORECASE)
-TENOR_RE = re.compile(r"\b(\d+)\s*year\b", re.IGNORECASE)
+TENOR_RE = re.compile(r"\b(\d+)\s*years?\b", re.IGNORECASE)
 QUARTER_RE = re.compile(r"\bQ([1-4])\s*(\d{4})\b", re.IGNORECASE)
 MONTH_YEAR_RE = re.compile(
     r"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
@@ -81,7 +81,18 @@ def parse_tenor(text: str):
     return f"{int(m.group(1)):02d}_year" if m else None
 
 def parse_tenors(text: str):
-    """Extract all tenors mentioned in text (e.g., '5 year and 10 year' -> ['05_year', '10_year'])"""
+    """Extract all tenors mentioned in text (e.g., '5 year and 10 year' -> ['05_year', '10_year']
+    Handles patterns like: '5 and 10 years', '5 year and 10 year', '5 year, 10 year', etc."""
+    
+    # First try to find "X and Y years" pattern (singular or plural)
+    and_pattern = re.compile(r"\b(\d+)\s+and\s+(\d+)\s*years?\b", re.IGNORECASE)
+    and_match = and_pattern.search(text)
+    if and_match:
+        tenor1 = f"{int(and_match.group(1)):02d}_year"
+        tenor2 = f"{int(and_match.group(2)):02d}_year"
+        return [tenor1, tenor2]
+    
+    # Fallback to original regex findall for other patterns
     matches = TENOR_RE.findall(text)
     if matches:
         return [f"{int(m):02d}_year" for m in matches]
