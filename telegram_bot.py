@@ -769,7 +769,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             import httpx
             import base64
             async with httpx.AsyncClient(timeout=60.0) as client:
-                payload = {"q": question, "plot": True}
+                payload = {"q": question, "plot": True, "persona": "kei"}
                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -1179,7 +1179,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Route through FastAPI /chat endpoint for Economist style + AI analysis
                         try:
                             async with httpx.AsyncClient(timeout=60.0) as client:
-                                payload = {"q": user_query, "plot": True}
+                                payload = {"q": user_query, "plot": True, "persona": "kei"}
                                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                                 if resp.status_code == 200:
                                     data = resp.json()
