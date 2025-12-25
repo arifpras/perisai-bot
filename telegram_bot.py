@@ -708,21 +708,34 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
-                    analysis = data.get('analysis', '')
+                    data_summary = data.get('analysis', '')
                     if data.get("image"):
                         image_bytes = base64.b64decode(data["image"])
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption="� <b>Kei | Quant Research</b>",
+                            caption="💹 <b>Kei | Quant Research</b>",
                             parse_mode=ParseMode.HTML
                         )
-                        # Send full analysis as follow-up message (no truncation)
-                        if analysis and analysis.strip():
-                            await update.message.reply_text(
-                                html_module.escape(analysis),
-                                parse_mode=ParseMode.HTML
-                            )
+                        # Generate AI analysis based on the question and data
+                        if data_summary and data_summary.strip():
+                            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+                            try:
+                                # Create context for AI with the data summary
+                                ai_prompt = f"{question}\n\nData: {data_summary}"
+                                ai_analysis = await ask_kei(ai_prompt)
+                                if ai_analysis and ai_analysis.strip():
+                                    await update.message.reply_text(
+                                        html_module.escape(ai_analysis),
+                                        parse_mode=ParseMode.HTML
+                                    )
+                            except Exception as e:
+                                logger.error(f"Error generating AI analysis: {e}")
+                                # Fallback to data summary if AI fails
+                                await update.message.reply_text(
+                                    html_module.escape(data_summary),
+                                    parse_mode=ParseMode.HTML
+                                )
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
@@ -905,7 +918,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             ai_prompt = f"{question}\n\nData: {data_summary}"
                             # Get both Kei and Kin analyses
                             kei_answer = await ask_kei(ai_prompt, dual_mode=True)
-                            kin_answer = await ask_kin(ai_prompt)
+                            kin_answer = await ask_kin(ai_prompt, dual_mode=True)
                             
                             combined = ""
                             if kei_answer and kei_answer.strip():
