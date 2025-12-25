@@ -41,8 +41,9 @@ logger = logging.getLogger("telegram_bot")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
 PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar-pro")
 
-# API base URL for plot requests (defaults to localhost, override for production)
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+# API base URL for plot requests (defaults to localhost with PORT from env, or 8000)
+PORT = os.getenv("PORT", "8000")
+API_BASE_URL = os.getenv("API_BASE_URL", f"http://127.0.0.1:{PORT}")
 
 # Access control: allowed user IDs (comma-separated in env var or hardcoded)
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS", "")
@@ -1312,7 +1313,7 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         if is_multi_tenor:
             # Multi-tenor: plot separate lines for each tenor with distinct colors
             sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor_label', 
-                        linewidth=2.5, ax=ax, ci=None, palette='Set1', legend='full')
+                        linewidth=2.5, ax=ax, errorbar=None, palette='Set1', legend='full')
             # Improve legend
             ax.legend(title='Tenor', fontsize=11, title_fontsize=12, 
                      loc='best', frameon=True, fancybox=True, shadow=True)
