@@ -28,10 +28,32 @@ Fast answers on Indonesian govvies: prices/yields (2023-2025), auction forecasts
 - GET `/ui`     → minimal chat page
 
 ## Telegram bot 💬
-- Commands: `/kei`, `/kin`, `/both`, `/examples`, `/start`
-- Plots: include `plot|chart|show|graph|visualize` in the question
-- Personas: Kei = dataset-only quant; Kin = macro strategist (search-enabled); Both = chained
-- Run locally (example): `python telegram_bot.py` (ensure env vars above and API running)
+
+### Commands
+- `/kei` — Quant analyst (data-driven, ChatGPT-powered)
+- `/kin` — Macro strategist (context-aware, Perplexity-powered with search)
+- `/both` — Chain both personas: Kei → Kin (data first, then macro insight)
+- `/examples` — Show example queries
+- `/start` — Welcome message
+
+### Query patterns
+- **Single tenor**: `/kei yield 10 year 2024` or `/kei 5 year Q1 2025`
+- **Multi-tenor comparison**: `/kei yield 5 and 10 years 2024` (retrieves both tenors for analysis)
+- **Plot request**: Include `plot|chart|show|graph|visualize` → `/kei plot 10 year 2024` (returns chart + analysis)
+- **Date formats**: Year (2024), quarter (Q1 2024), month (May 2024), specific date (6 Dec 2024)
+- **Tenure range**: Average/aggregate → `/kei average yield 2024` (full year avg)
+
+### Response format
+- **Text answers**: Headline (with context-relevant emoji), blank line, then 3-paragraph analysis
+  - 💹 Kei: Quantitative, factual, data-driven
+  - 🌍 Kin: Macro context, policy implications, forward-looking
+  - ⚡ Both: Data facts (Kei) + strategic interpretation (Kin)
+- **Plot requests**: Chart image (minimal caption) + full analysis as separate message (no truncation)
+
+### Local testing
+```bash
+python telegram_bot.py  # Requires: OPENAI_API_KEY, PERPLEXITY_API_KEY, TELEGRAM_BOT_TOKEN, API_BASE_URL
+```
 
 ## Usage logging & dashboard 📈
 - Logging: `usage_store.py` (SQLite) via metrics hooks in bot/API
