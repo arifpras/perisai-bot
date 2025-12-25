@@ -47,27 +47,38 @@ class Intent:
     forecast_type: Optional[str] = None  # For auction: 'incoming', 'awarded', 'bidtocover'
 
 # -----------------------------
-# Regex
+# Regex (English + Indonesian)
 # -----------------------------
 SERIES_RE = re.compile(r"\bFR\d+\b", re.IGNORECASE)
-TENOR_RE = re.compile(r"\b(\d+)\s*years?\b", re.IGNORECASE)
+# Tenor: English (year/years) + Indonesian (tahun)
+TENOR_RE = re.compile(r"\b(\d+)\s*(?:years?|tahun)\b", re.IGNORECASE)
 QUARTER_RE = re.compile(r"\bQ([1-4])\s*(\d{4})\b", re.IGNORECASE)
+# Month-Year: English months + Indonesian months (Jan/Januari, Feb/Februari, etc.)
 MONTH_YEAR_RE = re.compile(
-    r"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
-    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|"
-    r"Dec(?:ember)?)\s+(\d{4})\b",
+    r"\b(Jan(?:uary|uari)?|Feb(?:ruary|ruari)?|Mar(?:ch|et)?|Apr(?:il)?|May|Mei|"
+    r"Jun(?:e|i)?|Jul(?:y|i)?|Aug(?:ust|ustus)?|Sep(?:tember|tember)?|"
+    r"Oct(?:ober|ober)?|Nov(?:ember)?|Des(?:ember)?|Dec(?:ember)?)\s+(\d{4})\b",
     re.IGNORECASE,
 )
 YEAR_RE = re.compile(r"\b(19\d{2}|20\d{2})\b")
 ISO_DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-AGG_RE = re.compile(r"\b(avg|average|mean|sum|total|min|max|count)\b", re.IGNORECASE)
+# Aggregation: English + Indonesian (rata-rata, jumlah, minimum, maksimum)
+AGG_RE = re.compile(
+    r"\b(avg|average|mean|rata-rata|rataan|sum|total|jumlah|jumblah|min|minimum|minima|"
+    r"max|maksimum|maxima|count|hitung)\b",
+    re.IGNORECASE
+)
 
 # -----------------------------
 # Parsing helpers
 # -----------------------------
 def parse_metric(text: str) -> MetricType:
     text_lower = text.lower()
-    if "auction" in text_lower or "demand" in text_lower or "incoming" in text_lower or "awarded" in text_lower:
+    # English: auction, demand, incoming, awarded
+    # Indonesian: lelang, permintaan, masuk, diberikan
+    auction_keywords = ['auction', 'demand', 'incoming', 'awarded', 
+                       'lelang', 'permintaan', 'masuk', 'diberikan']
+    if any(kw in text_lower for kw in auction_keywords):
         return "auction"
     # Default to yield for bond queries (industry standard); only use price if explicitly requested
     return "price" if "price" in text_lower else "yield"
@@ -102,11 +113,22 @@ def parse_agg(text: str):
     m = AGG_RE.search(text)
     if not m:
         return None
-    return {
-        "avg":"avg","average":"avg","mean":"avg",
-        "sum":"sum","total":"sum",
-        "min":"min","max":"max","count":"count"
-    }[m.group(1).lower()]
+    # Map English and Indonesian aggregation keywords to standard forms
+    agg_map = {
+        # Average
+        "avg":"avg", "average":"avg", "mean":"avg",
+        "rata-rata":"avg", "rataan":"avg",
+        # Sum
+        "sum":"sum", "total":"sum",
+        "jumlah":"sum", "jumblah":"sum",
+        # Min
+        "min":"min", "minimum":"min", "minima":"min",
+        # Max
+        "max":"max", "maksimum":"max", "maxima":"max",
+        # Count
+        "count":"count", "hitung":"count"
+    }
+    return agg_map.get(m.group(1).lower())
 
 # No need for safe_parse_date anymore—logic moved into parse_intent
 
@@ -144,17 +166,21 @@ def extract_highlight_date(text: str) -> Optional[date]:
 def parse_intent(text: str) -> Intent:
     text_lower = text.lower()
     
-    # Check for auction-related queries
-    is_auction = any(kw in text_lower for kw in ['auction', 'demand', 'incoming', 'awarded', 'bid to cover', 'bid-to-cover'])
+    # Check for auction-related queries (English + Indonesian)
+    # English: auction, demand, incoming, awarded, bid to cover
+    # Indonesian: lelang, permintaan, masuk, diberikan, rasio penawaran
+    auction_keywords = ['auction', 'demand', 'incoming', 'awarded', 'bid to cover', 'bid-to-cover',
+                       'lelang', 'permintaan', 'masuk', 'diberikan', 'rasio penawaran', 'rasio bid']
+    is_auction = any(kw in text_lower for kw in auction_keywords)
     
     if is_auction:
-        # Determine forecast type
+        # Determine forecast type (English + Indonesian)
         forecast_type = None
-        if 'incoming' in text_lower or 'demand' in text_lower:
+        if 'incoming' in text_lower or 'demand' in text_lower or 'masuk' in text_lower or 'permintaan' in text_lower:
             forecast_type = 'incoming'
-        elif 'awarded' in text_lower:
+        elif 'awarded' in text_lower or 'diberikan' in text_lower:
             forecast_type = 'awarded'
-        elif 'bid' in text_lower and 'cover' in text_lower:
+        elif ('bid' in text_lower or 'rasio' in text_lower) and ('cover' in text_lower or 'penawaran' in text_lower):
             forecast_type = 'bidtocover'
         
         # Parse date for auction forecast
