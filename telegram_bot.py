@@ -782,25 +782,12 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             caption="💹 <b>Kei | Quant Research</b>",
                             parse_mode=ParseMode.HTML
                         )
-                        # Generate AI analysis based on the question and data
+                        # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
-                            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-                            try:
-                                # Create context for AI with the data summary
-                                ai_prompt = f"{question}\n\nData: {data_summary}"
-                                ai_analysis = await ask_kei(ai_prompt)
-                                if ai_analysis and ai_analysis.strip():
-                                    await update.message.reply_text(
-                                        html_module.escape(ai_analysis),
-                                        parse_mode=ParseMode.HTML
-                                    )
-                            except Exception as e:
-                                logger.error(f"Error generating AI analysis: {e}")
-                                # Fallback to data summary if AI fails
-                                await update.message.reply_text(
-                                    html_module.escape(data_summary),
-                                    parse_mode=ParseMode.HTML
-                                )
+                            await update.message.reply_text(
+                                html_module.escape(data_summary),
+                                parse_mode=ParseMode.HTML
+                            )
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
@@ -879,29 +866,16 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             caption="🌍 <b>Kin | Economics & Strategy</b>",
                             parse_mode=ParseMode.HTML
                         )
-                        # Generate AI analysis based on the question and data
-                        await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-                        try:
-                            # Create context for AI with the data summary
-                            ai_prompt = f"{question}\n\nData: {data_summary}"
-                            ai_analysis = await ask_kin(ai_prompt)
-                            if ai_analysis and ai_analysis.strip():
-                                await update.message.reply_text(
-                                    html_module.escape(ai_analysis),
-                                    parse_mode=ParseMode.HTML
-                                )
-                        except Exception as e:
-                            logger.error(f"Error generating AI analysis: {e}")
-                            # Fallback to data summary if AI fails
-                            if data_summary and data_summary.strip():
-                                await update.message.reply_text(
-                                    html_module.escape(data_summary),
-                                    parse_mode=ParseMode.HTML
-                                )
+                        # Send pre-computed analysis from FastAPI (no redundant LLM call)
+                        if data_summary and data_summary.strip():
+                            await update.message.reply_text(
+                                html_module.escape(data_summary),
+                                parse_mode=ParseMode.HTML
+                            )
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
-                            f"📊 <b>Kin | Economics & Strategy</b>\n\n{html_module.escape(analysis)}",
+                            f"📊 <b>Kin | Economics & Strategy</b>\n\n{html_module.escape(data_summary)}",
                             parse_mode=ParseMode.HTML
                         )
                     response_time = time.time() - start_time
@@ -976,35 +950,16 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             caption="⚡ <b>Kei & Kin | Numbers to Meaning</b>",
                             parse_mode=ParseMode.HTML
                         )
-                        # Generate dual AI analysis based on the question and data
-                        await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-                        try:
-                            # Create context for AI with the data summary
-                            ai_prompt = f"{question}\n\nData: {data_summary}"
-                            # Get both Kei and Kin analyses
-                            kei_answer = await ask_kei(ai_prompt, dual_mode=True)
-                            kin_answer = await ask_kin(ai_prompt, dual_mode=True)
-                            
-                            combined = ""
-                            if kei_answer and kei_answer.strip():
-                                combined += f"💹 <b>Kei | Quant Research</b>\n{html_module.escape(kei_answer)}\n\n"
-                            if kin_answer and kin_answer.strip():
-                                combined += f"🌍 <b>Kin | Macro Strategist</b>\n{html_module.escape(kin_answer)}"
-                            
-                            if combined.strip():
-                                await update.message.reply_text(combined, parse_mode=ParseMode.HTML)
-                        except Exception as e:
-                            logger.error(f"Error generating AI analysis: {e}")
-                            # Fallback to data summary if AI fails
-                            if data_summary and data_summary.strip():
-                                await update.message.reply_text(
-                                    html_module.escape(data_summary),
-                                    parse_mode=ParseMode.HTML
-                                )
+                        # Send pre-computed analysis from FastAPI (no redundant LLM calls)
+                        if data_summary and data_summary.strip():
+                            await update.message.reply_text(
+                                html_module.escape(data_summary),
+                                parse_mode=ParseMode.HTML
+                            )
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
-                            f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{html_module.escape(analysis)}",
+                            f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{html_module.escape(data_summary)}",
                             parse_mode=ParseMode.HTML
                         )
                     response_time = time.time() - start_time
