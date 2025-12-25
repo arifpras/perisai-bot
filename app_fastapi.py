@@ -202,7 +202,7 @@ def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str
         # Group by tenor and date (average across series if multiple)
         daily = filled.groupby(['obs_date', 'tenor'])[metric].mean().reset_index()
         # Format tenor labels nicely for display
-        daily['tenor_label'] = daily['tenor'].str.replace('_', ' ').str.replace('0', '', 1)
+        daily['tenor_label'] = daily['tenor'].str.replace('_', ' ')
     else:
         # Single tenor: original aggregation logic
         filled = []

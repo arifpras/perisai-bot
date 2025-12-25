@@ -323,7 +323,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "Profile: CFA charterholder, PhD (MIT). World-class data scientist with deep expertise in mathematics, statistics, econometrics, and forecasting. Because you are a CFA/MIT quant, lead with numbers, ranges/uncertainty, and concise math; avoid narrative or storytelling. Briefly name the forecasting method and key drivers you relied on when citing auction demand forecasts.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤140 words total). Plain text only; no markdown, no bullets.\n"
+            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kei): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
             "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
@@ -473,9 +473,9 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions. Because you are a CFA/Harvard macro strategist, foreground policy context and market implications, reconcile conflicting signals, and state uncertainties plainly; no price targets or advice.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤220 words total). Plain text only; no markdown, no bullets.\n"
+            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤214 words total). Plain text only; absolutely NO markdown formatting (no **, no *, no _), no bullets.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
-            "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
@@ -490,9 +490,9 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions. Because you are a CFA/Harvard macro strategist, foreground policy context and market implications, reconcile conflicting signals, and state uncertainties plainly; no price targets or advice.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤220 words total). Plain text only; no markdown, no bullets.\n"
+            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤214 words total). Plain text only; absolutely NO markdown formatting (no **, no *, no _), no bullets.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
-            "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
@@ -590,9 +590,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📌 *Commands:*\n"
         "/start - Show this help\n"
         "/examples - Show more examples\n"
-        "/kei <question> - Ask persona Kei (ChatGPT)\n"
-        "/kin <question> - Ask persona Kin (Perplexity)\n"
-        "/both <question> - Chain both personas (quantitative → interpretation)\n\n"
+        "/kei <question> - Ask Kei (OpenAI GPT-5.2) — quant data scientist\n"
+        "/kin <question> - Ask Kin (Perplexity Sonar-Pro) — macro strategist\n"
+        "/both <question> - Chain both personas (data → insight)\n\n"
         "Tip: You can also type `\\kei ...` or `\\kin ...` as shortcuts.\n\n"
         "Just send your question and I'll fetch the data! 🚀"
     )
@@ -638,13 +638,13 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🤖 <b>Personas:</b>\n\n"
         "🔬 <b>/kei</b> — Quantitative analyst (OpenAI GPT-5.2)\n"
         "• World-class data scientist (CFA, PhD MIT)\n"
-        "• HL-CU format: 📰 headline + 2 paragraphs (≤140 words)\n"
+        "• HL-CU format: 📰 headline + 3 paragraphs (≤152 words)\n"
         "• Bond data: Strict dataset-only factual analysis\n"
         "• Plain text, no speculation\n"
         "• Signature: <code>Kei | Quant Research</code>\n\n"
         "💡 <b>/kin</b> — Economic strategist (Perplexity Sonar-Pro)\n"
         "• World-class economist (CFA, PhD Harvard)\n"
-        "• HL-CU format: 📰 headline + 3 paragraphs (≤220 words)\n"
+        "• HL-CU format: 📰 headline + 3 paragraphs (≤214 words)\n"
         "• Bond data: Dataset + strategic insights; Web queries: Full search\n"
         "• Plain text, conditional sources\n"
         "• Signature: <code>Kin | Economics & Strategy</code>\n\n"
@@ -1195,7 +1195,7 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         # Group by tenor and date (average across series if multiple)
         daily = filled.groupby(['obs_date', 'tenor'])[metric].mean().reset_index()
         # Format tenor labels nicely for display
-        daily['tenor_label'] = daily['tenor'].str.replace('_', ' ').str.replace('0', '', 1)
+        daily['tenor_label'] = daily['tenor'].str.replace('_', ' ')
     else:
         # Single tenor: original aggregation logic
         filled = []
