@@ -369,6 +369,8 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "You are Kei.\n"
             "Profile: CFA charterholder, PhD (MIT). World-class data scientist with deep expertise in mathematics, statistics, econometrics, and forecasting. Because you are a CFA/MIT quant, lead with numbers, ranges/uncertainty, and concise math; avoid narrative or storytelling. Briefly name the forecasting method and key drivers you relied on when citing auction demand forecasts.\n\n"
 
+            "LANGUAGE: Always respond in the same language as the user's question. If the user asks in Indonesian, respond entirely in Indonesian. If they ask in English, respond entirely in English.\n\n"
+
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (� TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
@@ -384,6 +386,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         # For general knowledge, use a more flexible prompt
         system_prompt = (
             "You are Kei, a world-class quant and data scientist.\n"
+            "LANGUAGE: Always respond in the same language as the user's question. If the user asks in Indonesian, respond entirely in Indonesian. If they ask in English, respond entirely in English.\n"
             "Explain economic and financial concepts clearly using established frameworks and first principles.\n"
             "If specific data is unavailable, acknowledge limits but still provide a concise, plain-text explanation.\n"
             "No special formatting is required; avoid leaving the response empty.\n"
@@ -519,6 +522,8 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "You are Kin.\n"
             "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions. Because you are a CFA/Harvard macro strategist, foreground policy context and market implications, reconcile conflicting signals, and state uncertainties plainly; no price targets or advice.\n\n"
 
+            "LANGUAGE: Always respond in the same language as the user's question. If the user asks in Indonesian, respond entirely in Indonesian. If they ask in English, respond entirely in English.\n\n"
+
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total). Plain text only; absolutely NO markdown formatting (no **, no *, no _), no bullets.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
@@ -535,6 +540,8 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
         system_prompt = (
             "You are Kin.\n"
             "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions. Because you are a CFA/Harvard macro strategist, foreground policy context and market implications, reconcile conflicting signals, and state uncertainties plainly; no price targets or advice.\n\n"
+
+            "LANGUAGE: Always respond in the same language as the user's question. If the user asks in Indonesian, respond entirely in Indonesian. If they ask in English, respond entirely in English.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total). Plain text only; absolutely NO markdown formatting (no **, no *, no _), no bullets.\n"
@@ -658,19 +665,25 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     examples_text = (
         "<b>📚 Query Examples</b>\n\n"
-        "<b>🎯 Single Tenor:</b>\n"
+        "<b>🎯 Single Tenor (Data Queries):</b>\n"
         "/kei yield 10 year 2025\n"
         "/kei 5 year Q1 2025\n"
-        "/kei price 10 year 6 Dec 2024\n\n"
+        "/kei price 10 year 6 Dec 2024\n"
+        "/kin auction demand January 2026\n\n"
         "<b>🔀 Multi-Tenor Comparison:</b>\n"
         "/kei yield 5 and 10 years 2024\n"
         "/kin compare 5 year and 10 year 2025\n"
         "/both 5 and 10 year average 2024\n\n"
-        "<b>📊 Charts & Visualizations (with AI Analysis):</b>\n"
-        "/kei plot yield 10 year 2025 → Chart + Quant insights\n"
-        "/kei chart 5 and 10 years 2024 → Multi-tenor + Analysis\n"
+        "<b>📊 Charts & Visualizations (Command-Based, with AI Analysis):</b>\n"
+        "/kei plot yield 10 year 2025 → Economist-style chart + Quant insights\n"
+        "/kei chart 5 and 10 years 2024 → Multi-tenor plot + Analysis\n"
         "/kin show price 5 year 2023 → Chart + Macro context\n"
         "/both compare 5 and 10 years 2024 → Chart + Dual analysis\n\n"
+        "<b>📈 Plain Message Plots (No Command Prefix):</b>\n"
+        "plot 5 year 2025 → Economist-style chart\n"
+        "chart 10 year 2024 → Multi-tenor plot\n"
+        "show 5 and 10 years 2023 → Comparison chart\n"
+        "visualize yield 2024 → Range plot\n\n"
         "<b>📈 Aggregates & Statistics:</b>\n"
         "/kei average yield 10 year 2025\n"
         "/kei max yield 2024\n"
@@ -708,11 +721,21 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✓ Bond yields & prices: 2023-2025 (FR95-FR104, 5Y/10Y tenors)\n"
         "✓ Auction forecasts: Dec 2025 - Dec 2026 (demand, awarded, bid-to-cover)\n\n"
         "<b>💡 Tips:</b>\n"
-        "• Use <b>plot/chart/show/graph/visualize/compare</b> to get charts with AI analysis\n"
+        "• Use <b>plot/chart/show/graph/visualize/compare</b> to get charts\n"
+        "• Command-based plots (/kei, /kin, /both) include AI-generated analysis\n"
+        "• Plain message plots (no prefix) show Economist-style charts instantly\n"
         "• Use <b>5 and 10 years</b> for multi-tenor comparison\n"
         "• Use <b>average/max/min</b> for aggregates\n"
         "• Use <b>auction/demand/incoming/awarded</b> for forecasts\n"
-        "• Charts include: Economist-style plot + AI-generated insights!"
+        "• All charts: Economist style (red/blue lines, minimal design, professional appearance)\n"
+        "\n\n"
+        "<b>🎨 Chart Styling</b>\n"
+        "All charts (command-based & plain message) feature:\n"
+        "• The Economist magazine styling (trademark red & blue colors)\n"
+        "• Clean, minimalist design with light gray background\n"
+        "• White horizontal gridlines only (no clutter)\n"
+        "• Professional typography and legend placement\n"
+        "• Resolution: 150 DPI for crisp display"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
 
