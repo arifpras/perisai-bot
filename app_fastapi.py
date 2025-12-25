@@ -489,7 +489,7 @@ async def chat_endpoint(req: ChatRequest):
         # Support multiple tenors: use intent.tenors if present, otherwise fall back to intent.tenor
         tenors_to_fetch = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
         if tenors_to_fetch:
-            tenor_placeholders = ','.join(['?' * len(tenors_to_fetch)])
+            tenor_placeholders = ','.join(['?'] * len(tenors_to_fetch))
             where += f' AND tenor IN ({tenor_placeholders})'
             params.extend(tenors_to_fetch)
         

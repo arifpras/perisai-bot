@@ -1170,7 +1170,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     for r in rows
                 ]
                 
-                # If plot is requested, send plot directly without row details
+                # If plot is requested, route through FastAPI for consistent Economist styling and AI analysis
                 if wants_plot:
                     if len(rows_list) == 0:
                         await update.message.reply_text(
@@ -1178,29 +1178,39 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             parse_mode=ParseMode.MARKDOWN
                         )
                     else:
-                        # Send summary then plot
-                        response_text = f"📊 *{intent.metric.capitalize()} Chart*\n"
-                        response_text += f"Period: {intent.start_date} → {intent.end_date}\n"
-                        if intent.tenors and len(intent.tenors) > 1:
-                            display_tenors = ', '.join(t.replace('_', ' ') for t in intent.tenors)
-                            response_text += f"Tenors: {display_tenors}\n"
-                        elif intent.tenor:
-                            response_text += f"Tenor: {intent.tenor.replace('_', ' ')}\n"
-                        if intent.highlight_date:
-                            response_text += f"📍 Highlighting: {intent.highlight_date}\n"
-                        response_text += f"Data points: {len(rows_list)}"
-                        
-                        await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
-                        
-                        await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
+                        # Route through FastAPI /chat endpoint for Economist style + AI analysis
                         try:
-                            png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.tenors, intent.highlight_date)
-                            await update.message.reply_photo(photo=io.BytesIO(png))
+                            async with httpx.AsyncClient(timeout=60.0) as client:
+                                payload = {"q": user_query, "plot": True}
+                                resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
+                                if resp.status_code == 200:
+                                    data = resp.json()
+                                    data_summary = data.get('analysis', '')
+                                    if data.get("image"):
+                                        image_bytes = base64.b64decode(data["image"])
+                                        # Send plot with minimal caption
+                                        await update.message.reply_photo(
+                                            photo=image_bytes,
+                                            caption="📊 <b>Bond Analysis Chart</b>",
+                                            parse_mode=ParseMode.HTML
+                                        )
+                                        # Send AI analysis if available
+                                        if data_summary and data_summary.strip():
+                                            await update.message.reply_text(
+                                                html_module.escape(data_summary),
+                                                parse_mode=ParseMode.HTML
+                                            )
+                                    else:
+                                        # No image, send analysis-only response
+                                        await update.message.reply_text(
+                                            f"📊 <b>Bond Analysis</b>\n\n{html_module.escape(data_summary)}",
+                                            parse_mode=ParseMode.HTML
+                                        )
+                                else:
+                                    await update.message.reply_text(f"⚠️ Error from API: {resp.status_code}")
                         except Exception as e:
-                            await update.message.reply_text(
-                                f"⚠️ Could not generate plot: {str(e)}",
-                                parse_mode=ParseMode.MARKDOWN
-                            )
+                            logger.error(f"Error calling /chat endpoint: {e}")
+                            await update.message.reply_text("⚠️ Error generating plot. Please try again.")
                 else:
                     # No plot requested - show data rows with statistics
                     # Calculate statistics
