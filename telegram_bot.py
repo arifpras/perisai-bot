@@ -487,18 +487,16 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     if is_data_query:
         return "⚠️ Kei could not analyze the bond data. Please try again or rephrase your query."
     else:
-        # Check if question seems to be asking for data/forecast
-        lower_q = question.lower()
-        data_keywords = ['forecast', 'auction', 'demand', 'yield', 'price', 'bond', 'series', 'tenor']
-        if any(keyword in lower_q for keyword in data_keywords):
-            return (
-                "⚠️ No dataset available for this query.\n\n"
-                "Dataset coverage:\n"
-                "• Bond prices/yields: 2023-2025 (FR95-FR104, 5Y/10Y tenors)\n"
-                "• Auction forecasts: Dec 2025 - Dec 2026\n\n"
-                "For data outside this range or general economic questions, try /kin instead."
-            )
-        return "⚠️ Kei is currently unable to provide a response. Please try rephrasing your question."
+        # For general knowledge questions, provide a generic helpful response
+        return (
+            "📰 <b>Kei | General Knowledge</b>\n\n"
+            "I encountered a temporary issue processing your question. This can happen for complex or ambiguous queries.\n\n"
+            "<b>Try:</b>\n"
+            "• Rephrase your question more concisely\n"
+            "• Ask about specific bond data: '/kei yield 5 year 2025'\n"
+            "• Use /kin for broader economic and market context\n"
+            "• Use /examples for query samples"
+        )
 
 
 async def ask_kin(question: str, dual_mode: bool = False) -> str:

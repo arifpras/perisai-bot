@@ -415,14 +415,28 @@ class ChatRequest(BaseModel):
     csv: Optional[str] = '20251215_priceyield.csv'
     plot: Optional[bool] = False
     highlight_date: Optional[str] = None  # Optional date to highlight on plot (e.g., "2023-05-15")
+    persona: Optional[str] = None  # Optional persona: 'kei', 'kin', or 'both' for LLM analysis
 
 
 @app.post('/chat')
 async def chat_endpoint(req: ChatRequest):
-    """Higher-level chat endpoint: returns JSON with text and optional base64 PNG if plot=True."""
+    """Higher-level chat endpoint: returns JSON with text and optional base64 PNG if plot=True.
+    If persona is specified, includes LLM-generated analysis.
+    """
     start_time = time.time()
     error_msg = None
     query_type = "unknown"
+    
+    # Import persona functions if needed
+    if req.persona:
+        try:
+            from telegram_bot import ask_kei, ask_kin, ask_kei_then_kin
+            _has_personas = True
+        except Exception as e:
+            logger.warning(f"Could not import personas: {e}")
+            _has_personas = False
+    else:
+        _has_personas = False
     
     try:
         intent: Intent = parse_intent(req.q)
@@ -472,6 +486,22 @@ async def chat_endpoint(req: ChatRequest):
                 val, n = db.aggregate(intent.start_date, intent.end_date, intent.metric, intent.agg, intent.series, intent.tenor)
                 text = f"{intent.agg.upper()} {intent.metric} {intent.start_date} → {intent.end_date} = {round(val, 2) if val is not None else 'N/A'} (N={n})"
             
+            # Generate LLM analysis if persona requested
+            analysis_text = text
+            if _has_personas:
+                try:
+                    if req.persona == "kei":
+                        analysis_text = await ask_kei(req.q)
+                    elif req.persona == "kin":
+                        analysis_text = await ask_kin(req.q)
+                    elif req.persona == "both":
+                        result = await ask_kei_then_kin(req.q)
+                        # For /both, combine both personas' analysis
+                        analysis_text = f"{result['kei']}\n\n---\n\n{result['kin']}"
+                except Exception as e:
+                    logger.warning(f"Error generating persona analysis: {e}")
+                    analysis_text = text  # fallback to data description
+            
             if wants_plot:
                 # Use highlight_date from intent
                 highlight_date_obj = intent.highlight_date
@@ -479,8 +509,8 @@ async def chat_endpoint(req: ChatRequest):
                 tenors_to_plot = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
                 png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=tenors_to_plot, highlight_date=highlight_date_obj)
                 b64 = base64.b64encode(png).decode('ascii')
-                return JSONResponse({"text": text, "analysis": text, "image": b64})
-            return JSONResponse({"text": text, "analysis": text})
+                return JSONResponse({"text": text, "analysis": analysis_text, "image": b64})
+            return JSONResponse({"text": text, "analysis": analysis_text})
 
         # No aggregation provided — return all individual rows for the date range
         params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
@@ -506,6 +536,7 @@ async def chat_endpoint(req: ChatRequest):
         text = f"Found {len(rows_list)} row(s) for {tenor_display} from {intent.start_date} to {intent.end_date}:"
         
         # If the user asked for a plot, also include it
+        analysis_text = text
         if wants_plot:
             # Use highlight_date from intent
             highlight_date_obj = intent.highlight_date
@@ -513,9 +544,25 @@ async def chat_endpoint(req: ChatRequest):
             tenors_to_plot = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
             png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=tenors_to_plot, highlight_date=highlight_date_obj)
             b64 = base64.b64encode(png).decode('ascii')
-            return JSONResponse({"text": text, "analysis": text, "rows": rows_list, "image": b64})
+            
+            # Generate LLM analysis if persona requested
+            if _has_personas:
+                try:
+                    if req.persona == "kei":
+                        analysis_text = await ask_kei(req.q)
+                    elif req.persona == "kin":
+                        analysis_text = await ask_kin(req.q)
+                    elif req.persona == "both":
+                        result = await ask_kei_then_kin(req.q)
+                        # For /both, combine both personas' analysis
+                        analysis_text = f"{result['kei']}\n\n---\n\n{result['kin']}"
+                except Exception as e:
+                    logger.warning(f"Error generating persona analysis: {e}")
+                    analysis_text = text  # fallback to data description
+            
+            return JSONResponse({"text": text, "analysis": analysis_text, "rows": rows_list, "image": b64})
         
-        return JSONResponse({"text": text, "analysis": text, "rows": rows_list})
+        return JSONResponse({"text": text, "analysis": analysis_text, "rows": rows_list})
 
 
 # Minimal chat UI (single-file)
