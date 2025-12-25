@@ -690,7 +690,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
-    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize"])
+    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
     
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     
@@ -774,7 +774,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
-    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize"])
+    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
     
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     
@@ -858,7 +858,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
-    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize"])
+    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
     
     await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     

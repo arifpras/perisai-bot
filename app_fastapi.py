@@ -451,7 +451,7 @@ async def chat_endpoint(req: ChatRequest):
     # RANGE / AGG_RANGE handling (support plotting without explicit aggregation)
     # Determine whether user requested a plot by keywords or by the `plot` flag
     lower_q = (req.q or '').lower()
-    plot_keywords = ('plot', 'chart', 'show', 'visualize', 'graph')
+    plot_keywords = ('plot', 'chart', 'show', 'visualize', 'graph', 'compare')
     wants_plot = bool(req.plot) or any(k in lower_q for k in plot_keywords)
 
     if intent.type in ('RANGE', 'AGG_RANGE'):
@@ -462,9 +462,11 @@ async def chat_endpoint(req: ChatRequest):
             if wants_plot:
                 # Use highlight_date from intent
                 highlight_date_obj = intent.highlight_date
-                png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=intent.tenors, highlight_date=highlight_date_obj)
+                # Use tenors list if available, otherwise single tenor
+                tenors_to_plot = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
+                png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=tenors_to_plot, highlight_date=highlight_date_obj)
                 b64 = base64.b64encode(png).decode('ascii')
-                return JSONResponse({"text": text, "analysis": text, "image_base64": b64})
+                return JSONResponse({"text": text, "analysis": text, "image": b64})
             return JSONResponse({"text": text, "analysis": text})
 
         # No aggregation provided — return all individual rows for the date range
@@ -482,9 +484,11 @@ async def chat_endpoint(req: ChatRequest):
         if wants_plot:
             # Use highlight_date from intent
             highlight_date_obj = intent.highlight_date
-            png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=intent.tenors, highlight_date=highlight_date_obj)
+            # Use tenors list if available, otherwise single tenor
+            tenors_to_plot = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
+            png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=tenors_to_plot, highlight_date=highlight_date_obj)
             b64 = base64.b64encode(png).decode('ascii')
-            return JSONResponse({"text": text, "analysis": text, "rows": rows_list, "image_base64": b64})
+            return JSONResponse({"text": text, "analysis": text, "rows": rows_list, "image": b64})
         
         return JSONResponse({"text": text, "analysis": text, "rows": rows_list})
 
