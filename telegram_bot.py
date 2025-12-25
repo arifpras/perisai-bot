@@ -1076,7 +1076,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         wants_plot = any(k in lower_q for k in plot_keywords)
         
         # Parse the user's intent
-        intent = parse_intent(user_query)
+        try:
+            intent = parse_intent(user_query)
+        except Exception as e:
+            logger.error(f"Intent parsing failed for '{user_query}': {type(e).__name__}: {e}", exc_info=True)
+            await update.message.reply_text(
+                f"❌ Could not parse your query. Please try a different format.\n\nExample: 'plot yield 5 year 2025' or '/kei plot yield 5 year 2025'",
+                parse_mode=ParseMode.MARKDOWN
+            )
+            return
+        
         db = get_db()
         
         # POINT query
@@ -1205,9 +1214,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                             parse_mode=ParseMode.HTML
                                         )
                                 else:
+                                    error_detail = f"Status {resp.status_code}"
+                                    try:
+                                        error_detail += f": {resp.json().get('detail', '')}"
+                                    except:
+                                        pass
+                                    logger.error(f"FastAPI /chat error: {error_detail}")
                                     await update.message.reply_text(f"⚠️ Error from API: {resp.status_code}")
                         except Exception as e:
-                            logger.error(f"Error calling /chat endpoint: {e}")
+                            logger.error(f"Error calling /chat endpoint for '{user_query}': {type(e).__name__}: {e}", exc_info=True)
                             await update.message.reply_text("⚠️ Error generating plot. Please try again.")
                 else:
                     # No plot requested - show data rows with statistics
