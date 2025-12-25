@@ -29,6 +29,48 @@ AuctionDB = priceyield_mod.AuctionDB
 # Import metrics
 from metrics import metrics
 
+
+# Economist styling for plots
+ECONOMIST_COLORS = {
+    'red': '#E3120B',
+    'blue': '#0C6291',
+    'teal': '#00847E',
+    'gray': '#8C8C8C',
+    'bg_gray': '#F0F0F0',
+    'black': '#1A1A1A',
+}
+
+ECONOMIST_PALETTE = [
+    ECONOMIST_COLORS['red'],
+    ECONOMIST_COLORS['blue'],
+    ECONOMIST_COLORS['teal'],
+    ECONOMIST_COLORS['gray'],
+]
+
+def apply_economist_style(fig, ax):
+    """Apply The Economist styling to a matplotlib figure."""
+    ax.set_facecolor(ECONOMIST_COLORS['bg_gray'])
+    fig.patch.set_facecolor('white')
+    
+    # Remove top and right spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    
+    # Style bottom spine
+    ax.spines['bottom'].set_color(ECONOMIST_COLORS['black'])
+    ax.spines['bottom'].set_linewidth(0.5)
+    
+    # Horizontal gridlines only
+    ax.yaxis.grid(True, color='white', linewidth=1.2, linestyle='-')
+    ax.set_axisbelow(True)
+    
+    # Tick styling
+    ax.tick_params(axis='both', which='both', length=0, labelsize=9, colors=ECONOMIST_COLORS['gray'])
+    ax.xaxis.label.set_color(ECONOMIST_COLORS['gray'])
+    ax.yaxis.label.set_color(ECONOMIST_COLORS['gray'])
+    ax.title.set_color(ECONOMIST_COLORS['black'])
+
 # Cache DB instances
 _db_cache = {}
 
@@ -1320,19 +1362,20 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         highlight_ts = pd.Timestamp(highlight_date)
     
     if has_seaborn:
-        sns.set_theme(style='darkgrid', context='notebook', palette='bright')
+        sns.set_theme(style='whitegrid', context='notebook', palette='bright')
         fig, ax = plt.subplots(figsize=(10, 8))
+        apply_economist_style(fig, ax)
         
         if is_multi_tenor:
             # Multi-tenor: plot separate lines for each tenor with distinct colors
             sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor_label', 
-                        linewidth=2.5, ax=ax, errorbar=None, palette='Set1', legend='full')
+                        linewidth=2.5, ax=ax, errorbar=None, palette=ECONOMIST_PALETTE, legend='full')
             # Improve legend
             ax.legend(title='Tenor', fontsize=11, title_fontsize=12, 
                      loc='best', frameon=True, fancybox=True, shadow=True)
         else:
             # Single tenor: original single-line plot
-            sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
+            sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2.5, ax=ax, color=ECONOMIST_COLORS['red'])
         
         # Add highlight marker if date is in the data
         if highlight_ts is not None:
