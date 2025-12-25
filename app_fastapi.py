@@ -389,8 +389,8 @@ async def chat_endpoint(req: ChatRequest):
                 highlight_date_obj = intent.highlight_date
                 png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=intent.tenors, highlight_date=highlight_date_obj)
                 b64 = base64.b64encode(png).decode('ascii')
-                return JSONResponse({"text": text, "image_base64": b64})
-            return JSONResponse({"text": text})
+                return JSONResponse({"analysis": text, "image": b64})
+            return JSONResponse({"analysis": text})
 
         # No aggregation provided — return all individual rows for the date range
         params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
@@ -409,9 +409,9 @@ async def chat_endpoint(req: ChatRequest):
             highlight_date_obj = intent.highlight_date
             png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=intent.tenors, highlight_date=highlight_date_obj)
             b64 = base64.b64encode(png).decode('ascii')
-            return JSONResponse({"text": text, "rows": rows_list, "image_base64": b64})
+            return JSONResponse({"analysis": text, "rows": rows_list, "image": b64})
         
-        return JSONResponse({"text": text, "rows": rows_list})
+        return JSONResponse({"analysis": text, "rows": rows_list})
 
 
 # Minimal chat UI (single-file)
