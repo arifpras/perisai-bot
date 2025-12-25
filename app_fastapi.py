@@ -304,7 +304,7 @@ def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str
                 # Multi-tenor: plot separate lines for each tenor with Economist colors
                 for idx, tenor_val in enumerate(sorted(daily['tenor'].unique())):
                     tenor_data = daily[daily['tenor'] == tenor_val]
-                    tenor_label = tenor_val.replace('_', ' ')
+                    tenor_label = tenor_val.replace('_', ' ').replace('05 ', '5 ').replace('10 ', '10 ')
                     color = ECONOMIST_PALETTE[idx % len(ECONOMIST_PALETTE)]
                     ax.plot(tenor_data['obs_date'], tenor_data[metric], 
                            linewidth=2.5, label=tenor_label, color=color)
