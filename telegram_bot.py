@@ -380,7 +380,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a scannable, publication-ready response that delivers the key market signal clearly.\n\n"
 
-            "Data access:\n- Indonesian government bond prices and yields (2023-2025): FR95-FR104 series (5Y/10Y tenors). FR stands for Fixing Rate series, issued by Bank Indonesia (BI), NOT French government bonds.\n- Auction demand forecasts for Indonesian bonds through 2026 (incoming bids, awarded amounts, bid-to-cover ratios; generated using ensemble ML methods combining XGBoost, Random Forest, and time-series models with macroeconomic features: BI rate, inflation, industrial production, JKSE index, and FX rates)\n- Indonesian macroeconomic indicators (BI rate, inflation, etc.)\n"
+            "Data access:\n- Indonesian government bond prices and yields (2023-2025): FR95-FR104 series (5Y/10Y tenors). FR stands for Fixing Rate series, issued by Indonesia's government, NOT French government bonds.\n- Auction demand forecasts for Indonesian bonds through 2026 (incoming bids, awarded amounts, bid-to-cover ratios; generated using ensemble ML methods combining XGBoost, Random Forest, and time-series models with macroeconomic features: BI rate, inflation, industrial production, JKSE index, and FX rates)\n- Indonesian macroeconomic indicators (BI rate, inflation, etc.)\n"
         )
     else:
         # For general knowledge, use a more flexible prompt
@@ -533,7 +533,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
-            "Bond context: FR95-FR104 are Indonesian government bond series (Fixing Rate bonds issued by Bank Indonesia), NOT French government bonds. Dataset covers Indonesian government bonds only.\n\n"
+            "Bond context: FR95-FR104 are Indonesian government bond series (Fixing Rate bonds issued by Indonesia's government), NOT French government bonds. Dataset covers Indonesian government bonds only.\n\n"
             "Bond data is provided - use it as the ONLY factual basis: cite specific values, dates, tenors, or ranges from the data. Translate quantitative results into economic meaning. Do not redo analysis already supplied; interpret and contextualize it."
         )
     else:
@@ -720,7 +720,7 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "─────────────────────────────────────────\n\n"
         "<b>📊 Data Coverage</b>\n"
         "✓ Indonesian government bond yields & prices: 2023-2025 (FR95-FR104 series, 5Y/10Y tenors)\n"
-        "  - FR = Fixing Rate bonds issued by Bank Indonesia (BI), NOT French government bonds\n"
+        "  - FR = Fixing Rate bonds issued by Indonesia's government, NOT French government bonds\n"
         "✓ Indonesian bond auction forecasts: Dec 2025 - Dec 2026 (demand, awarded, bid-to-cover)\n\n"
         "<b>💡 Tips:</b>\n"
         "• Use <b>plot/chart/show/graph/visualize/compare</b> to get charts\n"
