@@ -279,8 +279,12 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
             else:
                 params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
                 where = 'obs_date BETWEEN ? AND ?'
-                if intent.tenor:
-                    where += ' AND tenor = ?'; params.append(intent.tenor)
+                # Support multiple tenors: use intent.tenors if present, otherwise intent.tenor
+                tenors_to_use = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
+                if tenors_to_use:
+                    tenor_placeholders = ', '.join('?' * len(tenors_to_use))
+                    where += f' AND tenor IN ({tenor_placeholders})'
+                    params.extend(tenors_to_use)
                 if intent.series:
                     where += ' AND series = ?'; params.append(intent.series)
                 rows = db.con.execute(
