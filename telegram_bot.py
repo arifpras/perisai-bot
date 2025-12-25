@@ -317,18 +317,19 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     is_data_query = data_summary is not None
     
     if is_data_query:
-        # For bond data queries, use strict HL-CU format
+        # For bond data queries, use strict HL-CU format (unless user requests otherwise)
         system_prompt = (
             "You are Kei.\n"
             "Profile: CFA charterholder, PhD (MIT). World-class data scientist with deep expertise in mathematics, statistics, econometrics, and forecasting. Because you are a CFA/MIT quant, lead with numbers, ranges/uncertainty, and concise math; avoid narrative or storytelling. Briefly name the forecasting method and key drivers you relied on when citing auction demand forecasts.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
-            "Body (Kei): exactly 2 paragraphs, max 3 sentences each, ≤140 words total. Plain text only; no markdown, no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤140 words total). Plain text only; no markdown, no bullets.\n"
+            "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
+            "Body (Kei): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
             "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
             f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kei | Quant Research'}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
-            "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
+            "Objective: Produce a scannable, publication-ready response that delivers the key market signal clearly.\n\n"
 
             "Data access:\n- Historical bond prices and yields (2023-2025)\n- Auction demand forecasts through 2026 (incoming bids, awarded amounts, bid-to-cover ratios; generated using ensemble ML methods combining XGBoost, Random Forest, and time-series models with macroeconomic features: BI rate, inflation, industrial production, JKSE index, and FX rates)\n- Macroeconomic indicators (BI rate, inflation, etc.)\n"
         )
@@ -472,12 +473,13 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions. Because you are a CFA/Harvard macro strategist, foreground policy context and market implications, reconcile conflicting signals, and state uncertainties plainly; no price targets or advice.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
-            "Body (Kin): exactly 3 paragraphs separated by a blank line, max 3 sentences each, ≤220 words total. Plain text only; absolutely no markdown formatting (no **, no #, no ###, no underscores for emphasis), no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤220 words total). Plain text only; no markdown, no bullets.\n"
+            "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
+            "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
-            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do not use markdown formatting anywhere in the response.\n"
-            "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
+            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
+            "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
             "Bond data is provided - use it as the ONLY factual basis: cite specific values, dates, tenors, or ranges from the data. Translate quantitative results into economic meaning. Do not redo analysis already supplied; interpret and contextualize it."
         )
@@ -488,12 +490,13 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions. Because you are a CFA/Harvard macro strategist, foreground policy context and market implications, reconcile conflicting signals, and state uncertainties plainly; no price targets or advice.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Title: Exactly one line. Format: 📰 TICKER: Key Metric / Event +X% (Timeframe). Signal-first; max 14 words. No verbs like 'says', 'announces', 'reports'. Include numbers if available. Emoji allowed only in the title.\n"
-            "Body (Kin): exactly 3 paragraphs separated by a blank line, max 3 sentences each, ≤220 words total. Plain text only; absolutely no markdown formatting (no **, no #, no ###, no underscores for emphasis), no bullets. Each paragraph = single idea cluster. Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
+            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤220 words total). Plain text only; no markdown, no bullets.\n"
+            "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
+            "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
-            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do not use markdown formatting anywhere in the response.\n"
-            "Objective: Produce a scannable, publication-ready corporate update that delivers the key market signal in under 30 seconds.\n\n"
+            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
+            "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
             "No bond data provided - use web search for authoritative analysis; cite real URLs when available."
         )
@@ -546,12 +549,20 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
 
 
 async def ask_kei_then_kin(question: str) -> dict:
-    """Chain both personas: Kei analyzes data quantitatively, Kin interprets & concludes."""
+    """Chain both personas: Kei analyzes data quantitatively, Kin interprets & concludes.
+    
+    Option A: Kin receives original question (for data context) + Kei's analysis.
+    This ensures Kin enters MODE 1 (data-only) when data is available, and directly
+    references Kei's findings for a cohesive narrative.
+    """
     kei_answer = await ask_kei(question, dual_mode=True)
-    kin_answer = await ask_kin(
-        f"Based on the following quantitative analysis, interpret and conclude:\n\n{kei_answer}",
-        dual_mode=True
+    # Pass original question so Kin can compute data_summary, plus Kei's analysis
+    kin_prompt = (
+        f"Original question: {question}\n\n"
+        f"Kei's quantitative analysis:\n{kei_answer}\n\n"
+        f"Based on this analysis and the original question, provide your strategic interpretation and conclusion."
     )
+    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
     return {
         "kei": kei_answer,
         "kin": kin_answer,
@@ -882,7 +893,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kin_clean = strip_signature(kin_answer)
             
             response = (
-                "📊 <b>Kei & Kin | Data → Insight</b>\n\n"
+                "🎯 <b>Kei & Kin | Data → Insight</b>\n\n"
                 f"{html_module.escape(kei_clean)}\n\n"
                 "---\n\n"
                 f"{html_module.escape(kin_clean)}\n\n"
