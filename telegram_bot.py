@@ -144,7 +144,61 @@ def format_rows_for_telegram(rows, include_date=False):
                 f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')}\n"
                 f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
             )
-    return "\n\n".join(lines)
+        # Economist-style table formatting for multi-tenor, multi-period
+        if not rows:
+            return "No data found."
+        # Detect multi-tenor and multi-date
+        tenors = sorted(set(row['tenor'] for row in rows))
+        dates = sorted(set(row['date'] for row in rows if 'date' in row))
+        # If multi-tenor and multi-date, build table
+        if include_date and len(tenors) > 1 and len(dates) > 1:
+            # Build header
+            header = f"{'Date':<12} | " + " | ".join([f"{t.replace('_',' '):<8}" for t in tenors])
+            sep = '-' * (12 + 3 + len(tenors) * 11)
+            # Build rows
+            table_rows = []
+            for d in dates:
+                row_vals = []
+                for t in tenors:
+                    val = next((r['yield'] for r in rows if r['tenor'] == t and r['date'] == d), None)
+                    row_vals.append(f"{val:.2f}%" if val is not None else "-")
+                table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
+            return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
+        # Single tenor, multi-date
+        elif include_date and len(tenors) == 1 and len(dates) > 1:
+            t = tenors[0]
+            header = f"{'Date':<12} | {t.replace('_',' '):<8}"
+            sep = '-' * 25
+            table_rows = []
+            for d in dates:
+                val = next((r['yield'] for r in rows if r['tenor'] == t and r['date'] == d), None)
+                table_rows.append(f"{format_date_display(d):<12} | {val:.2f}%" if val is not None else f"{format_date_display(d):<12} | -")
+            return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
+        # Multi-tenor, single date
+        elif not include_date and len(tenors) > 1:
+            d = rows[0].get('date', None)
+            header = f"{'Tenor':<8} | {'Yield':<8}"
+            sep = '-' * 20
+            table_rows = []
+            for t in tenors:
+                val = next((r['yield'] for r in rows if r['tenor'] == t), None)
+                table_rows.append(f"{t.replace('_',' '):<8} | {val:.2f}%" if val is not None else f"{t.replace('_',' '):<8} | -")
+            return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
+        # Fallback: original bullet style
+        lines = []
+        for row in rows:
+            if include_date:
+                formatted_date = format_date_display(row['date'])
+                lines.append(
+                    f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')} | {formatted_date}\n"
+                    f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
+                )
+            else:
+                lines.append(
+                    f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')}\n"
+                    f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
+                )
+        return "\n\n".join(lines)
 
 def format_auction_rows_for_telegram(rows):
     """Format auction forecast rows for Telegram message."""
@@ -343,6 +397,21 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                 ]
                 if rows_list:
                     return summarize_intent_result(intent, rows_list)
+        
+        # Yield forecasting integration
+        # Detect queries like 'forecast yield', 'predict yield', 'estimate yield', etc.
+        forecast_keywords = ['forecast', 'predict', 'estimate']
+        if any(kw in question.lower() for kw in forecast_keywords) and intent.metric == 'yield' and intent.tenor and intent.series and intent.point_date:
+            # Use parsed model from intent, default to ARIMA
+            method = intent.forecast_model if intent.forecast_model else 'arima'
+            s = priceyield_mod.get_yield_series(db, intent.series, intent.tenor)
+            if len(s) < 10:
+                return f"Not enough data to forecast {intent.series} {intent.tenor} yield."
+            try:
+                forecast = priceyield_mod.yield_forecast(s, intent.point_date, method=method)
+                return f"Forecast ({method.upper()}): {intent.series} {intent.tenor} yield at {intent.point_date}: {forecast}"
+            except Exception as e:
+                return f"Forecasting error ({method}): {e}"
     except Exception:
         return None
     return None
@@ -376,11 +445,12 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kei): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
             "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
-            f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kei | Quant Research'}'.\n"
+            f"Signature: blank line, then '________', then blank line, then '{{'Kei & Kin | Data → Insight' if dual_mode else 'Kei | Quant Research'}}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a scannable, publication-ready response that delivers the key market signal clearly.\n\n"
 
-            "Data access:\n- Indonesian government bond prices and yields (2023-2025): FR95-FR104 series (5Y/10Y tenors). FR stands for Fixing Rate series, issued by Indonesia's government, NOT French government bonds.\n- Auction demand forecasts for Indonesian bonds through 2026 (incoming bids, awarded amounts, bid-to-cover ratios; generated using ensemble ML methods combining XGBoost, Random Forest, and time-series models with macroeconomic features: BI rate, inflation, industrial production, JKSE index, and FX rates)\n- Indonesian macroeconomic indicators (BI rate, inflation, etc.)\n"
+            "Data access:\n- Indonesian government bond prices and yields (2023-2025): FR95-FR104 series (5Y/10Y tenors). FR stands for Fixing Rate series, issued by Indonesia's government, NOT French government bonds.\n- Auction demand forecasts for Indonesian bonds through 2026 (incoming bids, awarded amounts, bid-to-cover ratios; generated using ensemble ML methods combining XGBoost, Random Forest, and time-series models with macroeconomic features: BI rate, inflation, industrial production, JKSE index, and FX rates)\n- Indonesian macroeconomic indicators (BI rate, inflation, etc.)\n\n"
+            "Yield forecasting: Supported methods are ARIMA, ETS, Prophet, LSTM, and GRU. Users can specify the method in their query (e.g., 'forecast 10 year yield 2025 using Prophet'). If not specified, ARIMA is used by default.\n"
         )
     else:
         # For general knowledge, use a more flexible prompt
@@ -527,7 +597,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
+            f"Signature: blank line, then '________', then blank line, then '{{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -547,7 +617,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: blank line, then '________', then blank line, then '{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}'.\n"
+            f"Signature: blank line, then '________', then blank line, then '{{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -991,7 +1061,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 metrics.log_query(user_id, username, question, "text", response_time, False, "Kin empty response", "both")
                 return
             
-            # Strip individual persona signatures (they each end with ________ and signature line)
+            # Strip individual persona signatures (they each end with ________ and persona line)
             # Remove the trailing signature section from both answers
             def strip_signature(answer):
                 """Remove trailing ________ and persona line from response."""
