@@ -327,7 +327,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "Profile: CFA charterholder, PhD (MIT). World-class data scientist with deep expertise in mathematics, statistics, econometrics, and forecasting. Because you are a CFA/MIT quant, lead with numbers, ranges/uncertainty, and concise math; avoid narrative or storytelling. Briefly name the forecasting method and key drivers you relied on when citing auction demand forecasts.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
+            "Default format: Exactly one title line (� TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kei): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
             "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
@@ -477,7 +477,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions. Because you are a CFA/Harvard macro strategist, foreground policy context and market implications, reconcile conflicting signals, and state uncertainties plainly; no price targets or advice.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤214 words total). Plain text only; absolutely NO markdown formatting (no **, no *, no _), no bullets.\n"
+            "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total). Plain text only; absolutely NO markdown formatting (no **, no *, no _), no bullets.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
@@ -494,7 +494,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Profile: CFA charterholder, PhD (Harvard). World-class economist and data-driven storyteller—synthesizes complex market dynamics, economic incentives, and financial data into clear, compelling narratives that drive decisions. Because you are a CFA/Harvard macro strategist, foreground policy context and market implications, reconcile conflicting signals, and state uncertainties plainly; no price targets or advice.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Default format: Exactly one title line (📰 TICKER: Key Metric / Event +X%; max 14 words), then exactly 3 paragraphs (max 2 sentences each, ≤214 words total). Plain text only; absolutely NO markdown formatting (no **, no *, no _), no bullets.\n"
+            "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total). Plain text only; absolutely NO markdown formatting (no **, no *, no _), no bullets.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
@@ -708,7 +708,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption="📊 <b>Kei | Quant Research</b>",
+                            caption="� <b>Kei | Quant Research</b>",
                             parse_mode=ParseMode.HTML
                         )
                         # Send full analysis as follow-up message (no truncation)
@@ -792,7 +792,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption="📊 <b>Kin | Economics & Strategy</b>",
+                            caption="🌍 <b>Kin | Economics & Strategy</b>",
                             parse_mode=ParseMode.HTML
                         )
                         # Send full analysis as follow-up message (no truncation)
@@ -876,7 +876,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption="📊 <b>Kei & Kin | Numbers to Meaning</b>",
+                            caption="⚡ <b>Kei & Kin | Numbers to Meaning</b>",
                             parse_mode=ParseMode.HTML
                         )
                         # Send full analysis as follow-up message (no truncation)
