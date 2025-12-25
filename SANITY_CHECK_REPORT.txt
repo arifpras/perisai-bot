@@ -1,0 +1,68 @@
+================================================================================
+PERISAI-BOT DEPLOYMENT SANITY CHECK
+Date: December 25, 2025 08:53:23
+================================================================================
+
+✅ Dependencies
+   All 11 packages installed
+✅ FastAPI imports
+   FastAPI app: FastAPI
+   Economist colors: 4 colors loaded
+   Color palette: #E3120B, #0C6291, #00847E
+✅ Uvicorn command
+   Server can start
+✅ Database loading
+   Total rows: 1,540
+   Tenors: 05_year, 10_year
+   Date range: 2023-01-02 to 2025-12-12
+✅ Single tenor query
+   Found 248 data points for 5-year in 2025
+✅ Multi-tenor query
+   10_year: 248 points
+   05_year: 248 points
+✅ Single tenor plot
+   Generated 67,999 bytes
+✅ Multi-tenor yield plot
+   Generated 103,487 bytes
+✅ Multi-tenor price plot
+   Generated 109,324 bytes
+✅ Telegram bot imports
+   API Base URL: http://127.0.0.1:8000
+✅ Procfile
+   Content: web: uvicorn app_fastapi:app --host 0.0.0.0 --port $PORT
+✅ render.yaml
+   Web service configured
+   Worker service configured
+✅ requirements.txt
+   All key packages listed
+✅ 20251215_priceyield.csv
+   Size: 100,708 bytes
+✅ 20251224_auction_forecast.csv
+   Size: 5,186 bytes
+
+⚠️  WARNINGS:
+   - TELEGRAM_TOKEN: NOT SET - Required for bot operation
+   - OPENAI_API_KEY: NOT SET - Required for /kei persona
+   - PERPLEXITY_API_KEY: NOT SET - Required for /kin persona
+   - Environment variables: Missing: TELEGRAM_TOKEN, OPENAI_API_KEY, PERPLEXITY_API_KEY
+
+================================================================================
+DEPLOYMENT READINESS: ✅ READY
+Checks Passed: 15/15
+================================================================================
+
+Pre-deployment Checklist:
+□ Set TELEGRAM_TOKEN in Render/Heroku environment
+□ Set OPENAI_API_KEY in Render/Heroku environment
+□ Set PERPLEXITY_API_KEY in Render/Heroku environment
+□ Verify data files are in repository
+□ Test /health endpoint after deployment
+□ Send test message to bot: /kei yield 5 year 2025
+
+Recent Features:
+- The Economist chart styling (red/blue/teal palette)
+- Multi-tenor plot support with distinct colored lines
+- Improved tenor label formatting
+- 150 DPI high-quality plot output
+
+================================================================================
