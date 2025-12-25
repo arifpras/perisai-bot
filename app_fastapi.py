@@ -457,8 +457,21 @@ async def chat_endpoint(req: ChatRequest):
     if intent.type in ('RANGE', 'AGG_RANGE'):
         # If an aggregation is present, compute it and optionally plot
         if intent.agg:
-            val, n = db.aggregate(intent.start_date, intent.end_date, intent.metric, intent.agg, intent.series, intent.tenor)
-            text = f"{intent.agg.upper()} {intent.metric} {intent.start_date} → {intent.end_date} = {round(val, 2) if val is not None else 'N/A'} (N={n})"
+            # Support multi-tenor aggregation: compute stats for each tenor separately if multiple
+            tenors_to_agg = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else [])
+            
+            if len(tenors_to_agg) > 1:
+                # Multiple tenors: aggregate each separately and show comparison
+                agg_results = []
+                for tnr in tenors_to_agg:
+                    val, n = db.aggregate(intent.start_date, intent.end_date, intent.metric, intent.agg, intent.series, tnr)
+                    agg_results.append(f"{tnr}: {intent.agg.upper()} = {round(val, 2) if val is not None else 'N/A'} (N={n})")
+                text = f"{intent.agg.upper()} {intent.metric} {intent.start_date} → {intent.end_date}:\n" + "\n".join(agg_results)
+            else:
+                # Single tenor or no tenor specified
+                val, n = db.aggregate(intent.start_date, intent.end_date, intent.metric, intent.agg, intent.series, intent.tenor)
+                text = f"{intent.agg.upper()} {intent.metric} {intent.start_date} → {intent.end_date} = {round(val, 2) if val is not None else 'N/A'} (N={n})"
+            
             if wants_plot:
                 # Use highlight_date from intent
                 highlight_date_obj = intent.highlight_date
@@ -472,13 +485,25 @@ async def chat_endpoint(req: ChatRequest):
         # No aggregation provided — return all individual rows for the date range
         params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
         where = 'obs_date BETWEEN ? AND ?'
-        if intent.tenor:
-            where += ' AND tenor = ?'; params.append(intent.tenor)
+        
+        # Support multiple tenors: use intent.tenors if present, otherwise fall back to intent.tenor
+        tenors_to_fetch = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
+        if tenors_to_fetch:
+            tenor_placeholders = ','.join(['?' * len(tenors_to_fetch)])
+            where += f' AND tenor IN ({tenor_placeholders})'
+            params.extend(tenors_to_fetch)
+        
         if intent.series:
             where += ' AND series = ?'; params.append(intent.series)
         rows = db.con.execute(f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date DESC, series', params).fetchall()
         rows_list = [dict(series=r[0], tenor=r[1], date=r[2].isoformat(), price=round(r[3], 2) if r[3] is not None else None, **{'yield': round(r[4], 2) if r[4] is not None else None}) for r in rows]
-        text = f"Found {len(rows_list)} row(s) for {intent.tenor or 'all tenors'} from {intent.start_date} to {intent.end_date}:"
+        
+        # Generate descriptive text for analysis (show all tenors if multiple)
+        tenor_display = (
+            f"{' and '.join(tenors_to_fetch)}" if tenors_to_fetch and len(tenors_to_fetch) > 1
+            else (intent.tenor or 'all tenors')
+        )
+        text = f"Found {len(rows_list)} row(s) for {tenor_display} from {intent.start_date} to {intent.end_date}:"
         
         # If the user asked for a plot, also include it
         if wants_plot:
