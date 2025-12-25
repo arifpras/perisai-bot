@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import uvicorn
 import time
 import logging
@@ -52,7 +53,22 @@ Intent = priceyield_mod.Intent
 # Import metrics
 from metrics import metrics
 
-app = FastAPI(title="Bond Query API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup hook using FastAPI lifespan events (replaces deprecated on_event)."""
+    if TELEGRAM_BOT_TOKEN:
+        print(f"✅ TELEGRAM_BOT_TOKEN is set (length: {len(TELEGRAM_BOT_TOKEN)})")
+        if _telegram_app:
+            print("✅ Telegram bot initialized successfully!")
+        elif _telegram_import_error:
+            print(f"❌ Telegram bot import error: {_telegram_import_error}")
+    else:
+        print("⚠️  TELEGRAM_BOT_TOKEN not set - Telegram endpoints will return 503")
+    yield
+
+
+app = FastAPI(title="Bond Query API", lifespan=lifespan)
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -83,19 +99,6 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     intent: Dict[str, Any]
     result: Dict[str, Any]
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize Telegram bot on startup."""
-    if TELEGRAM_BOT_TOKEN:
-        print(f"✅ TELEGRAM_BOT_TOKEN is set (length: {len(TELEGRAM_BOT_TOKEN)})")
-        if _telegram_app:
-            print("✅ Telegram bot initialized successfully!")
-        elif _telegram_import_error:
-            print(f"❌ Telegram bot import error: {_telegram_import_error}")
-    else:
-        print("⚠️  TELEGRAM_BOT_TOKEN not set - Telegram endpoints will return 503")
 
 
 @app.get("/health")
@@ -389,8 +392,8 @@ async def chat_endpoint(req: ChatRequest):
                 highlight_date_obj = intent.highlight_date
                 png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=intent.tenors, highlight_date=highlight_date_obj)
                 b64 = base64.b64encode(png).decode('ascii')
-                return JSONResponse({"analysis": text, "image": b64})
-            return JSONResponse({"analysis": text})
+                return JSONResponse({"text": text, "analysis": text, "image_base64": b64})
+            return JSONResponse({"text": text, "analysis": text})
 
         # No aggregation provided — return all individual rows for the date range
         params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
@@ -409,9 +412,9 @@ async def chat_endpoint(req: ChatRequest):
             highlight_date_obj = intent.highlight_date
             png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=intent.tenors, highlight_date=highlight_date_obj)
             b64 = base64.b64encode(png).decode('ascii')
-            return JSONResponse({"analysis": text, "rows": rows_list, "image": b64})
+            return JSONResponse({"text": text, "analysis": text, "rows": rows_list, "image_base64": b64})
         
-        return JSONResponse({"analysis": text, "rows": rows_list})
+        return JSONResponse({"text": text, "analysis": text, "rows": rows_list})
 
 
 # Minimal chat UI (single-file)

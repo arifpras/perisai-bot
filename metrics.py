@@ -1,8 +1,10 @@
 """Bot metrics and traffic tracking."""
-import time
+import logging
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Any
+
+import usage_store
 
 class BotMetrics:
     """Track bot activity and performance metrics."""
@@ -27,6 +29,19 @@ class BotMetrics:
             "success": success,
             "error": error
         })
+        try:
+            usage_store.log_event(
+                user_id=user_id,
+                username=username,
+                query=query,
+                query_type=query_type,
+                persona=persona,
+                response_time_ms=round(response_time * 1000, 2),
+                success=success,
+                error=error,
+            )
+        except Exception as exc:  # pragma: no cover
+            logging.getLogger("metrics").debug(f"usage_store log_event failed: {exc}")
     
     def log_error(self, endpoint: str, error: str, user_id: int = None):
         """Log an error."""
@@ -36,6 +51,10 @@ class BotMetrics:
             "error": str(error)[:200],
             "user_id": user_id
         })
+        try:
+            usage_store.log_error(endpoint, str(error), user_id=user_id)
+        except Exception as exc:  # pragma: no cover
+            logging.getLogger("metrics").debug(f"usage_store log_error failed: {exc}")
     
     def get_stats(self) -> Dict[str, Any]:
         """Get comprehensive statistics."""
