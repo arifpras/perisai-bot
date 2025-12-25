@@ -35,6 +35,61 @@ try:
 except Exception:
     _HAS_SEABORN = False
 
+# The Economist chart style configuration
+ECONOMIST_COLORS = {
+    'red': '#E3120B',
+    'blue': '#0C6291',
+    'teal': '#00847E',
+    'gray': '#696969',
+    'light_gray': '#BFBFBF',
+    'bg_gray': '#F0F0F0',
+    'black': '#000000',
+}
+
+ECONOMIST_PALETTE = [
+    ECONOMIST_COLORS['red'],
+    ECONOMIST_COLORS['blue'],
+    ECONOMIST_COLORS['teal'],
+    ECONOMIST_COLORS['gray'],
+]
+
+def apply_economist_style(fig, ax):
+    """Apply The Economist chart style to matplotlib figure/axes."""
+    # Background color
+    fig.patch.set_facecolor('white')
+    ax.set_facecolor(ECONOMIST_COLORS['bg_gray'])
+    
+    # Remove all spines except bottom
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_linewidth(0.5)
+    ax.spines['bottom'].set_color(ECONOMIST_COLORS['black'])
+    
+    # Grid: only horizontal, thin, subtle
+    ax.grid(axis='y', color='white', linewidth=0.8, linestyle='-', alpha=0.8)
+    ax.grid(axis='x', visible=False)
+    
+    # Tick parameters
+    ax.tick_params(axis='both', which='both', length=0, labelsize=9, colors=ECONOMIST_COLORS['gray'])
+    ax.tick_params(axis='x', pad=5)
+    ax.tick_params(axis='y', pad=5)
+    
+    # Remove y-axis ticks but keep labels
+    ax.yaxis.set_ticks_position('none')
+    ax.xaxis.set_ticks_position('bottom')
+    
+    # Set label colors
+    ax.xaxis.label.set_color(ECONOMIST_COLORS['gray'])
+    ax.yaxis.label.set_color(ECONOMIST_COLORS['gray'])
+    ax.title.set_color(ECONOMIST_COLORS['black'])
+    
+    # Font settings
+    ax.title.set_fontsize(14)
+    ax.title.set_weight('bold')
+    ax.xaxis.label.set_fontsize(9)
+    ax.yaxis.label.set_fontsize(9)
+
 # Import parsing and DB logic from existing script (filename begins with digits so import dynamically)
 import importlib.util
 from pathlib import Path
@@ -241,16 +296,22 @@ def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str
     buf = io.BytesIO()
     try:
         if _HAS_SEABORN:
-            sns.set_theme(style=_SNS_STYLE, context=_SNS_CONTEXT, palette=_SNS_PALETTE)
+            # Use Economist style instead of seaborn themes
             fig, ax = plt.subplots(figsize=(10, 6))
+            apply_economist_style(fig, ax)
             
             if is_multi_tenor:
-                # Multi-tenor: plot separate lines for each tenor with distinct colors
-                sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor_label', 
-                            linewidth=2.5, ax=ax, errorbar=None, palette='Set1', legend='full')
-                # Improve legend
-                ax.legend(title='Tenor', fontsize=11, title_fontsize=12, 
-                         loc='best', frameon=True, fancybox=True, shadow=True)
+                # Multi-tenor: plot separate lines for each tenor with Economist colors
+                for idx, tenor_val in enumerate(sorted(daily['tenor'].unique())):
+                    tenor_data = daily[daily['tenor'] == tenor_val]
+                    tenor_label = tenor_val.replace('_', ' ')
+                    color = ECONOMIST_PALETTE[idx % len(ECONOMIST_PALETTE)]
+                    ax.plot(tenor_data['obs_date'], tenor_data[metric], 
+                           linewidth=2.5, label=tenor_label, color=color)
+                
+                # Economist-style legend
+                ax.legend(frameon=False, fontsize=10, loc='best', 
+                         labelcolor=ECONOMIST_COLORS['gray'])
                 
                 # Add highlight marker if date is in the data
                 if highlight_ts is not None:
@@ -261,63 +322,74 @@ def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str
                         if not daily_tenor.empty:
                             closest = daily_tenor.loc[daily_tenor['date_diff'].idxmin()]
                             y_val = closest[metric]
-                            ax.plot(closest['obs_date'], y_val, 'r*', markersize=15, zorder=5)
+                            ax.plot(closest['obs_date'], y_val, 'o', 
+                                   color=ECONOMIST_COLORS['red'], markersize=8, zorder=5)
             else:
-                # Single tenor: original single-line plot
-                sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2, ax=ax)
+                # Single tenor: plot with Economist red
+                ax.plot(daily['obs_date'], daily[metric], 
+                       linewidth=2.5, color=ECONOMIST_COLORS['red'])
                 
                 # Highlight specific date if provided
                 if highlight_ts is not None:
                     highlight_row = daily[daily['obs_date'] == highlight_ts]
                     if not highlight_row.empty:
                         highlight_date_str = format_date(highlight_date)
-                        ax.plot(highlight_row['obs_date'], highlight_row[metric], 'ro', markersize=8, label=f'Highlight: {highlight_date_str}')
-                        ax.legend()
+                        ax.plot(highlight_row['obs_date'], highlight_row[metric], 'o', 
+                               markersize=8, color=ECONOMIST_COLORS['blue'], 
+                               label=f'Highlight: {highlight_date_str}', zorder=5)
+                        ax.legend(frameon=False, fontsize=10, loc='best',
+                                labelcolor=ECONOMIST_COLORS['gray'])
             
-            # Set title with formatted dates
-            ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
-            ax.set_xlabel('Date')
-            ax.set_ylabel(metric.capitalize())
+            # Set title and labels
+            ax.set_title(f'{metric.capitalize()} {display_tenor}\n{title_start} to {title_end}', 
+                        pad=15, loc='left')
+            ax.set_xlabel('')
+            ax.set_ylabel(f'{metric.capitalize()} (%)', fontsize=9)
             
             # Format x-axis dates
             from matplotlib.dates import DateFormatter
-            date_formatter = DateFormatter('%-d %b %Y')
+            date_formatter = DateFormatter('%-d %b\n%Y')
             ax.xaxis.set_major_formatter(date_formatter)
             
-            fig.autofmt_xdate()
-            sns.despine(ax=ax)
+            fig.autofmt_xdate(rotation=0, ha='center')
             fig.tight_layout()
-            fig.savefig(buf, format='png')
+            fig.savefig(buf, format='png', dpi=150, facecolor='white')
             plt.close(fig)
         else:
             raise RuntimeError('seaborn not available')
     except Exception:
-        # Fallback to plain matplotlib
-        plt.figure(figsize=(8,3))
-        plt.plot(daily['obs_date'], daily[metric], linestyle='-')
+        # Fallback to plain matplotlib with Economist style
+        fig, ax = plt.subplots(figsize=(10, 6))
+        apply_economist_style(fig, ax)
+        
+        ax.plot(daily['obs_date'], daily[metric], linewidth=2.5, 
+               color=ECONOMIST_COLORS['red'])
         
         # Highlight specific date if provided
         if highlight_date:
             highlight_row = daily[daily['obs_date'] == pd.Timestamp(highlight_date)]
             if not highlight_row.empty:
                 highlight_date_str = format_date(highlight_date)
-                plt.plot(highlight_row['obs_date'], highlight_row[metric], 'ro', markersize=8, label=f'Highlight: {highlight_date_str}')
-                plt.legend()
+                ax.plot(highlight_row['obs_date'], highlight_row[metric], 'o', 
+                       markersize=8, color=ECONOMIST_COLORS['blue'],
+                       label=f'Highlight: {highlight_date_str}')
+                ax.legend(frameon=False, fontsize=10, loc='best',
+                        labelcolor=ECONOMIST_COLORS['gray'])
         
-        plt.title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
-        plt.xlabel('Date')
-        plt.ylabel(metric.capitalize())
+        ax.set_title(f'{metric.capitalize()} {display_tenor}\n{title_start} to {title_end}', 
+                    pad=15, loc='left')
+        ax.set_xlabel('')
+        ax.set_ylabel(f'{metric.capitalize()} (%)', fontsize=9)
         
         # Format x-axis dates
         from matplotlib.dates import DateFormatter
-        date_formatter = DateFormatter('%-d %b %Y')
-        plt.gca().xaxis.set_major_formatter(date_formatter)
-        plt.gcf().autofmt_xdate()
+        date_formatter = DateFormatter('%-d %b\n%Y')
+        ax.xaxis.set_major_formatter(date_formatter)
+        fig.autofmt_xdate(rotation=0, ha='center')
         
-        plt.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(buf, format='png')
-        plt.close()
+        fig.tight_layout()
+        fig.savefig(buf, format='png', dpi=150, facecolor='white')
+        plt.close(fig)
     buf.seek(0)
     return buf.read()
 
