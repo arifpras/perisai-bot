@@ -8,112 +8,15 @@ import logging
 import re
 import time
 from datetime import date
-from typing import Optional
+import statistics
+from typing import Optional, List, Dict
 from openai import AsyncOpenAI
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from telegram.constants import ParseMode
-import html as html_module
+import priceyield_20251223 as priceyield_mod
+from priceyield_20251223 import BondDB, AuctionDB, parse_intent
 
-# Import activity logging
-from usage_store import log_event, log_error
-
-# Import bond query logic
-import importlib.util
-from pathlib import Path
-_mod_path = Path(__file__).with_name("priceyield_20251223.py")
-spec = importlib.util.spec_from_file_location("priceyield_mod", str(_mod_path))
-priceyield_mod = importlib.util.module_from_spec(spec)
-import sys
-sys.modules["priceyield_mod"] = priceyield_mod
-spec.loader.exec_module(priceyield_mod)
-parse_intent = priceyield_mod.parse_intent
-BondDB = priceyield_mod.BondDB
-AuctionDB = priceyield_mod.AuctionDB
-
-# Import metrics
-from metrics import metrics
-
-
-# Economist styling for plots
-ECONOMIST_COLORS = {
-    'red': '#E3120B',
-    'blue': '#0C6291',
-    'teal': '#00847E',
-    'gray': '#8C8C8C',
-    'bg_gray': '#F0F0F0',
-    'black': '#1A1A1A',
-}
-
-ECONOMIST_PALETTE = [
-    ECONOMIST_COLORS['red'],
-    ECONOMIST_COLORS['blue'],
-    ECONOMIST_COLORS['teal'],
-    ECONOMIST_COLORS['gray'],
-]
-
-CAPTION_FOOTER = f"© PerisAI — {date.today().year}"
-
-def apply_economist_style(fig, ax):
-    """Apply The Economist styling to a matplotlib figure."""
-    ax.set_facecolor(ECONOMIST_COLORS['bg_gray'])
-    fig.patch.set_facecolor('white')
-    
-    # Remove top and right spines
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    
-    # Style bottom spine
-    ax.spines['bottom'].set_color(ECONOMIST_COLORS['black'])
-    ax.spines['bottom'].set_linewidth(0.5)
-    
-    # Horizontal gridlines only
-    ax.yaxis.grid(True, color='white', linewidth=1.2, linestyle='-')
-    ax.set_axisbelow(True)
-    
-    # Tick styling
-    ax.tick_params(axis='both', which='both', length=0, labelsize=9, colors=ECONOMIST_COLORS['gray'])
-    ax.xaxis.label.set_color(ECONOMIST_COLORS['gray'])
-    ax.yaxis.label.set_color(ECONOMIST_COLORS['gray'])
-    ax.title.set_color(ECONOMIST_COLORS['black'])
-
-def strip_markdown_emphasis(text: str) -> str:
-    """Remove basic markdown bold/italic markers for minimalist output."""
-    if not text:
-        return text
-    # Strip common emphasis markers
-    cleaned = text.replace('**', '').replace('__', '').replace('*', '')
-    return cleaned
-
-# Cache DB instances
-_db_cache = {}
-
-# OpenAI client for persona answers
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-_openai_client: Optional[AsyncOpenAI] = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-logger = logging.getLogger("telegram_bot")
-
-# Perplexity API (HTTPX-based)
-PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
-PERPLEXITY_MODEL = os.getenv("PERPLEXITY_MODEL", "sonar-pro")
-
-# API base URL for plot requests (defaults to localhost with PORT from env, or 8000)
-PORT = os.getenv("PORT", "8000")
-API_BASE_URL = os.getenv("API_BASE_URL", f"http://127.0.0.1:{PORT}")
-
-# Access control: allowed user IDs (comma-separated in env var or hardcoded)
-ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS", "")
-if ALLOWED_USER_IDS_STR:
-    ALLOWED_USER_IDS = set(int(uid.strip()) for uid in ALLOWED_USER_IDS_STR.split(",") if uid.strip())
-else:
-    ALLOWED_USER_IDS = set()  # Empty = allow all users
-
-def is_user_authorized(user_id: int) -> bool:
-    """Check if user is authorized to use the bot."""
-    if not ALLOWED_USER_IDS:  # Empty list means no restriction
-        return True
-    return user_id in ALLOWED_USER_IDS
+_db_cache: Dict[str, object] = {}
 
 
 def get_db(csv_path: str = "20251215_priceyield.csv") -> BondDB:
@@ -293,128 +196,59 @@ def format_models_economist_table(models: dict) -> str:
     ]
     header = "Model         | Forecast"
     sep = "---------------------------"
-    rows = []
+    lines = [header, sep]
     for m in order:
         val = models.get(m)
+        if val is None:
+            continue
         if isinstance(val, float):
-            rows.append(f"{m.upper():<12} | {val:.4f}")
-        elif val is not None:
-            rows.append(f"{m.upper():<12} | {val}")
+            lines.append(f"{m.upper():<12} | {val:.4f}")
         else:
-            rows.append(f"{m.upper():<12} | N/A")
-    table = "\n".join([header, sep] + rows)
-    return f"```\n{table}\n```"
-
-def format_auction_rows_for_telegram(rows):
-    """Format auction forecast rows for Telegram message."""
-    if not rows:
-        return "No forecast data found for the specified period."
-    
-    from datetime import datetime
-    lines = []
-    for row in rows:
-        try:
-            dt = datetime.fromisoformat(str(row['date']))
-            date_str = dt.strftime('%b %Y')
-        except:
-            date_str = str(row['date'])
-        
-        lines.append(
-            f"📊 <b>{date_str}</b>\n"
-            f"   Incoming: Rp {row['incoming_billions']:.2f}T | Awarded: Rp {row['awarded_billions']:.2f}T\n"
-            f"   Bid-to-Cover: {row['bid_to_cover']:.2f}x | Series: {row['number_series']}\n"
-            f"   BI Rate: {row['bi_rate']:.2f}% | Inflation: {row['inflation_rate']:.2f}%"
-        )
-    return "\n\n".join(lines)
+            lines.append(f"{m.upper():<12} | {val}")
+    if len(lines) == 2:
+        lines.append("(no model outputs)")
+    return "\n".join(lines)
 
 
-def summarize_intent_result(intent, rows_list):
-    """Produce a short text summary of computed results for LLM context."""
-    if not rows_list:
-        return "No matching data found in the requested period."
-    
-    # Handle auction forecasts
-    if intent.type == 'AUCTION_FORECAST':
-        parts = []
-        for row in rows_list:
-            from datetime import datetime
-            try:
-                dt = datetime.fromisoformat(str(row['date']))
-                date_str = dt.strftime('%B %Y')
-            except:
-                date_str = str(row['date'])
-        
-            parts.append(
-                f"{date_str}: Incoming demand Rp {row['incoming_billions']:.2f} trillion, "
-                f"Awarded Rp {row['awarded_billions']:.2f} trillion, "
-                f"Bid-to-cover {row['bid_to_cover']:.2f}x, "
-                f"{row['number_series']} series, "
-                f"BI rate {row['bi_rate']:.2f}%, "
-                f"Inflation {row['inflation_rate']:.2f}%"
-            )
-    
-        summary = "\n".join(parts)
-    
-        # Add statistics if multiple months
-        if len(rows_list) > 1:
-            incoming_vals = [r['incoming_billions'] for r in rows_list]
-            awarded_vals = [r['awarded_billions'] for r in rows_list]
-            btc_vals = [r['bid_to_cover'] for r in rows_list]
-        
-            import statistics
-            summary += f"\n\nStatistics ({len(rows_list)} months):\n"
-            summary += f"Incoming: avg Rp {statistics.mean(incoming_vals):.2f}T, range Rp {min(incoming_vals):.2f}T - Rp {max(incoming_vals):.2f}T\n"
-            summary += f"Awarded: avg Rp {statistics.mean(awarded_vals):.2f}T, range Rp {min(awarded_vals):.2f}T - Rp {max(awarded_vals):.2f}T\n"
-            summary += f"Bid-to-cover: avg {statistics.mean(btc_vals):.2f}x, range {min(btc_vals):.2f}x - {max(btc_vals):.2f}x"
-    
-        return summary
-    
-    parts = []
-    
-    # For range queries with statistics, include per-tenor stats (do not combine tenors)
-    if intent.type == 'AGG_RANGE' or (intent.type == 'RANGE' and len(rows_list) > 1):
-        metric_name = intent.metric if hasattr(intent, 'metric') and intent.metric else 'yield'
-        parts.append(f"Period: {intent.start_date} to {intent.end_date}")
+def summarize_intent_result(intent, rows_list: List[dict]) -> str:
+    """Summarize computed query results for display in chat."""
+    parts: List[str] = []
 
-        # Group by tenor and compute stats separately
-        grouped = {}
+    # If many rows, summarize by tenor with basic stats and sample rows
+    if len(rows_list) > 5:
+        metric_name = getattr(intent, "metric", "value") or "value"
+        grouped: Dict[str, List[dict]] = {}
         for r in rows_list:
-            tenor_key = r.get('tenor', 'unknown')
-            grouped.setdefault(tenor_key, []).append(r)
+            grouped.setdefault(r.get("tenor", "all"), []).append(r)
 
-        import statistics as stats_module
-        for tenor_key, group_rows in grouped.items():
-            metric_values = []
-            for r in group_rows:
-                val = r.get(metric_name)
-                if val is not None:
-                    try:
-                        metric_values.append(float(val))
-                    except (ValueError, TypeError):
-                        pass
-            tenor_label = tenor_key.replace('_', ' ')
+        for tenor_label, group_rows in grouped.items():
+            metric_values = [r.get(metric_name) for r in group_rows if r.get(metric_name) is not None]
             if metric_values:
                 min_val = min(metric_values)
                 max_val = max(metric_values)
-                avg_val = stats_module.mean(metric_values)
-                std_val = stats_module.stdev(metric_values) if len(metric_values) > 1 else 0
-                # Economist-style professional format: clean, no HTML tags, lowercase metric names
-                stat_line = f"{tenor_label.title()}: min {min_val:.2f}, max {max_val:.2f}, avg {avg_val:.2f}, std {std_val:.2f} ({len(group_rows)} obs)"
+                avg_val = statistics.mean(metric_values)
+                std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
+                stat_line = (
+                    f"{tenor_label.title()}: min {min_val:.2f}, max {max_val:.2f}, "
+                    f"avg {avg_val:.2f}, std {std_val:.2f} ({len(group_rows)} obs)"
+                )
                 parts.append(stat_line)
             else:
-                parts.append(f"{tenor_label} ({len(group_rows)} records) — no numeric {metric_name} values found")
+                parts.append(
+                    f"{tenor_label} ({len(group_rows)} records) — no numeric {metric_name} values found"
+                )
 
-            # Show sample rows per tenor (up to first 5) — clarify total to avoid misreading as incomplete data
             parts.append(f"  Data rows (first 5 of {len(group_rows)}):")
             for r in group_rows[:5]:
                 parts.append(
-                    f"    {r['series']} | {tenor_label} | {r.get('date','')} | Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
+                    f"    {r['series']} | {tenor_label} | {r.get('date','')} | "
+                    f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
                 )
     else:
-        # For point queries or small result sets, show all or up to 5 rows
         for r in rows_list[:5]:
+            tenor_label = r.get("tenor", "").replace("_", " ")
             parts.append(
-                f"Series {r['series']} | Tenor {r['tenor'].replace('_',' ')} | "
+                f"Series {r['series']} | Tenor {tenor_label} | "
                 f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
                 + (f" | Date {r.get('date')}" if 'date' in r else "")
             )
@@ -862,7 +696,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Commands</b>\n"
         "/kei — Quant analyst (💹 data)\n"
         "/kin — Macro strategist (🌍 context)\n"
-        "/both — Combined (⚡ insight)\n\n"
+        "/both — Combined (⚡ insight)\n"
+        "/check — Quick point lookup\n\n"
         "<b>Examples</b>\n"
         "• Yield 5 and 10 years 2025\n"
         "• Plot 10 year 2024\n"
@@ -886,6 +721,9 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     examples_text = (
         "<b>📚 Query Examples</b>\n\n"
+        "<b>⚡ Quick Check (point lookup):</b>\n"
+        "/check 2025-12-12 5 and 10 year\n"
+        "/check price 10 year 6 Dec 2024\n\n"
         "<b>🎯 Single Tenor (Data Queries):</b>\n"
         "/kei yield 10 year 2025\n"
         "/kei 5 year Q1 2025\n"
@@ -982,6 +820,110 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
 
 
+async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /check command for quick point-date lookups."""
+    start_time = time.time()
+    user_id = update.message.from_user.id
+    username = update.message.from_user.username or f"user_{user_id}"
+
+    if not is_user_authorized(user_id):
+        await update.message.reply_text(
+            "⛔ Access denied. This bot is restricted to authorized users only."
+        )
+        logger.warning("Unauthorized access attempt from user_id=%s", user_id)
+        metrics.log_error("/check", "Unauthorized access", user_id)
+        return
+
+    question = " ".join(context.args).strip() if context.args else ""
+    if not question:
+        await update.message.reply_text(
+            "Usage: /check <date> [tenor/metric]\n"
+            "Examples:\n"
+            "/check 2025-12-12 5 and 10 year\n"
+            "/check price 10 year 6 Dec 2024",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+    try:
+        intent = parse_intent(question)
+    except Exception as e:
+        logger.error(f"Intent parsing failed in /check for '{question}': {type(e).__name__}: {e}", exc_info=True)
+        await update.message.reply_text(
+            "❌ Could not parse that date. Try formats like 2025-12-12 or '6 Dec 2024'.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        response_time = time.time() - start_time
+        metrics.log_query(user_id, username, question, "check", response_time, False, "parse_intent_failed", "check")
+        return
+
+    if intent.type != 'POINT' or not intent.point_date:
+        await update.message.reply_text(
+            "❌ /check expects a single date (e.g., /check 2025-12-12 5 and 10 year).",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        response_time = time.time() - start_time
+        metrics.log_query(user_id, username, question, "check", response_time, False, "not_point", "check")
+        return
+
+    d = intent.point_date
+    params = [d.isoformat()]
+    where = 'obs_date = ?'
+    tenors_to_use = intent.tenors if getattr(intent, 'tenors', None) else ([intent.tenor] if getattr(intent, 'tenor', None) else None)
+    if tenors_to_use:
+        placeholders = ','.join(['?'] * len(tenors_to_use))
+        where += f' AND tenor IN ({placeholders})'
+        params.extend(tenors_to_use)
+    if intent.series:
+        where += ' AND series = ?'
+        params.append(intent.series)
+
+    db = get_db()
+    rows = db.con.execute(
+        f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY tenor, series',
+        params
+    ).fetchall()
+
+    rows_list = [
+        dict(
+            series=r[0],
+            tenor=r[1],
+            date=r[2].isoformat() if hasattr(r[2], 'isoformat') else str(r[2]),
+            price=round(r[3], 2) if r[3] is not None else None,
+            **{'yield': round(r[4], 2) if r[4] is not None else None}
+        )
+        for r in rows
+    ]
+
+    response_time = time.time() - start_time
+
+    if not rows_list:
+        tenor_label = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
+        await update.message.reply_text(
+            f"❌ No bonds found for {d} ({tenor_label}).",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        metrics.log_query(user_id, username, question, "check", response_time, False, "no_data", "check")
+        return
+
+    tenor_label = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
+    metric_label = intent.metric if getattr(intent, 'metric', None) else 'yield'
+    response_lines = [
+        f"📌 Quick check - {metric_label} on {d}",
+        f"Tenor: {tenor_label}; Records: {len(rows_list)}"
+    ]
+
+    if any(r.get('yield') is not None for r in rows_list):
+        response_lines.append("Yield")
+        response_lines.append(format_rows_for_telegram(rows_list, include_date=False, metric='yield'))
+    if any(r.get('price') is not None for r in rows_list):
+        response_lines.append("Price")
+        response_lines.append(format_rows_for_telegram(rows_list, include_date=False, metric='price'))
+
+    await update.message.reply_text("\n\n".join(response_lines), parse_mode=ParseMode.MARKDOWN)
+    metrics.log_query(user_id, username, question, "check", response_time, True, persona="check")
+
+
 async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/kei <question> — ask persona Kei (ChatGPT)."""
     start_time = time.time()
@@ -1003,6 +945,23 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
     needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
+
+    # Block Kin responses for specified prompts and all plot requests
+    lower_q = question.lower()
+    disallowed_phrases = [
+        "yield 5 year and 10 year on 12 dec 2025",
+        "yield 5 year on 12 dec 2025",
+        "fiscal policy",
+        "global financial market",
+    ]
+    if needs_plot or any(phrase in lower_q for phrase in disallowed_phrases):
+        await update.message.reply_text(
+            "⚠️ Kin is disabled for this query. Please use /kei or /both instead.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        response_time = time.time() - start_time
+        metrics.log_query(user_id, username, question, "text", response_time, False, "kin_blocked", "kin")
+        return
     
     try:
         await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
@@ -1021,11 +980,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     data_summary = data.get('analysis', '')
                     if data.get("image"):
                         image_bytes = base64.b64decode(data["image"])
-                        # Send plot with minimal caption
-                        await update.message.reply_photo(
-                            photo=image_bytes,
-                            caption="💹 Kei | Quant Research"
-                        )
+                        await update.message.reply_photo(photo=image_bytes)
                         # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
                             await update.message.reply_text(strip_markdown_emphasis(data_summary))
@@ -1130,11 +1085,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     data_summary = data.get('analysis', '')
                     if data.get("image"):
                         image_bytes = base64.b64decode(data["image"])
-                        # Send plot with minimal caption
-                        await update.message.reply_photo(
-                            photo=image_bytes,
-                            caption="🌍 Kin | Economics & Strategy"
-                        )
+                        await update.message.reply_photo(photo=image_bytes)
                         # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
                             await update.message.reply_text(strip_markdown_emphasis(data_summary))
@@ -1212,12 +1163,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     data_summary = data.get('analysis', '')
                     if data.get("image"):
                         image_bytes = base64.b64decode(data["image"])
-                        # Send plot with minimal caption
-                        await update.message.reply_photo(
-                            photo=image_bytes,
-                            caption="⚡ <b>Kei & Kin | Numbers to Meaning</b>",
-                            parse_mode=ParseMode.HTML
-                        )
+                        await update.message.reply_photo(photo=image_bytes)
                         # Send pre-computed analysis from FastAPI (no redundant LLM calls)
                         if data_summary and data_summary.strip():
                             await update.message.reply_text(
@@ -1443,7 +1389,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     except Exception as e:
                         logger.warning(f"Failed to send upload_photo action: {type(e).__name__}. Continuing anyway.")
                     png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.tenors, intent.highlight_date)
-                    await update.message.reply_photo(photo=io.BytesIO(png), caption="📊 Bond Analysis Chart")
+                    await update.message.reply_photo(photo=io.BytesIO(png))
             
             else:
                 # Range without aggregation - return individual rows
@@ -1501,11 +1447,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     data = resp.json()
                                     if data.get("image"):
                                         image_bytes = base64.b64decode(data["image"])
-                                        # Send plot with minimal caption
-                                        await update.message.reply_photo(
-                                            photo=image_bytes,
-                                            caption="📊 Bond Analysis Chart"
-                                        )
+                                        await update.message.reply_photo(photo=image_bytes)
                                     # Send quant summary tailored for range queries
                                     if summary_text:
                                         await update.message.reply_text(summary_text)
@@ -1890,6 +1832,7 @@ def create_telegram_app(token: str) -> Application:
     # Add handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("examples", examples_command))
+    application.add_handler(CommandHandler("check", check_command))
     application.add_handler(CommandHandler("activity", activity_command))
     # Personas
     application.add_handler(CommandHandler("kei", kei_command))

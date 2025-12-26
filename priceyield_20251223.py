@@ -1,8 +1,6 @@
 # priceyield_20251223.py
 # FINAL – bug-fixed intent parsing + tenor + interpolation
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
@@ -346,6 +344,22 @@ def parse_intent(text: str) -> Intent:
             tenors=tenors,
             start_date=date(start_year, 1, 1),
             end_date=date(end_year, 12, 31),
+            agg=agg,
+            highlight_date=highlight_date,
+            forecast_model=forecast_model,
+        )
+
+    # 5) Fallback: if a tenor/series is provided but no date, default to YTD range
+    if tenor or series:
+        today = date.today()
+        return Intent(
+            type="AGG_RANGE" if agg else "RANGE",
+            metric=metric,
+            series=series,
+            tenor=tenor,
+            tenors=tenors,
+            start_date=date(today.year, 1, 1),
+            end_date=today,
             agg=agg,
             highlight_date=highlight_date,
             forecast_model=forecast_model,

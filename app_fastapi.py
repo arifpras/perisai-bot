@@ -509,7 +509,7 @@ async def chat_endpoint(req: ChatRequest):
                 tenors_to_plot = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
                 png = _plot_range_to_png(db, intent.start_date, intent.end_date, metric=intent.metric, tenor=intent.tenor, tenors=tenors_to_plot, highlight_date=highlight_date_obj)
                 b64 = base64.b64encode(png).decode('ascii')
-                return JSONResponse({"text": text, "analysis": analysis_text, "image": b64})
+                return JSONResponse({"text": text, "analysis": analysis_text, "image": b64, "image_base64": b64})
             return JSONResponse({"text": text, "analysis": analysis_text})
 
         # No aggregation provided — return all individual rows for the date range
@@ -560,7 +560,7 @@ async def chat_endpoint(req: ChatRequest):
                     logger.warning(f"Error generating persona analysis: {e}")
                     analysis_text = text  # fallback to data description
             
-            return JSONResponse({"text": text, "analysis": analysis_text, "rows": rows_list, "image": b64})
+            return JSONResponse({"text": text, "analysis": analysis_text, "rows": rows_list, "image": b64, "image_base64": b64})
         
         return JSONResponse({"text": text, "analysis": analysis_text, "rows": rows_list})
 
