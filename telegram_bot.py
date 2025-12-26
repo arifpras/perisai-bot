@@ -1001,7 +1001,10 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
     needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
     
-    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    try:
+        await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    except Exception as e:
+        logger.warning(f"Failed to send typing indicator in /kei: {type(e).__name__}. Continuing anyway.")
     
     if needs_plot:
         try:
@@ -1107,7 +1110,10 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
     needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
     
-    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    try:
+        await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    except Exception as e:
+        logger.warning(f"Failed to send typing indicator in /kin: {type(e).__name__}. Continuing anyway.")
     
     if needs_plot:
         try:
@@ -1186,7 +1192,10 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
     needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
     
-    await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    try:
+        await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+    except Exception as e:
+        logger.warning(f"Failed to send typing indicator in /both: {type(e).__name__}. Continuing anyway.")
     
     if needs_plot:
         try:
@@ -1296,8 +1305,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.message.chat_id
     start_time = time.time()
     
-    # Send typing indicator
-    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+    # Send typing indicator (gracefully skip if timeout occurs)
+    try:
+        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+    except Exception as e:
+        logger.warning(f"Failed to send typing indicator: {type(e).__name__}: {e}. Continuing anyway.")
     
     try:
         # Persona routing: \kei (OpenAI) and \kin (Perplexity)
@@ -1307,7 +1319,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not question:
                 await update.message.reply_text("Usage: \\kei <question>")
                 return
-            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+            try:
+                await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+            except Exception as e:
+                logger.warning(f"Failed to send typing indicator: {type(e).__name__}. Continuing anyway.")
             answer = await ask_kei(question)
             if not answer or not answer.strip():
                 await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
@@ -1325,7 +1340,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not question:
                 await update.message.reply_text("Usage: \\kin <question>")
                 return
-            await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+            try:
+                await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+            except Exception as e:
+                logger.warning(f"Failed to send typing indicator: {type(e).__name__}. Continuing anyway.")
             answer = await ask_kin(question)
             if not answer or not answer.strip():
                 await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
@@ -1414,7 +1432,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Generate plot if requested
                 if wants_plot:
-                    await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
+                    try:
+                        await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
+                    except Exception as e:
+                        logger.warning(f"Failed to send upload_photo action: {type(e).__name__}. Continuing anyway.")
                     png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.tenors, intent.highlight_date)
                     await update.message.reply_photo(photo=io.BytesIO(png), caption="📊 Bond Analysis Chart")
             
@@ -1846,8 +1867,19 @@ async def activity_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def create_telegram_app(token: str) -> Application:
-    """Create and configure the Telegram application."""
-    application = Application.builder().token(token).build()
+    """Create and configure the Telegram application with extended HTTPX timeouts."""
+    from telegram.request import HTTPXRequest
+    
+    # Increase HTTPX timeouts to handle slow Telegram API or egress delays on Render
+    # Default timeouts are ~5s, which is too short for transcontinental API calls
+    request = HTTPXRequest(
+        connect_timeout=15.0,    # Time to establish connection
+        read_timeout=30.0,       # Time to read response (critical for slow API)
+        write_timeout=10.0,      # Time to send request
+        pool_timeout=15.0        # Time to get a connection from pool
+    )
+    
+    application = Application.builder().token(token).request(request).build()
     
     # Add handlers
     application.add_handler(CommandHandler("start", start_command))
