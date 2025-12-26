@@ -911,20 +911,15 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption="💹 <b>Kei | Quant Research</b>",
-                            parse_mode=ParseMode.HTML
+                            caption="💹 Kei | Quant Research"
                         )
                         # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
-                            await update.message.reply_text(
-                                html_module.escape(data_summary),
-                                parse_mode=ParseMode.HTML
-                            )
+                            await update.message.reply_text(data_summary)
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
-                            f"📊 <b>Kei | Quant Research</b>\n\n{html_module.escape(data_summary)}",
-                            parse_mode=ParseMode.HTML
+                            f"📊 Kei | Quant Research\n\n{data_summary}"
                         )
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kei")
@@ -971,8 +966,8 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kei")
                     return
-                formatted_response = f"{html_module.escape(answer)}"
-                await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+                formatted_response = f"{answer}"
+                await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
             
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "text", response_time, True, persona="kei")
@@ -1022,20 +1017,15 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption="🌍 <b>Kin | Economics & Strategy</b>",
-                            parse_mode=ParseMode.HTML
+                            caption="🌍 Kin | Economics & Strategy"
                         )
                         # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
-                            await update.message.reply_text(
-                                html_module.escape(data_summary),
-                                parse_mode=ParseMode.HTML
-                            )
+                            await update.message.reply_text(data_summary)
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
-                            f"📊 <b>Kin | Economics & Strategy</b>\n\n{html_module.escape(data_summary)}",
-                            parse_mode=ParseMode.HTML
+                            f"🌍 Kin | Economics & Strategy\n\n{data_summary}"
                         )
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kin")
@@ -1056,8 +1046,8 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kin")
                 return
-            formatted_response = f"{html_module.escape(answer)}"
-            await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+                formatted_response = f"{answer}"
+                await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "text", response_time, True, persona="kin")
         except Exception as e:
@@ -1375,20 +1365,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                         # Send plot with minimal caption
                                         await update.message.reply_photo(
                                             photo=image_bytes,
-                                            caption="📊 <b>Bond Analysis Chart</b>",
-                                            parse_mode=ParseMode.HTML
+                                            caption="📊 Bond Analysis Chart"
                                         )
                                         # Send AI analysis if available
                                         if data_summary and data_summary.strip():
-                                            await update.message.reply_text(
-                                                html_module.escape(data_summary),
-                                                parse_mode=ParseMode.HTML
-                                            )
+                                            await update.message.reply_text(data_summary)
                                     else:
                                         # No image, send analysis-only response
                                         await update.message.reply_text(
-                                            f"📊 <b>Bond Analysis</b>\n\n{html_module.escape(data_summary)}",
-                                            parse_mode=ParseMode.HTML
+                                            f"📊 Bond Analysis\n\n{data_summary}"
                                         )
                                 else:
                                     error_detail = f"Status {resp.status_code}"
