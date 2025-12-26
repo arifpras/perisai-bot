@@ -1399,16 +1399,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         max_val = max(metric_values)
                         avg_val = statistics.mean(metric_values)
                         std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
-                        # Economist-style summary block (minimalist)
+                        # Economist-style summary block (minimalist, plain text)
                         stat_label = intent.metric.capitalize() if hasattr(intent, 'metric') else 'Yield'
-                        response_text += f"\n<b>Summary ({stat_label})</b>\n"
-                        response_text += "<pre>"
+                        response_text += f"\nSummary ({stat_label})\n"
                         response_text += f"Records  : {len(metric_values):>5}\n"
                         response_text += f"Min      : {min_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
                         response_text += f"Max      : {max_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
                         response_text += f"Average  : {avg_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
-                        response_text += f"Std Dev  : {std_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}"
-                        response_text += "</pre>\n"
+                        response_text += f"Std Dev  : {std_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
                     
                     # Show all rows (or split into messages if too many)
                     formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=intent.metric if hasattr(intent, 'metric') else 'yield')
