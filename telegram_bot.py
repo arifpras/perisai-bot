@@ -13,10 +13,97 @@ from typing import Optional, List, Dict
 from openai import AsyncOpenAI
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.constants import ParseMode
+import httpx
+import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
+try:
+    import seaborn as sns
+except ImportError:
+    sns = None
+
 import priceyield_20251223 as priceyield_mod
 from priceyield_20251223 import BondDB, AuctionDB, parse_intent
+from monitor_utils import log_event, log_error
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# Initialize OpenAI client
+_openai_client = None
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+if OPENAI_API_KEY:
+    _openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+else:
+    logger.warning("OPENAI_API_KEY not set - /kei persona will be unavailable")
+
+# Perplexity configuration
+PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
+PERPLEXITY_MODEL = os.environ.get("PERPLEXITY_MODEL", "llama-3.1-sonar-large-128k-online")
+
+# API configuration
+API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
+
+# Metrics module
+try:
+    import metrics
+except ImportError:
+    # Fallback metrics stub if module not available
+    class MetricsStub:
+        def log_query(self, *args, **kwargs): pass
+        def log_error(self, *args, **kwargs): pass
+    metrics = MetricsStub()
+    logger.warning("metrics module not available - using stub")
 
 _db_cache: Dict[str, object] = {}
+
+
+def strip_markdown_emphasis(text: str) -> str:
+    """Remove markdown bold/italic emphasis from text."""
+    text = re.sub(r'\*\*([^\*]+)\*\*', r'\1', text)  # Remove **bold**
+    text = re.sub(r'\*([^\*]+)\*', r'\1', text)      # Remove *italic*
+    text = re.sub(r'__([^_]+)__', r'\1', text)       # Remove __bold__
+    text = re.sub(r'_([^_]+)_', r'\1', text)         # Remove _italic_
+    return text
+
+
+def apply_economist_style(fig, ax):
+    """Apply Economist-style formatting to matplotlib figure."""
+    # Set colors
+    ax.set_facecolor('#F5F5F5')
+    fig.patch.set_facecolor('white')
+    
+    # Style spines
+    for spine in ax.spines.values():
+        spine.set_edgecolor('#CCCCCC')
+        spine.set_linewidth(0.5)
+    
+    # Grid
+    ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    ax.set_axisbelow(True)
+
+
+def is_user_authorized(user_id: int) -> bool:
+    """Check if a user is authorized to use the bot.
+    
+    If ALLOWED_USER_IDS environment variable is set (comma-separated list),
+    only those users are allowed. Otherwise, all users are authorized.
+    """
+    allowed_users = os.environ.get("ALLOWED_USER_IDS", "")
+    if not allowed_users:
+        # No restriction - all users authorized
+        return True
+    
+    # Parse comma-separated list of user IDs
+    try:
+        allowed_list = [int(uid.strip()) for uid in allowed_users.split(",") if uid.strip()]
+        return user_id in allowed_list
+    except ValueError:
+        # If parsing fails, log and allow all (fail-open)
+        logging.warning("Invalid ALLOWED_USER_IDS format, allowing all users")
+        return True
 
 
 def get_db(csv_path: str = "20251215_priceyield.csv") -> BondDB:
