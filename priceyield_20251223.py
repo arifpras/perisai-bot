@@ -181,6 +181,20 @@ def parse_intent(text: str) -> Intent:
             forecast_type = 'bidtocover'
         
         # Parse date for auction forecast
+        # Try quarter first (e.g., Q1 2026)
+        qm = QUARTER_RE.search(text)
+        if qm:
+            s, e = quarter_range(int(qm.group(1)), int(qm.group(2)))
+            return Intent(
+                type="AUCTION_FORECAST",
+                metric="auction",
+                series=None,
+                tenor=None,
+                tenors=None,
+                start_date=s,
+                end_date=e,
+                forecast_type=forecast_type,
+            )
         # Try month-year first
         mm = MONTH_YEAR_RE.search(text)
         if mm:

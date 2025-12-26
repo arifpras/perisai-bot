@@ -1,6 +1,6 @@
 ================================================================================
 PERISAI-BOT DEPLOYMENT SANITY CHECK
-Date: December 25, 2025 22:47:12
+Date: December 26, 2025 22:33:59
 ================================================================================
 
 ✅ Dependencies
@@ -27,7 +27,7 @@ Date: December 25, 2025 22:47:12
 ✅ Multi-tenor price plot
    Generated 109,324 bytes
 ✅ Telegram bot imports
-   API Base URL: http://127.0.0.1:8000
+   API Base URL: http://localhost:8000
 ✅ Procfile
    Content: web: uvicorn app_fastapi:app --host 0.0.0.0 --port $PORT
 ✅ render.yaml

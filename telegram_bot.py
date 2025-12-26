@@ -13,6 +13,7 @@ from typing import Optional, List, Dict
 from openai import AsyncOpenAI
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.error import BadRequest
 from telegram.constants import ParseMode
 import httpx
 import pandas as pd
@@ -29,6 +30,12 @@ from priceyield_20251223 import BondDB, AuctionDB, parse_intent
 # Initialize logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+# Silence Prophet's optional Plotly warning (Telegram uses static PNGs, not Plotly)
+try:
+    logging.getLogger('prophet.plot').setLevel(logging.CRITICAL)
+except Exception:
+    pass
 
 # Initialize OpenAI client
 _openai_client = None
@@ -272,7 +279,7 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
             )
     lines.append("")
     lines.append("Data reflect observed values in the period; simple averages, no inference beyond sample.")
-    lines.append("Kei | Quant Research")
+    lines.append("Kei")
     return "\n".join(lines)
 
 def format_models_economist_table(models: dict) -> str:
@@ -379,17 +386,151 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     models_dict["average"] = item.get("average")
                     table = format_models_economist_table(models_dict)
                     lines.append(header)
-                    lines.append(table)
+                    # Wrap table in code fences to avoid Markdown entity parsing issues
+                    lines.append(f"```\n{table}\n```")
                 return "\n".join(lines)
         intent = parse_intent(question)
         rows_list = []
         # Handle auction forecasts
         if intent.type == 'AUCTION_FORECAST':
             auction_db = get_auction_db()
-            rows_list = auction_db.query_forecast(intent)
-            if rows_list:
-                return summarize_intent_result(intent, rows_list)
-            return None
+            rows = auction_db.query_forecast(intent)
+            if not rows:
+                return None
+            # Choose metric based on forecast_type
+            ftype = getattr(intent, 'forecast_type', None) or 'awarded'
+            metric_field = {
+                'awarded': 'awarded_billions',
+                'incoming': 'incoming_billions',
+                'bidtocover': 'bid_to_cover',
+            }.get(ftype, 'awarded_billions')
+
+            # Aggregate within period (month/quarter/year)
+            # Build per-month stats and overall totals
+            def fmt_idr_trillion(x):
+                try:
+                    return f"Rp {x:.2f}T"
+                except:
+                    return str(x)
+
+            # Filter by date range if provided
+            s = getattr(intent, 'start_date', None)
+            e = getattr(intent, 'end_date', None)
+            use_rows = [r for r in rows if (not s or r['date'] >= s) and (not e or r['date'] <= e)]
+            if not use_rows:
+                use_rows = rows
+
+            # Group by month
+            by_month = {}
+            for r in use_rows:
+                mkey = (r['auction_year'], r['auction_month'])
+                by_month.setdefault(mkey, []).append(r)
+
+            # Compute monthly sums/averages
+            monthly_vals = []
+            for (y, m), rr in sorted(by_month.items()):
+                vals = [r.get(metric_field) for r in rr if r.get(metric_field) is not None]
+                if not vals:
+                    continue
+                monthly_sum = sum(vals)
+                monthly_avg_btc = None
+                if metric_field != 'bid_to_cover':
+                    # also compute bid-to-cover monthly average for context
+                    btc_vals = [r.get('bid_to_cover') for r in rr if r.get('bid_to_cover') is not None]
+                    monthly_avg_btc = statistics.mean(btc_vals) if btc_vals else None
+                monthly_vals.append({
+                    'year': y,
+                    'month': m,
+                    'value': monthly_sum,
+                    'btc': monthly_avg_btc,
+                })
+
+            # Overall period aggregate
+            if metric_field == 'bid_to_cover':
+                overall = statistics.mean([
+                    r.get('bid_to_cover') for r in use_rows if r.get('bid_to_cover') is not None
+                ]) if any(r.get('bid_to_cover') is not None for r in use_rows) else None
+            else:
+                overall = sum([
+                    r.get(metric_field) for r in use_rows if r.get(metric_field) is not None
+                ]) if any(r.get(metric_field) is not None for r in use_rows) else None
+
+            # Build summary text for LLM context
+            # Period label
+            period_label = None
+            try:
+                if s and e:
+                    if s.year == e.year:
+                        # Quarter format if 3-month span starting at Jan/Apr/Jul/Oct
+                        q_map = {1: 'Q1', 4: 'Q2', 7: 'Q3', 10: 'Q4'}
+                        if s.month in q_map and (e - s).days >= 80:
+                            period_label = f"{q_map[s.month]} {s.year}"
+                        else:
+                            period_label = f"{s.strftime('%b %Y')}–{e.strftime('%b %Y')}"
+                    else:
+                        period_label = f"{s} → {e}"
+            except Exception:
+                period_label = None
+
+            lines = []
+            metric_name = {
+                'awarded_billions': 'awarded amount',
+                'incoming_billions': 'incoming bids',
+                'bid_to_cover': 'bid-to-cover',
+            }[metric_field]
+
+            # Header
+            if metric_field == 'bid_to_cover':
+                header_main = f"📊 INDOGB: {period_label or 'Auction Period'} {metric_name}; Average"
+            else:
+                header_main = f"📊 INDOGB: {period_label or 'Auction Period'} {metric_name}; {fmt_idr_trillion(overall) if isinstance(overall, (int, float)) else overall} Total"
+            lines.append(header_main)
+            lines.append("")
+
+            # Monthly breakdown and simple MoM
+            if monthly_vals:
+                # Compose breakdown line
+                mon_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                breakdown_parts = []
+                for mv in monthly_vals:
+                    label = f"{mon_names[mv['month']-1]} {mv['year']}"
+                    val_txt = fmt_idr_trillion(mv['value']) if metric_field != 'bid_to_cover' else f"{mv['value']:.2f}x"
+                    breakdown_parts.append(f"{label} {val_txt}")
+                lines.append("; ".join(breakdown_parts))
+
+                # MoM change if >=2 months and not bid_to_cover metric
+                if metric_field != 'bid_to_cover' and len(monthly_vals) >= 2:
+                    for i in range(1, len(monthly_vals)):
+                        prev = monthly_vals[i-1]['value']
+                        cur = monthly_vals[i]['value']
+                        if prev and cur:
+                            mom = ((cur - prev) / prev) * 100.0
+                            mon_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                            mlabel = mon_names[monthly_vals[i]['month']-1]
+                            lines.append(f"MoM {mlabel}: {mom:+.1f}%")
+
+            # Bid-to-cover context (average)
+            btc_vals_all = [r.get('bid_to_cover') for r in use_rows if r.get('bid_to_cover') is not None]
+            if btc_vals_all:
+                btc_avg = statistics.mean(btc_vals_all)
+                lines.append(f"Bid-to-cover average: {btc_avg:.2f}x")
+
+            # Macro context hint if available in rows (BI rate, inflation)
+            bi_vals = [r.get('bi_rate') for r in use_rows if r.get('bi_rate') is not None]
+            inf_vals = [r.get('inflation_rate') for r in use_rows if r.get('inflation_rate') is not None]
+            if bi_vals and inf_vals:
+                try:
+                    bi_first, bi_last = bi_vals[0], bi_vals[-1]
+                    inf_first, inf_last = inf_vals[0], inf_vals[-1]
+                    lines.append(
+                        f"Context: BI rate {bi_first:.2f}%→{bi_last:.2f}%; inflation {inf_first:.2f}%→{inf_last:.2f}%"
+                    )
+                except Exception:
+                    pass
+
+            lines.append("")
+            lines.append("Kei")
+            return "\n".join(lines)
         # Handle bond data queries
         db = get_db()
         if intent.type == 'POINT':
@@ -488,7 +629,8 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     avg_str = f"{avg_val:.4f}" if isinstance(avg_val, float) else str(avg_val)
                     summary = (
                         f"Forecasts for {tenor_txt} yield at {intent.point_date} ({scope}):\n"
-                        f"{table}\n"
+                        # Wrap table in code fences for safe Markdown rendering
+                        f"```\n{table}\n```\n"
                         f"Ensemble average: {avg_str}{note}"
                     )
                     return summary
@@ -512,7 +654,8 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     data_summary = await try_compute_bond_summary(question)
     is_data_query = data_summary is not None
 
-    signature_text = "Kei & Kin | Data → Insight" if dual_mode else "Kei | Quant Research"
+    # Short signature to reduce token footprint
+    signature_text = "Kei&Kin" if dual_mode else "Kei"
 
     if is_data_query:
         system_prompt = (
@@ -525,7 +668,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "Body: Emphasize factual reporting; no valuation or advice. Use contrasts (MoM vs YoY, trend vs level). Forward-looking statements must be attributed and conditional.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
             "Sources: Include one bracketed source line only if explicitly provided; otherwise omit.\n"
-            f"Signature: blank line, then '________', then blank line, then '{signature_text}'.\n"
+            f"Signature: {signature_text}.\n"
             "Prohibitions: No follow-up questions. No speculation or flourish. Do not add data not provided.\n"
             "Objective: Publication-ready response that delivers the key market signal clearly.\n\n"
             "Data access:\n- Indonesian government bond prices and yields (2023-2025): FR95–FR104 (5Y/10Y). FR = Fixing Rate bonds issued by Indonesia's government (not French bonds).\n- Auction demand forecasts through 2026: incoming bids, awarded amounts, bid-to-cover (ensemble ML: XGBoost, Random Forest, time-series) using macro features (BI rate, inflation, IP, JKSE, FX).\n- Indonesian macro indicators (BI rate, inflation, etc.).\n\n"
@@ -669,7 +812,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: blank line, then '________', then blank line, then '{{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}}'.\n"
+            f"Signature: {{'Kei&Kin' if dual_mode else 'Kin'}}.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -689,7 +832,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: blank line, then '________', then blank line, then '{{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}}'.\n"
+            f"Signature: {{'Kei&Kin' if dual_mode else 'Kin'}}.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -789,6 +932,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /kei auction demand 2026\n"
         "• /kin plot 10 year 2024\n"
         "• /kin what is fiscal policy\n"
+        "• /kin explain impact of BI rate\n"
         "• /both compare yields 2024 vs 2025\n"
         "• /check 2025-12-12 10 year\n\n"
         "<b>Routing</b>\n"
@@ -1051,10 +1195,14 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 tables_summary = await try_compute_bond_summary(question)
                 if tables_summary:
                     # Send tables only (no separate analysis message)
-                    await update.message.reply_text(
-                        tables_summary,
-                        parse_mode=ParseMode.MARKDOWN
-                    )
+                    try:
+                        await update.message.reply_text(
+                            tables_summary,
+                            parse_mode=ParseMode.MARKDOWN
+                        )
+                    except BadRequest:
+                        # Fallback: send without Markdown parsing
+                        await update.message.reply_text(tables_summary)
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "forecast", response_time, True, "forecast_next", "kei")
                     return
@@ -1165,8 +1313,14 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kin")
             return
-        formatted_response = f"{answer}"
-        await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+        # Sanitize markdown emphasis to reduce Telegram parse errors
+        formatted_response = strip_markdown_emphasis(f"{answer}")
+        try:
+            await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+        except BadRequest as e:
+            # Fallback: resend without parse mode if Telegram rejects Markdown entities
+            logger.warning(f"Kin BadRequest on Markdown parse: {e}. Resending without parse mode.")
+            await update.message.reply_text(formatted_response)
         response_time = time.time() - start_time
         metrics.log_query(user_id, username, question, "text", response_time, True, persona="kin")
     except Exception as e:
