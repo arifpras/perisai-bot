@@ -25,7 +25,6 @@ except ImportError:
 
 import priceyield_20251223 as priceyield_mod
 from priceyield_20251223 import BondDB, AuctionDB, parse_intent
-from monitor_utils import log_event, log_error
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -1299,7 +1298,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "⛔ Access denied. This bot is restricted to authorized users only."
         )
-        log_error("telegram_auth", f"Unauthorized access attempt", user_id)
         logger.warning("Unauthorized access attempt from user_id=%s", user_id)
         return
     
@@ -1328,13 +1326,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             answer = await ask_kei(question)
             if not answer or not answer.strip():
                 await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
-                elapsed = (time.time() - start_time) * 1000
-                log_event(user_id, username, user_query, "kei_query", "kei", elapsed, False, "Empty response")
                 return
             formatted_response = f"{html_module.escape(answer)}"
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
-            elapsed = (time.time() - start_time) * 1000
-            log_event(user_id, username, user_query, "kei_query", "kei", elapsed, True)
             return
 
         if lowered.startswith("\\kin"):
@@ -1349,13 +1343,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             answer = await ask_kin(question)
             if not answer or not answer.strip():
                 await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
-                elapsed = (time.time() - start_time) * 1000
-                log_event(user_id, username, user_query, "kin_query", "kin", elapsed, False, "Empty response")
                 return
             formatted_response = f"{html_module.escape(answer)}"
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
-            elapsed = (time.time() - start_time) * 1000
-            log_event(user_id, username, user_query, "kin_query", "kin", elapsed, True)
             return
 
         # Determine if user wants a plot
@@ -1410,9 +1400,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response_text += format_rows_for_telegram(rows_list, include_date=False, metric=intent.metric if hasattr(intent, 'metric') else 'yield')
             
             await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
-            
-            elapsed = (time.time() - start_time) * 1000
-            log_event(user_id, username, user_query, "point_query", "default", elapsed, True)
         
         # RANGE / AGG_RANGE query
         elif intent.type in ('RANGE', 'AGG_RANGE'):
@@ -1432,8 +1419,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 
                 await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
-                elapsed = (time.time() - start_time) * 1000
-                log_event(user_id, username, user_query, "agg_query", "default", elapsed, True)
                 
                 # Generate plot if requested
                 if wants_plot:
@@ -1585,36 +1570,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else:
                         response_text += formatted_rows
                     await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
-                    
-                    elapsed = (time.time() - start_time) * 1000
-                    log_event(user_id, username, user_query, "range_query", "default", elapsed, True)
                 
                 return
         
         else:
-            elapsed = (time.time() - start_time) * 1000
             await update.message.reply_text(
                 "❌ Sorry, I couldn't understand that query. Try `/examples` for sample queries.",
                 parse_mode=ParseMode.MARKDOWN
             )
-            log_event(user_id, username, user_query, "unknown", "default", elapsed, False, "Query not understood")
     
     except Exception as e:
-        elapsed = (time.time() - start_time) * 1000  # milliseconds
         error_text = f"❌ *Error:* {str(e)}\n\nTry `/examples` for valid query formats."
         await update.message.reply_text(error_text, parse_mode=ParseMode.MARKDOWN)
-        
-        # Log failure
-        log_event(
-            user_id=user_id,
-            username=username,
-            query=user_query,
-            query_type="unknown",
-            persona="default",
-            response_time_ms=elapsed,
-            success=False,
-            error=str(e)
-        )
 
 
 def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=None, highlight_date=None):
