@@ -261,45 +261,45 @@ def summarize_intent_result(intent, rows_list):
     
     parts = []
     
-    # For range queries with statistics, include all rows with stats
+    # For range queries with statistics, include per-tenor stats (do not combine tenors)
     if intent.type == 'AGG_RANGE' or (intent.type == 'RANGE' and len(rows_list) > 1):
-        # Compute statistics for the metric
-        metric_values = []
+        metric_name = intent.metric if hasattr(intent, 'metric') and intent.metric else 'yield'
+        parts.append(f"Period: {intent.start_date} to {intent.end_date}")
+        parts.append(f"Records found: {len(rows_list)}")
+
+        # Group by tenor and compute stats separately
+        grouped = {}
         for r in rows_list:
-            val = r.get(intent.metric if hasattr(intent, 'metric') and intent.metric else 'yield')
-            if val is not None:
-                try:
-                    metric_values.append(float(val))
-                except (ValueError, TypeError):
-                    pass
-        
-        if metric_values:
-            import statistics as stats_module
-            metric_name = intent.metric if hasattr(intent, 'metric') and intent.metric else 'yield'
-            min_val = min(metric_values)
-            max_val = max(metric_values)
-            avg_val = stats_module.mean(metric_values)
-            std_val = stats_module.stdev(metric_values) if len(metric_values) > 1 else 0
-            
-            parts.append(
-                f"Period: {intent.start_date} to {intent.end_date}\n"
-                f"Records found: {len(rows_list)}\n"
-                f"Statistics ({metric_name}): Min={min_val:.2f}, Max={max_val:.2f}, Avg={avg_val:.2f}, StdDev={std_val:.2f}\n"
-                f"Data rows:"
-            )
-            for r in rows_list:
-                if 'date' in r:
-                    parts.append(
-                        f"  {r['series']} | {r['tenor'].replace('_', ' ')} | {r['date']} | "
-                        f"Price {r.get('price', 'N/A')} | Yield {r.get('yield', 'N/A')}"
-                    )
-        else:
-            # Fallback: show first 3 rows
-            for r in rows_list[:3]:
+            tenor_key = r.get('tenor', 'unknown')
+            grouped.setdefault(tenor_key, []).append(r)
+
+        import statistics as stats_module
+        for tenor_key, group_rows in grouped.items():
+            metric_values = []
+            for r in group_rows:
+                val = r.get(metric_name)
+                if val is not None:
+                    try:
+                        metric_values.append(float(val))
+                    except (ValueError, TypeError):
+                        pass
+            tenor_label = tenor_key.replace('_', ' ')
+            if metric_values:
+                min_val = min(metric_values)
+                max_val = max(metric_values)
+                avg_val = stats_module.mean(metric_values)
+                std_val = stats_module.stdev(metric_values) if len(metric_values) > 1 else 0
                 parts.append(
-                    f"Series {r['series']} | Tenor {r['tenor'].replace('_',' ')} | "
-                    f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
-                    + (f" | Date {r.get('date')}" if 'date' in r else "")
+                    f"{tenor_label} ({len(group_rows)} records) — {metric_name}: Min={min_val:.2f}, Max={max_val:.2f}, Avg={avg_val:.2f}, StdDev={std_val:.2f}"
+                )
+            else:
+                parts.append(f"{tenor_label} ({len(group_rows)} records) — no numeric {metric_name} values found")
+
+            # Show sample rows per tenor (up to first 5)
+            parts.append("  Data rows:")
+            for r in group_rows[:5]:
+                parts.append(
+                    f"    {r['series']} | {tenor_label} | {r.get('date','')} | Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
                 )
     else:
         # For point queries or small result sets, show all or up to 5 rows
@@ -309,7 +309,7 @@ def summarize_intent_result(intent, rows_list):
                 f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
                 + (f" | Date {r.get('date')}" if 'date' in r else "")
             )
-    
+
     header = f"Computed rows ({len(rows_list)} total):"
     return header + "\n" + "\n".join(parts)
 
