@@ -210,7 +210,7 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
         return None
     import statistics
     unit = '%' if metric == 'yield' else ''
-    tenors = sorted(str(r.get('tenor') or 'all') for r in rows)
+    tenors = sorted(set(str(r.get('tenor') or 'all') for r in rows))
 
     # Period label
     period_label = None
@@ -1728,10 +1728,6 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         ax.set_xlabel('Date', fontsize=12)
         ax.set_ylabel(metric.capitalize(), fontsize=12)
         
-        # Add copyright footer on plot
-        fig.text(0.99, 0.01, CAPTION_FOOTER, fontsize=9, ha='right', va='bottom', 
-                color=ECONOMIST_COLORS['gray'], style='italic')
-        
         from matplotlib.dates import DateFormatter
         date_formatter = DateFormatter('%-d %b %Y')
         ax.xaxis.set_major_formatter(date_formatter)
@@ -1761,11 +1757,6 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
         ax.set_xlabel('Date')
         ax.set_ylabel(metric.capitalize())
-        
-        # Add copyright footer on plot
-        fig.text(0.99, 0.01, CAPTION_FOOTER, fontsize=9, ha='right', va='bottom', 
-                color=ECONOMIST_COLORS['gray'], style='italic')
-        
         fig.autofmt_xdate()
         plt.grid(alpha=0.3)
     
