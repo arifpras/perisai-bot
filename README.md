@@ -166,8 +166,15 @@ ARIMA and ETS models now ensure all date calculations use pandas.Timestamp, prev
 All table and chart outputs are formatted for optimal display in Telegram, using monospace and markdown styles where appropriate.
 
 ## Usage logging & dashboard 📈
-- Logging: `usage_store.py` (SQLite) via metrics hooks in bot/API
-- Dashboard: `streamlit-chatbot/pages/usage_dashboard.py` → run with `streamlit run streamlit-chatbot/src/app.py`
+- **Activity Monitoring**: Automatic logging of all user queries
+  - Telegram: `/activity` command shows health metrics, query breakdown, top users (admin-only)
+  - CLI: `python3 activity_monitor.py` → formatted dashboard with statistics
+  - Utilities: `python3 monitor_utils.py [export|cleanup|errors|slowest|trend]` → custom analysis
+  - Database: SQLite (`usage_metrics.sqlite`) with indexed queries for fast analysis
+  - Privacy: User IDs hashed with SHA256 (irreversible), usernames optional
+  - See [ACTIVITY_MONITORING.md](ACTIVITY_MONITORING.md) for full documentation
+  
+- Legacy Streamlit dashboard: `streamlit-chatbot/pages/usage_dashboard.py` → run with `streamlit run streamlit-chatbot/src/app.py`
 
 ## Containerization (Docker) 🐳
 - Build: `docker build -t bondbot:latest .`
