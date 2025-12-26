@@ -78,6 +78,14 @@ def apply_economist_style(fig, ax):
     ax.yaxis.label.set_color(ECONOMIST_COLORS['gray'])
     ax.title.set_color(ECONOMIST_COLORS['black'])
 
+def strip_markdown_emphasis(text: str) -> str:
+    """Remove basic markdown bold/italic markers for minimalist output."""
+    if not text:
+        return text
+    # Strip common emphasis markers
+    cleaned = text.replace('**', '').replace('__', '').replace('*', '')
+    return cleaned
+
 # Cache DB instances
 _db_cache = {}
 
@@ -1008,15 +1016,15 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption=f"💹 Kei | Quant Research\n{CAPTION_FOOTER}"
+                            caption="💹 Kei | Quant Research"
                         )
                         # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
-                            await update.message.reply_text(data_summary)
+                            await update.message.reply_text(strip_markdown_emphasis(data_summary))
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
-                            f"📊 Kei | Quant Research\n\n{data_summary}"
+                            f"📊 Kei | Quant Research\n\n{strip_markdown_emphasis(data_summary)}"
                         )
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kei")
@@ -1114,15 +1122,15 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption=f"🌍 Kin | Economics & Strategy\n{CAPTION_FOOTER}"
+                            caption="🌍 Kin | Economics & Strategy"
                         )
                         # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
-                            await update.message.reply_text(data_summary)
+                            await update.message.reply_text(strip_markdown_emphasis(data_summary))
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
-                            f"🌍 Kin | Economics & Strategy\n\n{data_summary}"
+                            f"🌍 Kin | Economics & Strategy\n\n{strip_markdown_emphasis(data_summary)}"
                         )
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kin")
@@ -1193,19 +1201,19 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption=f"⚡ <b>Kei & Kin | Numbers to Meaning</b>\n{CAPTION_FOOTER}",
+                            caption="⚡ <b>Kei & Kin | Numbers to Meaning</b>",
                             parse_mode=ParseMode.HTML
                         )
                         # Send pre-computed analysis from FastAPI (no redundant LLM calls)
                         if data_summary and data_summary.strip():
                             await update.message.reply_text(
-                                html_module.escape(data_summary),
+                                strip_markdown_emphasis(html_module.escape(data_summary)),
                                 parse_mode=ParseMode.HTML
                             )
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
-                            f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{html_module.escape(data_summary)}",
+                            f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{strip_markdown_emphasis(html_module.escape(data_summary))}",
                             parse_mode=ParseMode.HTML
                         )
                     response_time = time.time() - start_time
@@ -1406,7 +1414,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if wants_plot:
                     await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
                     png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.tenors, intent.highlight_date)
-                    await update.message.reply_photo(photo=io.BytesIO(png), caption=CAPTION_FOOTER)
+                    await update.message.reply_photo(photo=io.BytesIO(png), caption="📊 Bond Analysis Chart")
             
             else:
                 # Range without aggregation - return individual rows
@@ -1467,7 +1475,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                         # Send plot with minimal caption
                                         await update.message.reply_photo(
                                             photo=image_bytes,
-                                            caption=f"📊 Bond Analysis Chart\n{CAPTION_FOOTER}"
+                                            caption="📊 Bond Analysis Chart"
                                         )
                                     # Send quant summary tailored for range queries
                                     if summary_text:
