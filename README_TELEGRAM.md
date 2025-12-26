@@ -74,6 +74,51 @@ curl "https://perisai-api.onrender.com/telegram/set_webhook?webhook_url=https://
    - `average yield Q1 2023`
    - `plot yield 10 year May 2023`
 
+   ### Forecasting (tenor-only supported)
+
+   - `forecast 10 year yield on 2025-12-17`
+   - `forecast 10 year next 5 observations` (business-day aware)
+
+   What the bot returns by default for generic yield forecasts:
+
+   - **Tenor-only support**: If no `FRxx` series is specified, the bot averages across all series for the requested tenor per date.
+   - **8 forecasting models**: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, GRU, plus AVERAGE (ensemble).
+   - **LSTM removed**: GRU is now the only deep learning model; requires ≥150 observations.
+   - **ARIMA reliability**: Improved 3-level fallback ensures valid forecasts always returned.
+   - **Business-day horizons**: "Next N observations" automatically skip weekends (T+1=next Monday if last obs was Friday).
+   - **Dual-message display**: (1) Latest 5 observations + per-horizon tables, (2) separator, (3) Kei's HL-CU analysis.
+   - **Economist-style formatting**: Professional monospace tables with pipe delimiters.
+   - **Ensemble average**: Computed after excluding negative values and 3×MAD outliers.
+   - **Prophet safeguard**: Prophet forecasts clamped at zero to avoid negative yields.
+   - **Stability**: Forecasts use the latest ~240 observations for robustness.
+
+   Example response (single date, tenor-only):
+
+   ```
+   Forecasts for 10 year yield at 2025-12-17 (all series (averaged)):
+   Model         | Forecast
+   ---------------------------
+   ARIMA        | 6.1647
+   ETS          | 6.1494
+   RANDOM_WALK  | 6.1630
+   MONTE_CARLO  | 6.1474
+   MA5          | 6.1746
+   VAR          | 6.1648
+   PROPHET      | 6.1829
+   GRU          | 5.0783
+   AVERAGE      | 6.1637
+
+   Ensemble average: 6.1637
+   ```
+
+   ### Model Notes
+
+   - **ARIMA**: 3-level fallback mechanism (get_forecast → fit.forecast → last observed value); always returns valid float.
+   - **Prophet**: Forecasts clamped at 0.0 to avoid negative yields.
+   - **GRU**: Only deep learning model (requires ≥150 observations); LSTM completely removed.
+   - **Ensemble**: Excludes negatives and 3×MAD outliers for robust averaging.
+   - **Business days**: T+N horizons calculated using pandas.BDay (skips weekends automatically).
+
 ---
 
 ## 📱 Example Queries

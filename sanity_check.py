@@ -77,7 +77,8 @@ class SanityCheck:
         print(f"\n{BOLD}{BLUE}2. CHECKING FASTAPI SERVER{RESET}")
         
         try:
-            from app_fastapi import app, get_db, ECONOMIST_PALETTE
+                from app_fastapi import app, get_db, ECONOMIST_PALETTE
+                from priceyield_20251223 import BondDB, yield_forecast, get_yield_series
             
             details = [
                 f"FastAPI app: {type(app).__name__}",

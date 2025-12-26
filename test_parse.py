@@ -6,7 +6,7 @@ import os
 os.chdir('/workspaces/perisai-bot')
 
 # Now import the module which will execute in the right directory
-from _20251223_priceyield import parse_intent
+from priceyield_20251223 import parse_intent
 
 test_queries = [
     'compare price 5 year and 10 year in 2025',

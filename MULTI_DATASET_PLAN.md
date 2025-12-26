@@ -4,7 +4,7 @@
 - **Data Source:** `20251215_priceyield.csv` (bonds only)
 - **Structure:** date, series, tenor, price, yield
 - **Query Format:** `yield 5 year june 2025` → auto-parsed
-- **Intent Parser:** `20251223_priceyield.py` with hardcoded bond logic
+- **Intent Parser:** `priceyield_20251223.py` with hardcoded bond logic
 - **Database:** DuckDB table `ts` with fixed schema
 - **Metrics:** price, yield only
 - **Tenors:** 05_year, 10_year
@@ -89,7 +89,7 @@
 
 ## Architecture Changes
 
-### A. **Intent Parser Enhancement** (`20251223_priceyield.py`)
+### A. **Intent Parser Enhancement** (`priceyield_20251223.py`)
 
 **Current:**
 ```python
@@ -128,7 +128,7 @@ class Intent:
 
 ---
 
-### B. **Database Layer** (`20251223_priceyield.py` → `datasets_manager.py`)
+### B. **Database Layer** (`priceyield_20251223.py` → `datasets_manager.py`)
 
 **Current Architecture:**
 ```
@@ -256,7 +256,7 @@ user query
 2. `datasets_manager.py` — `DatasetManager` class (~200 lines)
 
 ### **Modify Existing:**
-1. `20251223_priceyield.py` — Add `Intent.dataset`, enhance parser (~100 line changes)
+1. `priceyield_20251223.py` — Add `Intent.dataset`, enhance parser (~100 line changes)
 2. `telegram_bot.py` — Dataset routing in handlers (~150 line changes)
    - `handle_message()`
    - `ask_admin_command()`

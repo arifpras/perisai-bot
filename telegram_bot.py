@@ -5,6 +5,7 @@ import os
 import io
 import base64
 import logging
+import re
 import time
 from typing import Optional
 from openai import AsyncOpenAI
@@ -16,7 +17,7 @@ import html as html_module
 # Import bond query logic
 import importlib.util
 from pathlib import Path
-_mod_path = Path(__file__).with_name("20251223_priceyield.py")
+_mod_path = Path(__file__).with_name("priceyield_20251223.py")
 spec = importlib.util.spec_from_file_location("priceyield_mod", str(_mod_path))
 priceyield_mod = importlib.util.module_from_spec(spec)
 import sys
@@ -115,90 +116,84 @@ def get_auction_db(csv_path: str = "20251224_auction_forecast.csv"):
     return _db_cache[cache_key]
 
 
-def format_rows_for_telegram(rows, include_date=False):
+def format_rows_for_telegram(rows, include_date=False, metric='yield'):
     """Format data rows for Telegram message (monospace style)."""
     if not rows:
         return "No data found."
-    
     def format_date_display(date_str):
-        """Convert ISO date string to 'dd mmm yyyy' format."""
         from datetime import datetime
         try:
             dt = datetime.fromisoformat(date_str)
             return dt.strftime('%d %b %Y')
         except:
             return date_str
-    
+    tenors = sorted(set(row['tenor'] for row in rows))
+    dates = sorted(set(row['date'] for row in rows if 'date' in row))
+    # Table for multi-tenor, multi-date
+    if include_date and len(tenors) > 1 and len(dates) > 1:
+        header = f"{'Date':<12} | " + " | ".join([f"{t.replace('_',' '):<8}" for t in tenors])
+        sep = '-' * (12 + 3 + len(tenors) * 11)
+        table_rows = []
+        for d in dates:
+            row_vals = []
+            for t in tenors:
+                val = next((r.get(metric) for r in rows if r['tenor'] == t and r['date'] == d), None)
+                row_vals.append(f"{val:.2f}{'%' if metric=='yield' else ''}" if val is not None else "-")
+            table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
+        return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
+    # Single tenor, multi-date
+    elif include_date and len(tenors) == 1 and len(dates) > 1:
+        t = tenors[0]
+        header = f"{'Date':<12} | {t.replace('_',' '):<8}"
+        sep = '-' * 25
+        table_rows = []
+        for d in dates:
+            val = next((r.get(metric) for r in rows if r['tenor'] == t and r['date'] == d), None)
+            table_rows.append(f"{format_date_display(d):<12} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{format_date_display(d):<12} | -")
+        return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
+    # Multi-tenor, single date
+    elif not include_date and len(tenors) > 1:
+        header = f"{'Tenor':<8} | {metric.capitalize():<8}"
+        sep = '-' * 20
+        table_rows = []
+        for t in tenors:
+            val = next((r.get(metric) for r in rows if r['tenor'] == t), None)
+            table_rows.append(f"{t.replace('_',' '):<8} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{t.replace('_',' '):<8} | -")
+        return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
+    # Fallback: bullet style
     lines = []
     for row in rows:
         if include_date:
-            # RANGE query with date
             formatted_date = format_date_display(row['date'])
             lines.append(
                 f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')} | {formatted_date}\n"
                 f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
             )
         else:
-            # POINT query without date
             lines.append(
                 f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')}\n"
                 f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
             )
-        # Economist-style table formatting for multi-tenor, multi-period
-        if not rows:
-            return "No data found."
-        # Detect multi-tenor and multi-date
-        tenors = sorted(set(row['tenor'] for row in rows))
-        dates = sorted(set(row['date'] for row in rows if 'date' in row))
-        # If multi-tenor and multi-date, build table
-        if include_date and len(tenors) > 1 and len(dates) > 1:
-            # Build header
-            header = f"{'Date':<12} | " + " | ".join([f"{t.replace('_',' '):<8}" for t in tenors])
-            sep = '-' * (12 + 3 + len(tenors) * 11)
-            # Build rows
-            table_rows = []
-            for d in dates:
-                row_vals = []
-                for t in tenors:
-                    val = next((r['yield'] for r in rows if r['tenor'] == t and r['date'] == d), None)
-                    row_vals.append(f"{val:.2f}%" if val is not None else "-")
-                table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
-            return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
-        # Single tenor, multi-date
-        elif include_date and len(tenors) == 1 and len(dates) > 1:
-            t = tenors[0]
-            header = f"{'Date':<12} | {t.replace('_',' '):<8}"
-            sep = '-' * 25
-            table_rows = []
-            for d in dates:
-                val = next((r['yield'] for r in rows if r['tenor'] == t and r['date'] == d), None)
-                table_rows.append(f"{format_date_display(d):<12} | {val:.2f}%" if val is not None else f"{format_date_display(d):<12} | -")
-            return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
-        # Multi-tenor, single date
-        elif not include_date and len(tenors) > 1:
-            d = rows[0].get('date', None)
-            header = f"{'Tenor':<8} | {'Yield':<8}"
-            sep = '-' * 20
-            table_rows = []
-            for t in tenors:
-                val = next((r['yield'] for r in rows if r['tenor'] == t), None)
-                table_rows.append(f"{t.replace('_',' '):<8} | {val:.2f}%" if val is not None else f"{t.replace('_',' '):<8} | -")
-            return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
-        # Fallback: original bullet style
-        lines = []
-        for row in rows:
-            if include_date:
-                formatted_date = format_date_display(row['date'])
-                lines.append(
-                    f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')} | {formatted_date}\n"
-                    f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
-                )
-            else:
-                lines.append(
-                    f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')}\n"
-                    f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
-                )
-        return "\n\n".join(lines)
+    return "\n\n".join(lines)
+
+def format_models_economist_table(models: dict) -> str:
+    """Format per-model forecasts into an Economist-style monospace table, including average."""
+    order = [
+        "arima", "ets", "random_walk", "monte_carlo", "ma5", "var", "prophet", "gru", "average"
+    ]
+    header = "Model         | Forecast"
+    sep = "---------------------------"
+    rows = []
+    for m in order:
+        val = models.get(m)
+        if isinstance(val, float):
+            rows.append(f"{m.upper():<12} | {val:.4f}")
+        elif val is not None:
+            rows.append(f"{m.upper():<12} | {val}")
+        else:
+            rows.append(f"{m.upper():<12} | N/A")
+    table = "\n".join([header, sep] + rows)
+    return f"```\n{table}\n```"
 
 def format_auction_rows_for_telegram(rows):
     """Format auction forecast rows for Telegram message."""
@@ -322,9 +317,35 @@ def summarize_intent_result(intent, rows_list):
 async def try_compute_bond_summary(question: str) -> Optional[str]:
     """Best-effort: parse question and compute a summary for LLM context."""
     try:
+        q_lower = question.lower()
+        # Special handling: "forecast ... next N observations/days/points" with tenor-only support
+        next_match = re.search(r"next\s+(\d+)\s+(observations?|obs|points|days)", q_lower)
+        if next_match and ("forecast" in q_lower or "predict" in q_lower or "estimate" in q_lower):
+            days = int(next_match.group(1))
+            tenor = priceyield_mod.parse_tenor(question)
+            series = priceyield_mod.parse_series(question)
+            if tenor:
+                db = get_db()
+                res = priceyield_mod.forecast_tenor_next_days(db, tenor, days=days, last_obs_count=5, series=series if series else None)
+                # Format last 5 observations
+                lines = ["Latest 5 observations:"]
+                for d, v in res.get('last_obs', []):
+                    lines.append(f"- {d}: {v:.4f}")
+                lines.append("")
+                # Format forecasts per T+ horizon using Economist-style tables
+                lines.append("Forecasts:")
+                for item in res.get('forecasts', []):
+                    avg = item.get('average')
+                    avg_str = f"{avg:.4f}" if isinstance(avg, float) else str(avg)
+                    header = f"{item.get('label')} ({item.get('date')}): average={avg_str}"
+                    models_dict = dict(item.get('models', {}))
+                    models_dict['average'] = item.get('average')
+                    table = format_models_economist_table(models_dict)
+                    lines.append(header)
+                    lines.append(table)
+                return "\n".join(lines)
         intent = parse_intent(question)
         rows_list = []
-        
         # Handle auction forecasts
         if intent.type == 'AUCTION_FORECAST':
             auction_db = get_auction_db()
@@ -332,10 +353,8 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
             if rows_list:
                 return summarize_intent_result(intent, rows_list)
             return None
-        
         # Handle bond data queries
         db = get_db()
-
         if intent.type == 'POINT':
             d = intent.point_date
             params = [d.isoformat()]
@@ -361,7 +380,6 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
             ]
             if rows_list:
                 return summarize_intent_result(intent, rows_list)
-
         elif intent.type in ('RANGE', 'AGG_RANGE'):
             if intent.agg:
                 val, n = db.aggregate(
@@ -376,7 +394,6 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
             else:
                 params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
                 where = 'obs_date BETWEEN ? AND ?'
-                # Support multiple tenors: use intent.tenors if present, otherwise intent.tenor
                 tenors_to_use = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
                 if tenors_to_use:
                     tenor_placeholders = ', '.join('?' * len(tenors_to_use))
@@ -397,21 +414,46 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                 ]
                 if rows_list:
                     return summarize_intent_result(intent, rows_list)
-        
         # Yield forecasting integration
-        # Detect queries like 'forecast yield', 'predict yield', 'estimate yield', etc.
         forecast_keywords = ['forecast', 'predict', 'estimate']
-        if any(kw in question.lower() for kw in forecast_keywords) and intent.metric == 'yield' and intent.tenor and intent.series and intent.point_date:
-            # Use parsed model from intent, default to ARIMA
-            method = intent.forecast_model if intent.forecast_model else 'arima'
-            s = priceyield_mod.get_yield_series(db, intent.series, intent.tenor)
-            if len(s) < 10:
-                return f"Not enough data to forecast {intent.series} {intent.tenor} yield."
-            try:
-                forecast = priceyield_mod.yield_forecast(s, intent.point_date, method=method)
-                return f"Forecast ({method.upper()}): {intent.series} {intent.tenor} yield at {intent.point_date}: {forecast}"
-            except Exception as e:
-                return f"Forecasting error ({method}): {e}"
+        # Allow tenor-only forecasts (ignore series): require tenor + target date
+        if any(kw in question.lower() for kw in forecast_keywords) and intent.metric == 'yield' and intent.tenor and intent.point_date:
+            # If user specified a model, use only that model
+            if intent.forecast_model:
+                method = intent.forecast_model
+                s = priceyield_mod.get_yield_series(db, intent.series if intent.series else None, intent.tenor)
+                if len(s) < 10:
+                    return f"Not enough data to forecast {intent.tenor} yield."
+                try:
+                    forecast = priceyield_mod.yield_forecast(s, intent.point_date, method=method)
+                    tenor_txt = intent.tenor.replace('_', ' ')
+                    scope = intent.series if intent.series else 'all series (averaged)'
+                    return f"Forecast ({method.upper()}): {tenor_txt} yield at {intent.point_date} ({scope}): {forecast}"
+                except Exception as e:
+                    return f"Forecasting error ({method}): {e}"
+            # Otherwise, return all model forecasts as a table + HL-CU summary
+            else:
+                s = priceyield_mod.get_yield_series(db, intent.series if intent.series else None, intent.tenor)
+                if len(s) < 10:
+                    return f"Not enough data to forecast {intent.tenor} yield."
+                try:
+                    forecasts = priceyield_mod.yield_forecast(s, intent.point_date, method="all")
+                    # Format as Economist-style table
+                    table = format_models_economist_table(forecasts)
+                    # Compose HL-CU summary
+                    tenor_txt = intent.tenor.replace('_',' ')
+                    scope = intent.series if intent.series else 'all series (averaged)'
+                    note = ""
+                    avg_val = forecasts.get('average')
+                    avg_str = f"{avg_val:.4f}" if isinstance(avg_val, float) else str(avg_val)
+                    summary = (
+                        f"Forecasts for {tenor_txt} yield at {intent.point_date} ({scope}):\n"
+                        f"{table}\n"
+                        f"Ensemble average: {avg_str}{note}"
+                    )
+                    return summary
+                except Exception as e:
+                    return f"Forecasting error (all models): {e}"
     except Exception:
         return None
     return None
@@ -428,67 +470,50 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         return "⚠️ Persona /kei unavailable: OPENAI_API_KEY not configured."
 
     data_summary = await try_compute_bond_summary(question)
-    
-    # Determine if this is a bond/data query or general knowledge question
     is_data_query = data_summary is not None
-    
+
+    signature_text = "Kei & Kin | Data → Insight" if dual_mode else "Kei | Quant Research"
+
     if is_data_query:
-        # For bond data queries, use strict HL-CU format
         system_prompt = (
             "You are Kei.\n"
-            "Profile: CFA charterholder, PhD (MIT). World-class data scientist with deep expertise in mathematics, statistics, econometrics, and forecasting. Because you are a CFA/MIT quant, lead with numbers, ranges/uncertainty, and concise math; avoid narrative or storytelling. Briefly name the forecasting method and key drivers you relied on when citing auction demand forecasts.\n\n"
-
-            "LANGUAGE: Default to English. If the user explicitly asks in Indonesian or requests Indonesian response, respond entirely in Indonesian.\n\n"
-
-            "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
-            "Default format: Exactly one title line (📊 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
-            "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
-            "Body (Kei): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally.\n"
-            "Sources: Include one source line in brackets only if explicitly provided; otherwise omit entirely.\n"
-            f"Signature: blank line, then '________', then blank line, then '{{'Kei & Kin | Data → Insight' if dual_mode else 'Kei | Quant Research'}}'.\n"
-            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
-            "Objective: Produce a scannable, publication-ready response that delivers the key market signal clearly.\n\n"
-
-            "Data access:\n- Indonesian government bond prices and yields (2023-2025): FR95-FR104 series (5Y/10Y tenors). FR stands for Fixing Rate series, issued by Indonesia's government, NOT French government bonds.\n- Auction demand forecasts for Indonesian bonds through 2026 (incoming bids, awarded amounts, bid-to-cover ratios; generated using ensemble ML methods combining XGBoost, Random Forest, and time-series models with macroeconomic features: BI rate, inflation, industrial production, JKSE index, and FX rates)\n- Indonesian macroeconomic indicators (BI rate, inflation, etc.)\n\n"
-            "Yield forecasting: Supported methods are ARIMA, ETS, Prophet, LSTM, and GRU. Users can specify the method in their query (e.g., 'forecast 10 year yield 2025 using Prophet'). If not specified, ARIMA is used by default.\n"
+            "Profile: CFA charterholder, PhD (MIT). World-class data scientist with deep expertise in mathematics, statistics, econometrics, and forecasting. Lead with numbers, uncertainty ranges, and concise math; avoid narrative. Briefly name the forecasting method and key drivers when citing auction demand forecasts.\n\n"
+            "LANGUAGE: Default to English. If the user explicitly asks in Indonesian, respond entirely in Indonesian.\n\n"
+            "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU).\n"
+            "Exactly one title line (📊 TICKER: Key Metric / Event; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
+            "If the user requests a different format (e.g., bullets), honor it and override HL-CU.\n"
+            "Body: Emphasize factual reporting; no valuation or advice. Use contrasts (MoM vs YoY, trend vs level). Forward-looking statements must be attributed and conditional.\n"
+            "Sources: Include one bracketed source line only if explicitly provided; otherwise omit.\n"
+            f"Signature: blank line, then '________', then blank line, then '{signature_text}'.\n"
+            "Prohibitions: No follow-up questions. No speculation or flourish. Do not add data not provided.\n"
+            "Objective: Publication-ready response that delivers the key market signal clearly.\n\n"
+            "Data access:\n- Indonesian government bond prices and yields (2023-2025): FR95–FR104 (5Y/10Y). FR = Fixing Rate bonds issued by Indonesia's government (not French bonds).\n- Auction demand forecasts through 2026: incoming bids, awarded amounts, bid-to-cover (ensemble ML: XGBoost, Random Forest, time-series) using macro features (BI rate, inflation, IP, JKSE, FX).\n- Indonesian macro indicators (BI rate, inflation, etc.).\n\n"
+            "Yield forecasting supported: ARIMA, ETS, Prophet, GRU. Users may specify the method; otherwise use ARIMA by default."
         )
     else:
-        # For general knowledge, use a more flexible prompt
         system_prompt = (
             "You are Kei, a world-class quant and data scientist.\n"
-            "LANGUAGE: Default to English. If the user explicitly asks in Indonesian or requests Indonesian response, respond entirely in Indonesian.\n"
-            "Explain economic and financial concepts clearly using established frameworks and first principles.\n"
-            "If specific data is unavailable, acknowledge limits but still provide a concise, plain-text explanation.\n"
-            "No special formatting is required; avoid leaving the response empty.\n"
+            "LANGUAGE: Default to English. If the user explicitly asks in Indonesian, respond entirely in Indonesian.\n"
+            "Explain economic and financial concepts using established frameworks and first principles.\n"
+            "If specific data is unavailable, acknowledge limits but provide a concise, plain-text explanation.\n"
+            "Avoid leaving the response empty."
         )
-    
-    # Retry logic: up to 3 attempts for empty responses
+
+    messages = [{"role": "system", "content": system_prompt}]
+
+    if is_data_query:
+        messages.append({"role": "system", "content": "Constraint: no live news access; information may be outdated."})
+        messages.append({"role": "system", "content": f"Precomputed quantitative inputs:\n{data_summary}"})
+    else:
+        messages.append({"role": "system", "content": "You have no access to live data. Provide analysis based on established economic frameworks and available public knowledge."})
+
+    messages.append({"role": "user", "content": question})
+
     max_retries = 3
     for attempt in range(max_retries):
-        messages = [
-            {"role": "system", "content": system_prompt},
-        ]
-
-        if is_data_query:
-            messages.append({"role": "system", "content": "Constraint: no live news access; information may be outdated."})
-            messages.append({
-                "role": "system",
-                "content": f"Precomputed quantitative inputs:\n{data_summary}"
-            })
-        else:
-            messages.append({
-                "role": "system",
-                "content": "You have no access to live data. Provide analysis based on established economic frameworks and available public knowledge."
-            })
-
-        messages.append({"role": "user", "content": question})
-
         try:
-            # Use lower temperature for data queries (stricter), higher for general knowledge (more flexible)
             temperature = 0.3 if is_data_query else 0.7
-            # Increase token budget for general knowledge that may need more explanation
             max_tokens = 220 if is_data_query else 300
-            
             resp = await _openai_client.chat.completions.create(
                 model="gpt-5.2",
                 messages=messages,
@@ -496,21 +521,14 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
                 temperature=temperature,
             )
             content = resp.choices[0].message.content.strip() if resp.choices else ""
-            
             if content:
-                # Format general knowledge responses with HL-CU style if possible
-                if not is_data_query:
-                    # Ensure it has a headline
-                    if not content.startswith("📰"):
-                        content = f"📰 {content}"
+                if not is_data_query and not content.startswith("📰"):
+                    content = f"📰 {content}"
                 return content
-            
-            # Log retry attempt
             if attempt < max_retries - 1:
                 logger.warning(f"Kei attempt {attempt + 1}: empty response, retrying (query_type={'data' if is_data_query else 'general'})...")
             else:
                 logger.error(f"Kei: empty response after {max_retries} attempts (query_type={'data' if is_data_query else 'general'}).")
-        
         except Exception as e:
             if attempt == max_retries - 1:
                 logger.error(f"OpenAI error on final attempt: {e}")
@@ -518,8 +536,8 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             else:
                 logger.warning(f"Kei attempt {attempt + 1} failed: {e}, retrying...")
                 continue
-    
-    # Final minimal fallback attempt to avoid empty responses
+
+    # Final minimal fallback attempt
     try:
         if is_data_query:
             minimal_system = (
@@ -553,11 +571,9 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     except Exception as e:
         logger.warning(f"Kei minimal fallback failed: {e}")
 
-    # Fallback message if all attempts exhausted
     if is_data_query:
         return "⚠️ Kei could not analyze the bond data. Please try again or rephrase your query."
     else:
-        # For general knowledge questions, provide a generic helpful response
         return (
             "📰 <b>Kei | General Knowledge</b>\n\n"
             "I encountered a temporary issue processing your question. This can happen for complex or ambiguous queries.\n\n"
@@ -743,6 +759,16 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/kei yield 5 and 10 years 2024\n"
         "/kin compare 5 year and 10 year 2025\n"
         "/both 5 and 10 year average 2024\n\n"
+        "<b>� Forecasting (8 Models, Business-Day Aware):</b>\n"
+        "/kei forecast yield 10 year 2025-12-31\n"
+        "/kei forecast 10 year next 5 observations → Latest 5 obs + T+1..T+5 (skips weekends)\n"
+        "/kei predict 5 year 2026-01-15 use prophet\n"
+        "Models: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, GRU (8 total)\n"
+        "Display: Economist-style tables per horizon + Kei's HL-CU analysis\n\n"
+        "<b>📊 Range Queries with Statistics:</b>\n"
+        "/kei price 10 year in august 2025 → Shows prices with economist-style summary\n"
+        "/kei yield 5 year Q1 2024 → Shows yields (%) with min/max/avg/std dev\n"
+        "Statistics: Minimalist aligned format (Records, Min, Max, Average, Std Dev)\n\n"
         "<b>📊 Charts & Visualizations (Command-Based, with AI Analysis):</b>\n"
         "/kei plot yield 10 year 2025 → Economist-style chart + Quant insights\n"
         "/kei chart 5 and 10 years 2024 → Multi-tenor plot + Analysis\n"
@@ -768,10 +794,11 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>👥 Personas</b>\n\n"
         "<b>💹 /kei — Quant Analyst</b>\n"
         "• CFA charterholder, PhD (MIT)\n"
-        "• Powered by: OpenAI GPT-5.2\n"
+        "• Powered by: OpenAI GPT-4\n"
         "• Style: HL-CU format (headline + 3 paragraphs, ≤152 words)\n"
         "• Strengths: Bond data analysis, quantitative rigor, factual reporting\n"
         "• Charts: Economist-style plots with data-driven insights\n"
+        "• Forecasts: 8-model ensemble with ARIMA fallback, business-day horizons\n"
         "• Signature: 💹 <b>Kei | Quant Research</b>\n\n"
         "<b>🌍 /kin — Macro Strategist</b>\n"
         "• CFA charterholder, PhD (Harvard)\n"
@@ -786,6 +813,14 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Charts: Economist-style plots with dual analysis (quant + macro)\n"
         "• Signature: ⚡ <b>Kei & Kin | Numbers to Meaning</b>\n\n"
         "─────────────────────────────────────────\n\n"
+        "<b>🤖 Forecasting Models (8 Total)</b>\n"
+        "✓ <b>Statistical</b>: ARIMA (3-level fallback), ETS, RANDOM_WALK, MA5, VAR\n"
+        "✓ <b>Probabilistic</b>: MONTE_CARLO, PROPHET (clamped ≥0)\n"
+        "✓ <b>Deep Learning</b>: GRU (requires ≥150 observations)\n"
+        "✓ <b>Ensemble</b>: AVERAGE (excludes negatives + 3×MAD outliers)\n"
+        "✓ <b>LSTM</b>: Removed completely (deprecated)\n"
+        "✓ <b>Business-day aware</b>: T+N horizons skip weekends automatically\n"
+        "✓ <b>Display</b>: Dual-message (tables + separator + analysis)\n\n"
         "<b>📊 Data Coverage</b>\n"
         "✓ Indonesian government bond yields & prices: 2023-2025 (FR95-FR104 series, 5Y/10Y tenors)\n"
         "  - FR = Fixing Rate bonds issued by Indonesia's government, NOT French government bonds\n"
@@ -797,6 +832,8 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Use <b>5 and 10 years</b> for multi-tenor comparison\n"
         "• Use <b>average/max/min</b> for aggregates\n"
         "• Use <b>auction/demand/incoming/awarded</b> for forecasts\n"
+        "• Use <b>next N observations</b> for business-day forecasts (auto-skips weekends)\n"
+        "• Use <b>price</b> keyword to show prices, omit for yields (default)\n"
         "• All charts: Economist style (red/blue lines, minimal design, professional appearance)\n"
         "\n\n"
         "<b>🎨 Chart Styling</b>\n"
@@ -877,14 +914,43 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kei")
     else:
         try:
-            answer = await ask_kei(question)
-            if not answer or not answer.strip():
-                await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
-                response_time = time.time() - start_time
-                metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kei")
-                return
-            formatted_response = f"{html_module.escape(answer)}"
-            await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+            # Check if this is a "next N observations" forecast query
+            next_match = re.search(r"next\s+(\d+)\s+(observations?|obs|points|days)", question.lower())
+            is_forecast_next = next_match and any(kw in question.lower() for kw in ["forecast", "predict", "estimate"])
+            
+            # For "next N observations" forecasts, show tables + analysis in two messages
+            if is_forecast_next:
+                # Get the formatted tables
+                tables_summary = await try_compute_bond_summary(question)
+                if tables_summary:
+                    # Send tables first
+                    await update.message.reply_text(
+                        tables_summary,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                    # Add blank line for separation
+                    await update.message.reply_text("---")
+                
+                # Get Kei's analysis
+                answer = await ask_kei(question)
+                if not answer or not answer.strip():
+                    await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response (analysis)", "kei")
+                    return
+                formatted_response = f"{html_module.escape(answer)}"
+                await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+            else:
+                # For other queries, just get Kei's response (which includes tables as context)
+                answer = await ask_kei(question)
+                if not answer or not answer.strip():
+                    await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kei")
+                    return
+                formatted_response = f"{html_module.escape(answer)}"
+                await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+            
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "text", response_time, True, persona="kei")
         except Exception as e:
@@ -1186,7 +1252,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             
             response_text = f"📊 *Found {len(rows_list)} bond(s) for {intent.tenor or 'all tenors'} on {d}:*\n\n"
-            response_text += format_rows_for_telegram(rows_list, include_date=False)
+            response_text += format_rows_for_telegram(rows_list, include_date=False, metric=intent.metric if hasattr(intent, 'metric') else 'yield')
             
             await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
         
@@ -1257,6 +1323,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else:
                         # Route through FastAPI /chat endpoint for Economist style + AI analysis
                         try:
+                            import httpx
                             async with httpx.AsyncClient(timeout=60.0) as client:
                                 payload = {"q": user_query, "plot": True, "persona": "kei"}
                                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
@@ -1308,15 +1375,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         max_val = max(metric_values)
                         avg_val = statistics.mean(metric_values)
                         std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
-                        
-                        response_text += f"\n📈 *Statistics ({intent.metric}):*\n"
-                        response_text += f"Min: {min_val:.2f} | Max: {max_val:.2f}\n"
-                        response_text += f"Avg: {avg_val:.2f} | StdDev: {std_val:.2f}\n"
-                    
-                    response_text += "\n"
+                        # Economist-style summary block (minimalist)
+                        stat_label = intent.metric.capitalize() if hasattr(intent, 'metric') else 'Yield'
+                        response_text += f"\n<b>Summary ({stat_label})</b>\n"
+                        response_text += "<pre>"
+                        response_text += f"Records  : {len(metric_values):>5}\n"
+                        response_text += f"Min      : {min_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
+                        response_text += f"Max      : {max_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
+                        response_text += f"Average  : {avg_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
+                        response_text += f"Std Dev  : {std_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}"
+                        response_text += "</pre>\n"
                     
                     # Show all rows (or split into messages if too many)
-                    formatted_rows = format_rows_for_telegram(rows_list, include_date=True)
+                    formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=intent.metric if hasattr(intent, 'metric') else 'yield')
                     
                     if len(formatted_rows) > 3500:  # Telegram message limit is 4096, leave buffer
                         # Send in multiple messages if too long

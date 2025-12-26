@@ -6,7 +6,7 @@ sys.path.insert(0, '/workspaces/perisai-bot')
 
 # Import directly from module
 import importlib.util
-spec = importlib.util.spec_from_file_location("bonddb", "/workspaces/perisai-bot/20251223_priceyield.py")
+spec = importlib.util.spec_from_file_location("bonddb", "/workspaces/perisai-bot/priceyield_20251223.py")
 bonddb = importlib.util.module_from_spec(spec)
 
 # Load without executing __main__

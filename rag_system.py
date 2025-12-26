@@ -10,13 +10,13 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
+from priceyield_20231223 import BondDB, yield_forecast, get_yield_series
+import os
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, List, Dict, Any
 import re
-
-
-class KnowledgeBase:
-    """Simple file-based knowledge base with semantic search."""
-    
-    def __init__(self, kb_dir: str = "knowledge_base"):
         """
         Initialize knowledge base.
         

@@ -1,4 +1,4 @@
-"""Simple FastAPI wrapper for the bond CLI logic in 20251223_priceyield.py
+"""Simple FastAPI wrapper for the bond CLI logic in priceyield_20251223.py
 
 Endpoints:
 - GET /health
@@ -33,10 +33,13 @@ try:
     _SNS_CONTEXT = os.environ.get("BOND_SNS_CONTEXT", "notebook")
     _SNS_PALETTE = os.environ.get("BOND_SNS_PALETTE", "bright")
 except Exception:
+spec = importlib.util.spec_from_file_location("priceyield_mod", str(_mod_path))
+priceyield_mod = importlib.util.module_from_spec(spec)
+import sys
     _HAS_SEABORN = False
 
 # The Economist chart style configuration
-ECONOMIST_COLORS = {
+BondDB = priceyield_mod.BondDB
     'red': '#E3120B',
     'blue': '#0C6291',
     'teal': '#00847E',
@@ -93,7 +96,7 @@ def apply_economist_style(fig, ax):
 # Import parsing and DB logic from existing script (filename begins with digits so import dynamically)
 import importlib.util
 from pathlib import Path
-_mod_path = Path(__file__).with_name("20251223_priceyield.py")
+_mod_path = Path(__file__).with_name("priceyield_20251223.py")
 if not _mod_path.exists():
     raise RuntimeError(f"Could not find module file: {_mod_path}")
 spec = importlib.util.spec_from_file_location("priceyield_mod", str(_mod_path))

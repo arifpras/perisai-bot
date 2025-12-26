@@ -1,4 +1,4 @@
-# 20251223_priceyield.py
+# priceyield_20251223.py
 # FINAL – bug-fixed intent parsing + tenor + interpolation
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import typer
 from rich import print
 from rich.panel import Panel
 from rich.console import Console
+import pandas as pd
 
 # -----------------------------
 # CLI setup
@@ -26,15 +27,12 @@ CSV_PATH_DEFAULT = "20251215_priceyield.csv"
 # -----------------------------
 # Intent model
 # -----------------------------
-IntentType = Literal["POINT", "RANGE", "AGG_RANGE", "AGG_YEAR"]
-MetricType = Literal["price", "yield"]
-IntentType = Literal["POINT", "RANGE", "AGG_RANGE", "AGG_YEAR", "AUCTION_FORECAST"]
-MetricType = Literal["price", "yield", "auction"]
+
 
 @dataclass
 class Intent:
-    type: IntentType
-    metric: MetricType
+    type: str
+    metric: str
     series: Optional[str]
     tenor: Optional[str]  # Single tenor (backward compatibility)
     tenors: Optional[list] = None  # Multiple tenors for multi-tenor plots
@@ -45,6 +43,7 @@ class Intent:
     year: Optional[int] = None
     highlight_date: Optional[date] = None
     forecast_type: Optional[str] = None  # For auction: 'incoming', 'awarded', 'bidtocover'
+    forecast_model: Optional[str] = None  # For yield: 'arima', 'ets', 'prophet', 'gru'
 
 # -----------------------------
 # Regex (English + Indonesian)
@@ -72,7 +71,7 @@ AGG_RE = re.compile(
 # -----------------------------
 # Parsing helpers
 # -----------------------------
-def parse_metric(text: str) -> MetricType:
+def parse_metric(text: str):
     text_lower = text.lower()
     # English: auction, demand, incoming, awarded
     # Indonesian: lelang, permintaan, masuk, diberikan
@@ -243,6 +242,13 @@ def parse_intent(text: str) -> Intent:
     tenors = parse_tenors(text_for_parsing)  # Extract all tenors
     agg    = parse_agg(text_for_parsing)
 
+    # Extract forecasting model if specified (for yield forecast)
+    forecast_model = None
+    for m in ["arima", "ets", "prophet", "gru"]:
+        if f"use {m}" in text_for_parsing or f"using {m}" in text_for_parsing:
+            forecast_model = m
+            break
+
     # 1) Single date (incl. relative, natural language like "2 may 2023")
     # First try ISO date
     iso_m = ISO_DATE_RE.search(text_for_parsing)
@@ -257,6 +263,7 @@ def parse_intent(text: str) -> Intent:
                 tenors=tenors,
                 point_date=d,
                 highlight_date=highlight_date,
+                forecast_model=forecast_model,
             )
         except ValueError:
             pass
@@ -283,6 +290,7 @@ def parse_intent(text: str) -> Intent:
                 tenors=tenors,
                 point_date=dt.date(),
                 highlight_date=highlight_date,
+                forecast_model=forecast_model,
             )
 
     # 2) Quarter
@@ -299,6 +307,7 @@ def parse_intent(text: str) -> Intent:
             end_date=e,
             agg=agg,
             highlight_date=highlight_date,
+            forecast_model=forecast_model,
         )
 
     # 3) Month-year
@@ -319,6 +328,7 @@ def parse_intent(text: str) -> Intent:
             end_date=e,
             agg=agg,
             highlight_date=highlight_date,
+            forecast_model=forecast_model,
         )
 
     # 4) Year-only (range even without aggregation)
@@ -338,6 +348,7 @@ def parse_intent(text: str) -> Intent:
             end_date=date(end_year, 12, 31),
             agg=agg,
             highlight_date=highlight_date,
+            forecast_model=forecast_model,
         )
 
     raise ValueError("Could not identify a valid date or period.")
@@ -471,6 +482,145 @@ class AuctionDB:
                    'incoming_billions', 'awarded_billions', 'bid_to_cover', 'number_series',
                    'yield01_ibpa', 'yield05_ibpa', 'yield10_ibpa']
         return [dict(zip(columns, row)) for row in result]
+
+# --- Unified Yield Forecast API ---
+from yield_forecast_models import (
+    forecast_arima,
+    forecast_ets,
+    forecast_prophet,
+
+    forecast_gru,
+    forecast_random_walk,
+    forecast_monte_carlo,
+    forecast_ma5,
+    forecast_var,
+)
+
+def yield_forecast(series: pd.Series, forecast_date: date, method: str = "all", **kwargs):
+    """
+    Forecast yield using selected method.
+    method: 'arima', 'ets', 'prophet', 'gru'
+    series: pandas Series with datetime index
+    forecast_date: target date for forecast
+    kwargs: model-specific parameters
+    """
+    # Limit to the most recent 240 observations for forecasting stability
+    series = series.tail(240)
+    if method == "all":
+        results = {}
+        vals = []
+        # Require minimum history for certain models; with 240 obs we allow Prophet and keep deep nets if enough data
+        model_plan = ["arima", "ets", "random_walk", "monte_carlo", "ma5", "var"]
+        if len(series) >= 90:
+            model_plan.append("prophet")
+        else:
+            results["prophet"] = "skipped: need >=90 obs"
+
+        if len(series) >= 150:
+            model_plan.extend(["gru"])
+        else:
+            results["gru"] = "skipped: need >=150 obs"
+
+        for m in model_plan:
+            try:
+                res = yield_forecast(series, forecast_date, method=m, **kwargs)
+                # ARIMA returns (forecast, conf_int), others just forecast
+                val = res[0] if isinstance(res, tuple) else res
+                results[m] = val
+                if isinstance(val, (int, float)):
+                    vals.append(val)
+            except Exception as e:
+                results[m] = str(e)
+
+        if vals:
+            # Remove negative and MAD outlier forecasts before averaging
+            ser = pd.Series(vals)
+            ser = ser[ser >= 0]
+            if not ser.empty:
+                med = ser.median()
+                mad = (ser - med).abs().median()
+                if mad == 0:
+                    filtered = ser.tolist()
+                else:
+                    filtered = ser[abs(ser - med) <= 3 * mad].tolist()
+                chosen = filtered if filtered else ser.tolist()
+                results["average"] = sum(chosen) / len(chosen)
+            else:
+                results["average"] = None
+        else:
+            results["average"] = None
+        return results
+    if method == "arima":
+        return forecast_arima(series, forecast_date, **kwargs)
+    elif method == "ets":
+        return forecast_ets(series, forecast_date, **kwargs)
+    elif method == "prophet":
+        return forecast_prophet(series, forecast_date)
+    elif method == "random_walk":
+        return forecast_random_walk(series, forecast_date)
+    elif method == "monte_carlo":
+        return forecast_monte_carlo(series, forecast_date, **kwargs)
+    elif method == "ma5":
+        return forecast_ma5(series, forecast_date)
+    elif method == "var":
+        return forecast_var(series, forecast_date, **kwargs)
+    elif method == "gru":
+        return forecast_gru(series, forecast_date, **kwargs)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
+def get_yield_series(db: BondDB, series: Optional[str], tenor: str) -> pd.Series:
+    """Fetch yield series for a tenor. If series is None, aggregate across all series for that tenor."""
+    if series:
+        q = "SELECT obs_date, \"yield\" FROM ts WHERE series=? AND tenor=? ORDER BY obs_date"
+        rows = db.con.execute(q, [series, tenor]).fetchall()
+    else:
+        # Aggregate by tenor only; average across all series per date to ignore series dimension
+        q = """
+            SELECT obs_date, AVG("yield") AS "yield"
+            FROM ts
+            WHERE tenor=?
+            GROUP BY obs_date
+            ORDER BY obs_date
+        """
+        rows = db.con.execute(q, [tenor]).fetchall()
+    dates = [r[0] for r in rows]
+    yields = [r[1] for r in rows]
+    s = pd.Series(yields, index=pd.to_datetime(dates))
+    s = s.dropna()
+    return s
+
+def forecast_tenor_next_days(db: BondDB, tenor: str, days: int = 3, last_obs_count: int = 5, series: Optional[str] = None):
+        """Return latest observations and forecasts for the next consecutive BUSINESS days for a tenor.
+        Ignores series when series=None by averaging across all series per date.
+        Output:
+            {
+                'last_obs': [(date, value), ...],
+                'forecasts': [{'date': date, 'average': avg, 'models': results_dict}, ...]
+            }
+        """
+        s = get_yield_series(db, series, tenor)
+        if s.empty:
+                return {'last_obs': [], 'forecasts': []}
+        last_obs = list(zip(s.tail(last_obs_count).index.date.tolist(), s.tail(last_obs_count).tolist()))
+        last_date = s.index.max().date()
+        # Generate next business-day dates (skip weekends)
+        start_bday = pd.to_datetime(last_date) + pd.offsets.BDay(1)
+        bdays = pd.bdate_range(start=start_bday, periods=days)
+        out = []
+        for idx, target_ts in enumerate(bdays, start=1):
+            target = target_ts.date()
+            res = yield_forecast(s, target, method='all')
+            out.append({'label': f"T+{idx}", 'date': target, 'average': res.get('average'), 'models': res})
+        return {'last_obs': last_obs, 'forecasts': out}
+
+# Example usage in pipeline:
+# series = 'FR100'
+# tenor = '10_year'
+# target_date = date(2024,12,31)
+# s = get_yield_series(db, series, tenor)
+# forecast = yield_forecast(s, target_date, method='arima')
+# print(forecast)
 
 # -----------------------------
 # CLI
