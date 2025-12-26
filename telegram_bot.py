@@ -404,8 +404,8 @@ def summarize_intent_result(intent, rows_list):
             else:
                 parts.append(f"{tenor_label} ({len(group_rows)} records) — no numeric {metric_name} values found")
 
-            # Show sample rows per tenor (up to first 5)
-            parts.append("  Data rows:")
+            # Show sample rows per tenor (up to first 5) — clarify total to avoid misreading as incomplete data
+            parts.append(f"  Data rows (first 5 of {len(group_rows)}):")
             for r in group_rows[:5]:
                 parts.append(
                     f"    {r['series']} | {tenor_label} | {r.get('date','')} | Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
@@ -600,6 +600,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "Exactly one title line (📊 TICKER: Key Metric / Event; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
             "If the user requests a different format (e.g., bullets), honor it and override HL-CU.\n"
             "Body: Emphasize factual reporting; no valuation or advice. Use contrasts (MoM vs YoY, trend vs level). Forward-looking statements must be attributed and conditional.\n"
+            "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
             "Sources: Include one bracketed source line only if explicitly provided; otherwise omit.\n"
             f"Signature: blank line, then '________', then blank line, then '{signature_text}'.\n"
             "Prohibitions: No follow-up questions. No speculation or flourish. Do not add data not provided.\n"
@@ -743,6 +744,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total). Plain text only; absolutely NO markdown formatting (no **, no *, no _), no bullets.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
+            "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: blank line, then '________', then blank line, then '{{'Kei & Kin | Data → Insight' if dual_mode else 'Kin | Economics & Strategy'}}'.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
