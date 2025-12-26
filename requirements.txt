@@ -2,7 +2,9 @@ fastapi
 uvicorn[standard]
 duckdb
 pandas
+numpy
 matplotlib
+seaborn
 python-dateutil
 dateparser
 requests
@@ -12,4 +14,9 @@ typer
 python-telegram-bot
 openai
 
-seaborn
+# Forecasting models
+statsmodels
+prophet
+keras
+tensorflow
+scikit-learn
