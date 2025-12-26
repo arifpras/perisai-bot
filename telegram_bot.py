@@ -52,7 +52,7 @@ ECONOMIST_PALETTE = [
     ECONOMIST_COLORS['gray'],
 ]
 
-CAPTION_FOOTER = f"(c) PerisAI. {date.today().year}"
+CAPTION_FOOTER = f"© PerisAI — {date.today().year}"
 
 def apply_economist_style(fig, ax):
     """Apply The Economist styling to a matplotlib figure."""
@@ -1714,6 +1714,10 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         ax.set_xlabel('Date', fontsize=12)
         ax.set_ylabel(metric.capitalize(), fontsize=12)
         
+        # Add copyright footer on plot
+        fig.text(0.99, 0.01, CAPTION_FOOTER, fontsize=9, ha='right', va='bottom', 
+                color=ECONOMIST_COLORS['gray'], style='italic')
+        
         from matplotlib.dates import DateFormatter
         date_formatter = DateFormatter('%-d %b %Y')
         ax.xaxis.set_major_formatter(date_formatter)
@@ -1743,6 +1747,11 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
         ax.set_xlabel('Date')
         ax.set_ylabel(metric.capitalize())
+        
+        # Add copyright footer on plot
+        fig.text(0.99, 0.01, CAPTION_FOOTER, fontsize=9, ha='right', va='bottom', 
+                color=ECONOMIST_COLORS['gray'], style='italic')
+        
         fig.autofmt_xdate()
         plt.grid(alpha=0.3)
     
