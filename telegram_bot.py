@@ -1395,18 +1395,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     if metric_values:
                         import statistics
-                        min_val = min(metric_values)
-                        max_val = max(metric_values)
-                        avg_val = statistics.mean(metric_values)
-                        std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
-                        # Economist-style summary block (minimalist, plain text)
                         stat_label = intent.metric.capitalize() if hasattr(intent, 'metric') else 'Yield'
-                        response_text += f"\nSummary ({stat_label})\n"
-                        response_text += f"Records  : {len(metric_values):>5}\n"
-                        response_text += f"Min      : {min_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
-                        response_text += f"Max      : {max_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
-                        response_text += f"Average  : {avg_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
-                        response_text += f"Std Dev  : {std_val:>7.2f}{'%' if stat_label.lower()=='yield' else ''}\n"
+                        unit = '%' if stat_label.lower() == 'yield' else ''
+
+                        # Per-tenor summaries (aligned with table columns)
+                        per_tenor = {}
+                        for row in rows_list:
+                            tenor = row.get('tenor') or 'all'
+                            val = row.get(intent.metric)
+                            if val is None:
+                                continue
+                            per_tenor.setdefault(tenor, []).append(val)
+
+                        response_text += f"\nSummary by tenor ({stat_label})\n"
+                        for tenor, vals in sorted(per_tenor.items()):
+                            if not vals:
+                                continue
+                            t_min = min(vals)
+                            t_max = max(vals)
+                            t_avg = statistics.mean(vals)
+                            t_std = statistics.stdev(vals) if len(vals) > 1 else 0
+                            response_text += (
+                                f"{tenor:>8}: n={len(vals):>3} "
+                                f"min={t_min:>6.2f}{unit} max={t_max:>6.2f}{unit} "
+                                f"avg={t_avg:>6.2f}{unit} std={t_std:>6.2f}{unit}\n"
+                            )
                     
                     # Show all rows (or split into messages if too many)
                     formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=intent.metric if hasattr(intent, 'metric') else 'yield')
