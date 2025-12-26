@@ -586,6 +586,27 @@ def get_yield_series(db: BondDB, series: Optional[str], tenor: str) -> pd.Series
     s = s.dropna()
     return s
 
+def get_metric_series(db: BondDB, series: Optional[str], tenor: str, metric: str = "yield") -> pd.Series:
+    """Fetch price or yield series for a tenor. If series is None, aggregate across all series for that tenor."""
+    metric_col = '"yield"' if metric == "yield" else "price"
+    if series:
+        q = f"SELECT obs_date, {metric_col} FROM ts WHERE series=? AND tenor=? ORDER BY obs_date"
+        rows = db.con.execute(q, [series, tenor]).fetchall()
+    else:
+        # Aggregate by tenor only; average across all series per date to ignore series dimension
+        q = f"""
+            SELECT obs_date, AVG({metric_col}) AS metric_val
+            FROM ts
+            WHERE tenor=?
+            GROUP BY obs_date
+            ORDER BY obs_date
+        """
+        rows = db.con.execute(q, [tenor]).fetchall()
+    dates = [r[0] for r in rows]
+    values = [r[1] for r in rows]
+    s = pd.Series(values, index=pd.to_datetime(dates))
+    s = s.dropna()
+    return s
 def forecast_tenor_next_days(db: BondDB, tenor: str, days: int = 3, last_obs_count: int = 5, series: Optional[str] = None):
         """Return latest observations and forecasts for the next consecutive BUSINESS days for a tenor.
         Ignores series when series=None by averaging across all series per date.
@@ -610,6 +631,30 @@ def forecast_tenor_next_days(db: BondDB, tenor: str, days: int = 3, last_obs_cou
             out.append({'label': f"T+{idx}", 'date': target, 'average': res.get('average'), 'models': res})
         return {'last_obs': last_obs, 'forecasts': out}
 
+def forecast_metric_next_days(db: BondDB, tenor: str, metric: str = "yield", days: int = 3, last_obs_count: int = 5, series: Optional[str] = None):
+    """Return latest observations and forecasts for the next consecutive BUSINESS days for a tenor.
+    Supports both price and yield forecasting.
+    Ignores series when series=None by averaging across all series per date.
+    Output:
+        {
+            'last_obs': [(date, value), ...],
+            'forecasts': [{'date': date, 'average': avg, 'models': results_dict}, ...]
+        }
+    """
+    s = get_metric_series(db, series, tenor, metric=metric)
+    if s.empty:
+        return {'last_obs': [], 'forecasts': []}
+    last_obs = list(zip(s.tail(last_obs_count).index.date.tolist(), s.tail(last_obs_count).tolist()))
+    last_date = s.index.max().date()
+    # Generate next business-day dates (skip weekends)
+    start_bday = pd.to_datetime(last_date) + pd.offsets.BDay(1)
+    bdays = pd.bdate_range(start=start_bday, periods=days)
+    out = []
+    for idx, target_ts in enumerate(bdays, start=1):
+        target = target_ts.date()
+        res = yield_forecast(s, target, method='all')
+        out.append({'label': f"T+{idx}", 'date': target, 'average': res.get('average'), 'models': res})
+    return {'last_obs': last_obs, 'forecasts': out}
 # Example usage in pipeline:
 # series = 'FR100'
 # tenor = '10_year'

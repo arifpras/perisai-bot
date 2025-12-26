@@ -326,20 +326,28 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
             series = priceyield_mod.parse_series(question)
             if tenor:
                 db = get_db()
-                res = priceyield_mod.forecast_tenor_next_days(db, tenor, days=days, last_obs_count=5, series=series if series else None)
+                metric = priceyield_mod.parse_metric(question)
+                res = priceyield_mod.forecast_metric_next_days(
+                    db,
+                    tenor,
+                    metric=metric,
+                    days=days,
+                    last_obs_count=5,
+                    series=series if series else None,
+                )
                 # Format last 5 observations
                 lines = ["Latest 5 observations:"]
-                for d, v in res.get('last_obs', []):
+                for d, v in res.get("last_obs", []):
                     lines.append(f"- {d}: {v:.4f}")
                 lines.append("")
                 # Format forecasts per T+ horizon using Economist-style tables
-                lines.append("Forecasts:")
-                for item in res.get('forecasts', []):
-                    avg = item.get('average')
+                lines.append(f"Forecasts ({metric}):")
+                for item in res.get("forecasts", []):
+                    avg = item.get("average")
                     avg_str = f"{avg:.4f}" if isinstance(avg, float) else str(avg)
                     header = f"{item.get('label')} ({item.get('date')}): average={avg_str}"
-                    models_dict = dict(item.get('models', {}))
-                    models_dict['average'] = item.get('average')
+                    models_dict = dict(item.get("models", {}))
+                    models_dict["average"] = item.get("average")
                     table = format_models_economist_table(models_dict)
                     lines.append(header)
                     lines.append(table)
