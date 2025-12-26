@@ -179,7 +179,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield'):
 def format_models_economist_table(models: dict) -> str:
     """Format per-model forecasts into an Economist-style monospace table, including average."""
     order = [
-        "arima", "ets", "random_walk", "monte_carlo", "ma5", "var", "prophet", "gru", "average"
+        "arima", "ets", "random_walk", "monte_carlo", "ma5", "var", "prophet", "average"
     ]
     header = "Model         | Forecast"
     sep = "---------------------------"
@@ -917,28 +917,26 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             next_match = re.search(r"next\s+(\d+)\s+(observations?|obs|points|days)", question.lower())
             is_forecast_next = next_match and any(kw in question.lower() for kw in ["forecast", "predict", "estimate"])
             
-            # For "next N observations" forecasts, show tables + analysis in two messages
+            # For "next N observations" forecasts, the tables are handled directly by try_compute_bond_summary
+            # which calls forecast_tenor_next_days and returns formatted tables.
+            # No separate ask_kei analysis for these forecasts to avoid unrelated commentary.
             if is_forecast_next:
-                # Get the formatted tables
+                # Get the formatted forecast tables directly
                 tables_summary = await try_compute_bond_summary(question)
                 if tables_summary:
-                    # Send tables first
+                    # Send tables only (no separate analysis message)
                     await update.message.reply_text(
                         tables_summary,
                         parse_mode=ParseMode.MARKDOWN
                     )
-                    # Add blank line for separation
-                    await update.message.reply_text("---")
-                
-                # Get Kei's analysis
-                answer = await ask_kei(question)
-                if not answer or not answer.strip():
-                    await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
                     response_time = time.time() - start_time
-                    metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response (analysis)", "kei")
+                    metrics.log_query(user_id, username, question, "forecast", response_time, True, "forecast_next", "kei")
                     return
-                formatted_response = f"{html_module.escape(answer)}"
-                await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+                else:
+                    await update.message.reply_text("⚠️ Could not compute forecast. Please check your query.")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "forecast", response_time, False, "No forecast data", "kei")
+                    return
             else:
                 # For other queries, just get Kei's response (which includes tables as context)
                 answer = await ask_kei(question)
