@@ -14,15 +14,20 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from collections import defaultdict, Counter
 
+# Reuse the same DB path and initializer as the bot logger so the schema exists
+from usage_store import _get_conn, DB_PATH
+
 
 class ActivityMonitor:
     """Monitor user activity from usage_metrics.sqlite."""
     
-    def __init__(self, db_path: str = "usage_metrics.sqlite"):
-        self.db_path = Path(db_path)
+    def __init__(self, db_path: str = None):
+        # Default to the same path used by usage_store for consistency
+        self.db_path = Path(db_path) if db_path else Path(DB_PATH)
         
     def get_conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path))
+        # Use shared initializer to ensure the events table exists
+        conn = _get_conn()
         conn.row_factory = sqlite3.Row
         return conn
     
