@@ -45,20 +45,29 @@ Fast answers on Indonesian govvies: prices/yields (2023-2025), auction forecasts
 ## Telegram bot 💬
 
 ### Commands
-- `/kei` — Quant analyst (data-driven, ChatGPT-powered)
-- `/kin` — Macro strategist (context-aware, Perplexity-powered with search)
+- `/kei` — Quant analyst (ChatGPT-powered) → Bond data, forecasts, auctions, models
+- `/kin` — Macro strategist (Perplexity-powered with web search) → Context, policy, general questions
 - `/both` — Chain both personas: Kei → Kin (data first, then macro insight)
+- `/check` — Quick point-date lookup (fast, no LLM)
 - `/examples` — Show example queries
 - `/start` — Welcome message
 
-### Query patterns
-	- Commands: `/kei` (quant), `/kin` (macro), `/both` (chain), `/examples`, `/start`
+### Routing Rules
+- Plots always run via Kin even if requested in `/kei`.
+- Quant/bond (yield, price, tenor, auction) stays in `/kei`; general/policy/context stays in `/kin`.
+- `/kei tab …` or `/kei table …` returns table-only output (no narrative) when data is available.
+- `/kin` non-plot quantitative requests are blocked and redirected to `/kei`.
 
+**Auto-redirects to /kei:** `/kin auction demand 2026`, `/kin yield 10 year 2025`
 
-	- Query patterns: `/kei yield 10 year 2024`, `/kei plot 10 year 2024`, `/kei auction demand 2026`, `/kei average yield 2024`
-	
-		Supported: ARIMA, ETS, Prophet, GRU. By default, all models are used and results are shown in a table with an average and summary. To specify a model, add e.g. `use ets` to your query.
-If you want all models and the average, just omit the method or say "use all".
+**Auto-redirects to /kin:** `/kei plot 10 year 2024`, `/kei chart 5 and 10 years 2024`
+
+### Query Examples
+- `/kei tab yield 5 and 10 years Feb 2025` — Table-only, no narrative
+- `/kei auction demand 2026` — Auction forecast
+- `/kin plot 5 and 10 years 2024` — Chart with macro context
+
+		Supported: ARIMA, ETS, Prophet, GRU. By default, all models are used and results are shown in a table with an average and summary. To specify a model, add e.g. `use ets` to your query. If you want all models and the average, just omit the method or say "use all".
 
 ## Forecasting (Tenor-Only Supported)
 
