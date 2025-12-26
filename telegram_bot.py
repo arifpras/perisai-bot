@@ -7,6 +7,7 @@ import base64
 import logging
 import re
 import time
+from datetime import date
 from typing import Optional
 from openai import AsyncOpenAI
 from telegram import Update
@@ -50,6 +51,8 @@ ECONOMIST_PALETTE = [
     ECONOMIST_COLORS['teal'],
     ECONOMIST_COLORS['gray'],
 ]
+
+CAPTION_FOOTER = f"(c) PerisAI. {date.today().year}"
 
 def apply_economist_style(fig, ax):
     """Apply The Economist styling to a matplotlib figure."""
@@ -194,6 +197,86 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
                 f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
             )
     return "\n\n".join(lines)
+
+
+def format_range_summary_text(rows, start_date=None, end_date=None, metric='yield'):
+    """Generate plain-text quantitative summary for range queries.
+    - Per-tenor stats: avg/min/max/std, n
+    - Curve spread when exactly two tenors and metric is yield
+    """
+    if not rows:
+        return None
+    if metric not in ('yield', 'price'):
+        return None
+    import statistics
+    unit = '%' if metric == 'yield' else ''
+    tenors = sorted(str(r.get('tenor') or 'all') for r in rows)
+
+    # Period label
+    period_label = None
+    try:
+        if start_date and end_date:
+            if start_date.year == end_date.year and start_date.month == end_date.month:
+                period_label = start_date.strftime('%b-%Y')
+            else:
+                period_label = f"{start_date} → {end_date}"
+    except Exception:
+        period_label = None
+    header_period = f"; {period_label}" if period_label else ""
+
+    header = f"📊 INDOGB: {', '.join(tenors)} {metric.capitalize()}s{header_period}; Range, Average, Volatility"
+    lines = [header, ""]
+
+    # Per-tenor stats
+    per_tenor = {}
+    for row in rows:
+        tenor = row.get('tenor') or 'all'
+        val = row.get(metric)
+        if val is None:
+            continue
+        per_tenor.setdefault(tenor, []).append(val)
+
+    for tenor, vals in sorted(per_tenor.items()):
+        if not vals:
+            continue
+        avg_v = statistics.mean(vals)
+        min_v = min(vals)
+        max_v = max(vals)
+        std_v = statistics.stdev(vals) if len(vals) > 1 else 0
+        lines.append(
+            f"{tenor}: avg {avg_v:.2f}{unit}, min {min_v:.2f}{unit}, max {max_v:.2f}{unit} "
+            f"(n={len(vals)}), std {std_v:.2f}"
+        )
+
+    # Curve spread for two tenors (yield only)
+    if metric == 'yield' and len(per_tenor) == 2:
+        # Pair by date when possible
+        by_date = {}
+        for row in rows:
+            d = row.get('date')
+            t = row.get('tenor')
+            y = row.get('yield')
+            if d is None or y is None:
+                continue
+            by_date.setdefault(d, {})[t] = y
+        spreads = []
+        ten_pair = sorted(per_tenor.keys())
+        for d, vals in by_date.items():
+            if len(vals) == 2:
+                diff = vals[ten_pair[1]] - vals[ten_pair[0]]
+                spreads.append(diff)
+        if spreads:
+            avg_s = statistics.mean(spreads)
+            min_s = min(spreads)
+            max_s = max(spreads)
+            lines.append(
+                f"Curve ({ten_pair[1]}–{ten_pair[0]}): avg {avg_s:.2f}pp, "
+                f"range {min_s:.2f}pp to {max_s:.2f}pp"
+            )
+    lines.append("")
+    lines.append("Data reflect observed values in the period; simple averages, no inference beyond sample.")
+    lines.append("Kei | Quant Research")
+    return "\n".join(lines)
 
 def format_models_economist_table(models: dict) -> str:
     """Format per-model forecasts into an Economist-style monospace table, including average."""
@@ -911,7 +994,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption="💹 Kei | Quant Research"
+                            caption=f"💹 Kei | Quant Research\n{CAPTION_FOOTER}"
                         )
                         # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
@@ -1017,7 +1100,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption="🌍 Kin | Economics & Strategy"
+                            caption=f"🌍 Kin | Economics & Strategy\n{CAPTION_FOOTER}"
                         )
                         # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
@@ -1096,7 +1179,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Send plot with minimal caption
                         await update.message.reply_photo(
                             photo=image_bytes,
-                            caption="⚡ <b>Kei & Kin | Numbers to Meaning</b>",
+                            caption=f"⚡ <b>Kei & Kin | Numbers to Meaning</b>\n{CAPTION_FOOTER}",
                             parse_mode=ParseMode.HTML
                         )
                         # Send pre-computed analysis from FastAPI (no redundant LLM calls)
@@ -1309,7 +1392,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if wants_plot:
                     await context.bot.send_chat_action(chat_id=chat_id, action="upload_photo")
                     png = generate_plot(db, intent.start_date, intent.end_date, intent.metric, intent.tenor, intent.tenors, intent.highlight_date)
-                    await update.message.reply_photo(photo=io.BytesIO(png))
+                    await update.message.reply_photo(photo=io.BytesIO(png), caption=CAPTION_FOOTER)
             
             else:
                 # Range without aggregation - return individual rows
@@ -1351,6 +1434,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             parse_mode=ParseMode.MARKDOWN
                         )
                     else:
+                        summary_text = format_range_summary_text(
+                            rows_list,
+                            start_date=intent.start_date,
+                            end_date=intent.end_date,
+                            metric=intent.metric if hasattr(intent, 'metric') else 'yield'
+                        )
                         # Route through FastAPI /chat endpoint for Economist style + AI analysis
                         try:
                             import httpx
@@ -1359,22 +1448,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                                 if resp.status_code == 200:
                                     data = resp.json()
-                                    data_summary = data.get('analysis', '')
                                     if data.get("image"):
                                         image_bytes = base64.b64decode(data["image"])
                                         # Send plot with minimal caption
                                         await update.message.reply_photo(
                                             photo=image_bytes,
-                                            caption="📊 Bond Analysis Chart"
+                                            caption=f"📊 Bond Analysis Chart\n{CAPTION_FOOTER}"
                                         )
-                                        # Send AI analysis if available
-                                        if data_summary and data_summary.strip():
-                                            await update.message.reply_text(data_summary)
-                                    else:
-                                        # No image, send analysis-only response
-                                        await update.message.reply_text(
-                                            f"📊 Bond Analysis\n\n{data_summary}"
-                                        )
+                                    # Send quant summary tailored for range queries
+                                    if summary_text:
+                                        await update.message.reply_text(summary_text)
                                 else:
                                     error_detail = f"Status {resp.status_code}"
                                     try:
