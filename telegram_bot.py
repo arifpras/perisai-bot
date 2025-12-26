@@ -7,7 +7,7 @@ import base64
 import logging
 import re
 import time
-from datetime import date
+from datetime import date, datetime
 import statistics
 from typing import Optional, List, Dict
 from openai import AsyncOpenAI
@@ -689,20 +689,26 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     welcome_text = (
-        "🏛️ <b>PerisAI</b>\n\n"
-        "Pengelolaan Pembiayaan dan Risiko Berbasis AI\n"
-        "<i>©arifpras</i>\n\n"
-        "─────────────────────────────\n\n"
+        "<b>PerisAI</b>: Pengelolaan Pembiayaan & Risiko Berbasis AI\n"
+        f"v. {datetime.now().year} (c) arifpras\n\n"
+        "─────────────────\n\n"
         "<b>Commands</b>\n"
         "/kei — Quant analyst (💹 data)\n"
         "/kin — Macro strategist (🌍 context)\n"
         "/both — Combined (⚡ insight)\n"
         "/check — Quick point lookup\n\n"
         "<b>Examples</b>\n"
-        "• Yield 5 and 10 years 2025\n"
-        "• Plot 10 year 2024\n"
-        "• Auction demand 2026\n"
-        "• Average yield 2024 vs 2025\n\n"
+        "• /kei yield 10 year 2025\n"
+        "• /kei tab yield 5 and 10 year Feb 2025 (table only)\n"
+        "• /kei auction demand 2026\n"
+        "• /kin plot 10 year 2024\n"
+        "• /kin what is fiscal policy\n"
+        "• /both compare yields 2024 vs 2025\n"
+        "• /check 2025-12-12 10 year\n\n"
+        "<b>Routing</b>\n"
+        "• Plots auto-run via /kin even if asked in /kei\n"
+        "• Quant/bond (yield, price, tenor, auction) → /kei\n"
+        "• General/policy/context → /kin\n\n"
         "Type /examples for more\n"
         "Type /start anytime"
     )
@@ -721,101 +727,30 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     examples_text = (
         "<b>📚 Query Examples</b>\n\n"
-        "<b>⚡ Quick Check (point lookup):</b>\n"
-        "/check 2025-12-12 5 and 10 year\n"
-        "/check price 10 year 6 Dec 2024\n\n"
-        "<b>🎯 Single Tenor (Data Queries):</b>\n"
+        "<b>💹 /kei (Quant Analyst):</b>\n"
         "/kei yield 10 year 2025\n"
-        "/kei 5 year Q1 2025\n"
-        "/kei price 10 year 6 Dec 2024\n"
-        "/kin auction demand January 2026\n\n"
-        "<b>🔀 Multi-Tenor Comparison:</b>\n"
-        "/kei yield 5 and 10 years 2024\n"
-        "/kin compare 5 year and 10 year 2025\n"
-        "/both 5 and 10 year average 2024\n\n"
-        "<b>� Forecasting (7 Models, Business-Day Aware):</b>\n"
-        "/kei forecast yield 10 year 2025-12-31\n"
-        "/kei forecast 10 year next 5 observations → Latest 5 obs + T+1..T+5 (skips weekends)\n"
-        "/kei predict 5 year 2026-01-15 use prophet\n"
-        "Models: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET (7 total)\n"
-        "Display: Economist-style tables per horizon + Kei's HL-CU analysis\n\n"
-        "<b>📊 Range Queries with Statistics:</b>\n"
-        "/kei price 10 year in august 2025 → Shows prices with economist-style summary\n"
-        "/kei yield 5 year Q1 2024 → Shows yields (%) with min/max/avg/std dev\n"
-        "Statistics: Minimalist aligned format (Records, Min, Max, Average, Std Dev)\n\n"
-        "<b>📊 Charts & Visualizations (Command-Based, with AI Analysis):</b>\n"
-        "/kei plot yield 10 year 2025 → Economist-style chart + Quant insights\n"
-        "/kei chart 5 and 10 years 2024 → Multi-tenor plot + Analysis\n"
-        "/kin show price 5 year 2023 → Chart + Macro context\n"
-        "/both compare 5 and 10 years 2024 → Chart + Dual analysis\n\n"
-        "<b>📈 Plain Message Plots (No Command Prefix):</b>\n"
-        "plot 5 year 2025 → Economist-style chart\n"
-        "chart 10 year 2024 → Multi-tenor plot\n"
-        "show 5 and 10 years 2023 → Comparison chart\n"
-        "visualize yield 2024 → Range plot\n\n"
-        "<b>📈 Aggregates & Statistics:</b>\n"
-        "/kei average yield 10 year 2025\n"
-        "/kei max yield 2024\n"
-        "/kin min price 2023\n\n"
-        "<b>🏛️ Auction Forecasts:</b>\n"
-        "/kei auction demand January 2026\n"
-        "/kei incoming bids 2026\n"
-        "/kei awarded amount Q1 2026\n"
-        "/kei bid to cover February 2026\n\n"
-        "<b>📅 Date Formats (all work):</b>\n"
-        "Year: 2024 | Quarter: Q1 2024 | Month: May 2024 | Date: 6 Dec 2024 | ISO: 2024-12-06\n\n"
-        "─────────────────────────────────────────\n\n"
+        "/kei forecast yield 10 year 2026-01-15\n"
+        "/kei auction demand 2026\n\n"
+        "<b>🌍 /kin (Macro Strategist):</b>\n"
+        "/kin plot yield 10 year Jan 2025\n"
+        "/kin what is fiscal policy\n"
+        "/kin explain impact of BI rate\n"
+        "/kin what is monetary policy\n\n"
+        "<b>⚡ /both (Combined Analysis):</b>\n"
+        "/both 5 and 10 years 2024\n"
+        "/both compare yields 2024 vs 2025\n\n"
+        "<b>📌 /check (Quick Lookup):</b>\n"
+        "/check 2025-12-12 10 year\n"
+        "/check price 5 and 10 years 6 Dec 2024\n\n"
+        "<b>⚠️ Auto-Redirects</b>\n\n"
+        "<b>→ Plots via /kin:</b> /kei plot requests are auto-handled by Kin\n"
+        "  • /kei plot 5 and 10 year → seamlessly generates Kin plot\n\n"
+        "<b>→ Data via /kei:</b> /kin quantitative requests redirect to Kei\n"
+        "  • /kin auction demand → redirects to /kei\n\n"
         "<b>👥 Personas</b>\n\n"
-        "<b>💹 /kei — Quant Analyst</b>\n"
-        "• CFA charterholder, PhD (MIT)\n"
-        "• Powered by: OpenAI GPT-4\n"
-        "• Style: HL-CU format (headline + 3 paragraphs, ≤152 words)\n"
-        "• Strengths: Bond data analysis, quantitative rigor, factual reporting\n"
-        "• Charts: Economist-style plots with data-driven insights\n"
-        "• Forecasts: 7-model ensemble with ARIMA fallback, business-day horizons\n"
-        "• Signature: 💹 <b>Kei | Quant Research</b>\n\n"
-        "<b>🌍 /kin — Macro Strategist</b>\n"
-        "• CFA charterholder, PhD (Harvard)\n"
-        "• Powered by: Perplexity Sonar-Pro (with web search)\n"
-        "• Style: HL-CU format (headline + 3 paragraphs, ≤214 words)\n"
-        "• Strengths: Macro context, policy analysis, market implications\n"
-        "• Charts: Economist-style plots with strategic interpretation\n"
-        "• Signature: 🌍 <b>Kin | Economics & Strategy</b>\n\n"
-        "<b>⚡ /both — Chain Analysis</b>\n"
-        "• Kei (data) → Kin (interpretation)\n"
-        "• Best for: Comprehensive analysis with quantitative + strategic insight\n"
-        "• Charts: Economist-style plots with dual analysis (quant + macro)\n"
-        "• Signature: ⚡ <b>Kei & Kin | Numbers to Meaning</b>\n\n"
-        "─────────────────────────────────────────\n\n"
-        "<b>🤖 Forecasting Models (7 Total)</b>\n"
-        "✓ <b>Statistical</b>: ARIMA (3-level fallback), ETS, RANDOM_WALK, MA5, VAR\n"
-        "✓ <b>Probabilistic</b>: MONTE_CARLO, PROPHET (clamped ≥0)\n"
-        "✓ <b>Ensemble</b>: AVERAGE (excludes negatives + 3×MAD outliers)\n"
-        "✓ <b>Deep learning</b>: GRU and LSTM removed (~650 MB saved)\n"
-        "✓ <b>Business-day aware</b>: T+N horizons skip weekends automatically\n"
-        "✓ <b>Display</b>: Dual-message (tables + separator + analysis)\n\n"
-        "<b>📊 Data Coverage</b>\n"
-        "✓ Indonesian government bond yields & prices: 2023-2025 (FR95-FR104 series, 5Y/10Y tenors)\n"
-        "  - FR = Fixing Rate bonds issued by Indonesia's government, NOT French government bonds\n"
-        "✓ Indonesian bond auction forecasts: Dec 2025 - Dec 2026 (demand, awarded, bid-to-cover)\n\n"
-        "<b>💡 Tips:</b>\n"
-        "• Use <b>plot/chart/show/graph/visualize/compare</b> to get charts\n"
-        "• Command-based plots (/kei, /kin, /both) include AI-generated analysis\n"
-        "• Plain message plots (no prefix) show Economist-style charts instantly\n"
-        "• Use <b>5 and 10 years</b> for multi-tenor comparison\n"
-        "• Use <b>average/max/min</b> for aggregates\n"
-        "• Use <b>auction/demand/incoming/awarded</b> for forecasts\n"
-        "• Use <b>next N observations</b> for business-day forecasts (auto-skips weekends)\n"
-        "• Use <b>price</b> keyword to show prices, omit for yields (default)\n"
-        "• All charts: Economist style (red/blue lines, minimal design, professional appearance)\n"
-        "\n\n"
-        "<b>🎨 Chart Styling</b>\n"
-        "All charts (command-based & plain message) feature:\n"
-        "• The Economist magazine styling (trademark red & blue colors)\n"
-        "• Clean, minimalist design with light gray background\n"
-        "• White horizontal gridlines only (no clutter)\n"
-        "• Professional typography and legend placement\n"
-        "• Resolution: 150 DPI for crisp display"
+        "<b>💹 Kei:</b> Quant analyst (MIT/CFA) → Bond data, forecasts, auctions\n"
+        "<b>🌍 Kin:</b> Macro strategist (Harvard/CFA) → Context, policy, web search, plots\n"
+        "<b>⚡ Both:</b> Full analysis (Kei data → Kin insight)"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
 
@@ -943,20 +878,22 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Usage: /kei <question>")
         return
     
-    # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
+    # Detect if user wants a plot/chart — these are handled by /kin
     needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
 
-    # Block Kin responses for specified prompts and all plot requests
+    # Block Kei responses for general knowledge topics only
     lower_q = question.lower()
     disallowed_phrases = [
-        "yield 5 year and 10 year on 12 dec 2025",
-        "yield 5 year on 12 dec 2025",
         "fiscal policy",
         "global financial market",
+        "what is",
+        "explain",
+        "tell me about",
+        "opinion",
     ]
-    if needs_plot or any(phrase in lower_q for phrase in disallowed_phrases):
+    if any(phrase in lower_q for phrase in disallowed_phrases):
         await update.message.reply_text(
-            "⚠️ Kin is disabled for this query. Please use /kei or /both instead.",
+            "⚠️ Kei is disabled for this query. Please use /kin instead.",
             parse_mode=ParseMode.MARKDOWN
         )
         response_time = time.time() - start_time
@@ -969,39 +906,53 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning(f"Failed to send typing indicator in /kei: {type(e).__name__}. Continuing anyway.")
     
     if needs_plot:
+        # Auto-redirect: handle plot request via Kin persona
         try:
             import httpx
             import base64
             async with httpx.AsyncClient(timeout=60.0) as client:
-                payload = {"q": question, "plot": True, "persona": "kei"}
+                payload = {"q": question, "plot": True, "persona": "kin"}
                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
-                    data_summary = data.get('analysis', '')
+                    data_summary = data.get("analysis", "")
                     if data.get("image"):
                         image_bytes = base64.b64decode(data["image"])
                         await update.message.reply_photo(photo=image_bytes)
-                        # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
                             await update.message.reply_text(strip_markdown_emphasis(data_summary))
                     else:
-                        # No image, send analysis-only response
                         await update.message.reply_text(
-                            f"📊 Kei | Quant Research\n\n{strip_markdown_emphasis(data_summary)}"
+                            f"🌍 Kin | Economics & Strategy\n\n{strip_markdown_emphasis(data_summary)}"
                         )
                     response_time = time.time() - start_time
-                    metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kei")
+                    metrics.log_query(user_id, username, question, "plot", response_time, True, "auto_redirect_kin", "kin")
                 else:
                     await update.message.reply_text(f"⚠️ Error from API: {resp.status_code}")
                     response_time = time.time() - start_time
-                    metrics.log_query(user_id, username, question, "plot", response_time, False, f"API error {resp.status_code}", "kei")
+                    metrics.log_query(user_id, username, question, "plot", response_time, False, f"API error {resp.status_code}", "kin")
         except Exception as e:
-            logger.error(f"Error calling /chat endpoint: {e}")
+            logger.error(f"Error calling /chat endpoint for auto-redirect: {e}")
             await update.message.reply_text("⚠️ Error generating plot. Please try again.")
             response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kei")
+            metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kin")
+        return
     else:
         try:
+            # If user explicitly asks for a table (e.g., "/kei tab ..."), send the computed table directly
+            wants_table = lower_q.startswith("tab ") or lower_q.startswith("table ") or " tab " in lower_q or " table " in lower_q
+            base_question = re.sub(r"^(tab|table)\s+", "", question, flags=re.IGNORECASE) if wants_table else question
+            if wants_table:
+                tables_summary = await try_compute_bond_summary(base_question)
+                if tables_summary:
+                    await update.message.reply_text(
+                        tables_summary,
+                        parse_mode=ParseMode.MARKDOWN
+                    )
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, True, "table_only", "kei")
+                    return
+                # If no data found, fall through to normal handling
             # Check if this is a "next N observations" forecast query
             next_match = re.search(r"next\s+(\d+)\s+(observations?|obs|points|days)", question.lower())
             is_forecast_next = next_match and any(kw in question.lower() for kw in ["forecast", "predict", "estimate"])
@@ -1051,7 +1002,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     start_time = time.time()
     user_id = update.message.from_user.id
     username = update.message.from_user.username or f"user_{user_id}"
-    
+
     if not is_user_authorized(user_id):
         await update.message.reply_text(
             "⛔ Access denied. This bot is restricted to authorized users only."
@@ -1064,15 +1015,15 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not question:
         await update.message.reply_text("Usage: /kin <question>")
         return
-    
-    # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
-    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
-    
+
+    lower_q = question.lower()
+    needs_plot = any(keyword in lower_q for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
+
     try:
         await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     except Exception as e:
         logger.warning(f"Failed to send typing indicator in /kin: {type(e).__name__}. Continuing anyway.")
-    
+
     if needs_plot:
         try:
             import httpx
@@ -1082,15 +1033,13 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 resp = await client.post(f"{API_BASE_URL}/chat", json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
-                    data_summary = data.get('analysis', '')
+                    data_summary = data.get("analysis", "")
                     if data.get("image"):
                         image_bytes = base64.b64decode(data["image"])
                         await update.message.reply_photo(photo=image_bytes)
-                        # Send pre-computed analysis from FastAPI (no redundant LLM call)
                         if data_summary and data_summary.strip():
                             await update.message.reply_text(strip_markdown_emphasis(data_summary))
                     else:
-                        # No image, send analysis-only response
                         await update.message.reply_text(
                             f"🌍 Kin | Economics & Strategy\n\n{strip_markdown_emphasis(data_summary)}"
                         )
@@ -1105,23 +1054,40 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Error generating plot. Please try again.")
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kin")
-    else:
-        try:
-            answer = await ask_kin(question)
-            if not answer or not answer.strip():
-                await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
-                response_time = time.time() - start_time
-                metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kin")
-                return
-                formatted_response = f"{answer}"
-                await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # Block quantitative/forecasting topics when not plotting
+    disallowed_keywords = [
+        "forecast", "forecasting", "incoming", "machine learning",
+        "auction", "demand", "yield", "price", "bond", "tenor",
+        "historical", "backtest", "model", "arima", "prophet",
+        "data analysis", "quantitative", "algorithm"
+    ]
+    if any(keyword in lower_q for keyword in disallowed_keywords):
+        await update.message.reply_text(
+            "⚠️ Kin is disabled for this query. Please use /kei instead.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        response_time = time.time() - start_time
+        metrics.log_query(user_id, username, question, "text", response_time, False, "kei_query", "kei")
+        return
+
+    try:
+        answer = await ask_kin(question)
+        if not answer or not answer.strip():
+            await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
             response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "text", response_time, True, persona="kin")
-        except Exception as e:
-            logger.error(f"Error in /kin command: {e}")
-            await update.message.reply_text("⚠️ Error processing query. Please try again.")
-            response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kin")
+            metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kin")
+            return
+        formatted_response = f"{answer}"
+        await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+        response_time = time.time() - start_time
+        metrics.log_query(user_id, username, question, "text", response_time, True, persona="kin")
+    except Exception as e:
+        logger.error(f"Error in /kin command: {e}")
+        await update.message.reply_text("⚠️ Error processing query. Please try again.")
+        response_time = time.time() - start_time
+        metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kin")
 
 
 async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
