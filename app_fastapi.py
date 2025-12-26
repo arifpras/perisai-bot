@@ -33,13 +33,10 @@ try:
     _SNS_CONTEXT = os.environ.get("BOND_SNS_CONTEXT", "notebook")
     _SNS_PALETTE = os.environ.get("BOND_SNS_PALETTE", "bright")
 except Exception:
-spec = importlib.util.spec_from_file_location("priceyield_mod", str(_mod_path))
-priceyield_mod = importlib.util.module_from_spec(spec)
-import sys
     _HAS_SEABORN = False
 
 # The Economist chart style configuration
-BondDB = priceyield_mod.BondDB
+ECONOMIST_COLORS = {
     'red': '#E3120B',
     'blue': '#0C6291',
     'teal': '#00847E',
