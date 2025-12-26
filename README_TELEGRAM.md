@@ -105,10 +105,7 @@ curl "https://perisai-api.onrender.com/telegram/set_webhook?webhook_url=https://
    MA5          | 6.1746
    VAR          | 6.1648
    PROPHET      | 6.1829
-   GRU          | 5.0783
    AVERAGE      | 6.1637
-
-   Ensemble average: 6.1637
    ```
 
    ### Model Notes

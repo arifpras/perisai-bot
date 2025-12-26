@@ -1,7 +1,7 @@
 
 # Bond Price & Yield Assistant (FastAPI + Telegram) 🏛️
 
-Forecast Indonesian government bond prices, yields, and auction demand using ARIMA, ETS, Prophet, GRU, and ensemble ML. Query via API or Telegram. Dual personas: Kei (quant), Kin (macro).
+Forecast Indonesian government bond prices, yields, and auction demand using ARIMA, ETS, Prophet, and 4 other statistical models (7 total ensemble). Query via API or Telegram. Dual personas: Kei (quant), Kin (macro).
 
 **Forecasting types:**
 - Yield/Price: `/kei forecast yield 10 year at the end of 2025`, `/kei predict price 5 year 2026-03-31 use prophet`
@@ -65,8 +65,8 @@ If you want all models and the average, just omit the method or say "use all".
 The bot and API support yield forecasting with both series-specific and tenor-only inputs.
 
 - **Tenor-only averaging**: If no FRxx series is specified, yields are averaged across all series for the requested tenor per date.
-- **7 forecasting models**: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, plus AVERAGE (ensemble).
-- **Deep learning removed**: GRU and LSTM removed for faster deployments and smaller package size.
+- **7 forecasting models**: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET (plus ensemble average).
+- **Deep learning removed**: GRU, LSTM removed for ~650 MB deployment savings.
 - **ARIMA reliability**: Improved fallback mechanism with nested try-except; always returns valid forecasts using fit.forecast() or last observed value.
 - **Business-day horizons**: For "next N observations" queries, T+1..T+N automatically skip weekends using pandas business day calendar.
 - **Economist-style display**: Monospace tables with pipe delimiters, professional formatting for Telegram and web.
@@ -88,10 +88,7 @@ MONTE_CARLO  | 6.1474
 MA5          | 6.1746
 VAR          | 6.1648
 PROPHET      | 6.1829
-GRU          | 5.0783
 AVERAGE      | 6.1637
-
-Ensemble average: 6.1637
 ```
 
 Example (next 3 observations - business days):
@@ -116,9 +113,7 @@ T+3 (2025-12-17): average=6.1637
 
 - **ARIMA**: 3-level fallback mechanism (get_forecast → fit.forecast → last observed value); always returns valid float.
 - **Prophet**: Forecasts clamped at 0.0 to avoid negative yields.
-- **GRU**: Only deep learning model (Gated Recurrent Unit); requires ≥150 observations.
-- **LSTM**: Removed completely from codebase (deprecated).
-- **Ensemble**: Excludes negatives and 3×MAD outliers; uses 8 model outputs.
+- **Ensemble**: Excludes negatives and 3×MAD outliers; uses 7 model outputs (no deep learning).
 - **Business days**: T+N horizons calculated using `pandas.BDay` (skips weekends automatically).
 - **Display format**: Economist-style monospace tables for professional presentation.
 
@@ -144,6 +139,8 @@ T+3 (2025-12-17): average=6.1637
 
 - `/kei yield 5 and 10 year in Jan, Feb, Mar 2025`
 - `/kei yield 5 year from 1-31 Jan 2025`
+- `/kei price 10 year in august 2025` → Statistics per tenor
+- `/kei yield 5 and 10 years Q1 2024` → Separate stats per tenor
 
 ## Historical Table Formatting (Economist Style)
 
