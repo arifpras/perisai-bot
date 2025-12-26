@@ -119,10 +119,13 @@ def get_auction_db(csv_path: str = "20251224_auction_forecast.csv"):
     return _db_cache[cache_key]
 
 
-def format_rows_for_telegram(rows, include_date=False, metric='yield'):
-    """Format data rows for Telegram message (monospace style)."""
+def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=None):
+    """Format data rows for Telegram message (monospace style).
+    - Supports single or multiple metrics (e.g., ['yield','price']).
+    """
     if not rows:
         return "No data found."
+    metrics_list = metrics or [metric]
     def format_date_display(date_str):
         from datetime import datetime
         try:
@@ -132,7 +135,20 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield'):
             return date_str
     tenors = sorted(set(row['tenor'] for row in rows))
     dates = sorted(set(row['date'] for row in rows if 'date' in row))
-    # Table for multi-tenor, multi-date
+    # Single tenor, multi-date, multiple metrics → Date | m1 | m2 ...
+    if include_date and len(tenors) == 1 and len(dates) > 1 and len(metrics_list) > 1:
+        header = f"{'Date':<12} | " + " | ".join([f"{m.capitalize():<8}" for m in metrics_list])
+        sep = '-' * (12 + 3 + len(metrics_list) * 11)
+        table_rows = []
+        for d in dates:
+            row_vals = []
+            for m in metrics_list:
+                val = next((r.get(m) for r in rows if r['tenor'] == tenors[0] and r['date'] == d), None)
+                suffix = '%' if m == 'yield' else ''
+                row_vals.append(f"{val:.2f}{suffix}" if val is not None else "-")
+            table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
+        return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
+    # Multi-tenor, multi-date (single metric)
     if include_date and len(tenors) > 1 and len(dates) > 1:
         header = f"{'Date':<12} | " + " | ".join([f"{t.replace('_',' '):<8}" for t in tenors])
         sep = '-' * (12 + 3 + len(tenors) * 11)
@@ -144,7 +160,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield'):
                 row_vals.append(f"{val:.2f}{'%' if metric=='yield' else ''}" if val is not None else "-")
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
-    # Single tenor, multi-date
+    # Single tenor, multi-date (single metric)
     elif include_date and len(tenors) == 1 and len(dates) > 1:
         t = tenors[0]
         header = f"{'Date':<12} | {t.replace('_',' '):<8}"
@@ -1388,25 +1404,38 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     # No plot requested - show data rows with statistics
                     # Calculate statistics
-                    metric_values = [r.get(intent.metric) for r in rows_list if r.get(intent.metric) is not None]
-                    
+                    # Determine metrics requested (support combined yield + price)
+                    metrics_requested = []
+                    lower_q = user_query.lower()
+                    if 'yield' in lower_q:
+                        metrics_requested.append('yield')
+                    if 'price' in lower_q:
+                        metrics_requested.append('price')
+                    if not metrics_requested:
+                        metrics_requested.append(intent.metric if hasattr(intent, 'metric') else 'yield')
+                    # Deduplicate while preserving order
+                    seen = set()
+                    metrics_requested = [m for m in metrics_requested if not (m in seen or seen.add(m))]
+
                     response_text = f"📊 *Found {len(rows_list)} records*\n"
                     response_text += f"Period: {intent.start_date} → {intent.end_date}\n"
                     
-                    if metric_values:
-                        import statistics
-                        stat_label = intent.metric.capitalize() if hasattr(intent, 'metric') else 'Yield'
-                        unit = '%' if stat_label.lower() == 'yield' else ''
-
-                        # Per-tenor summaries (aligned with table columns)
+                    # Per-metric, per-tenor summaries
+                    import statistics
+                    tenors = sorted(set(r.get('tenor') for r in rows_list))
+                    for m in metrics_requested:
+                        metric_values = [r.get(m) for r in rows_list if r.get(m) is not None]
+                        if not metric_values:
+                            continue
+                        stat_label = m.capitalize()
+                        unit = '%' if m == 'yield' else ''
                         per_tenor = {}
                         for row in rows_list:
                             tenor = row.get('tenor') or 'all'
-                            val = row.get(intent.metric)
+                            val = row.get(m)
                             if val is None:
                                 continue
                             per_tenor.setdefault(tenor, []).append(val)
-
                         response_text += f"\nSummary by tenor ({stat_label})\n"
                         for tenor, vals in sorted(per_tenor.items()):
                             if not vals:
@@ -1422,7 +1451,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             )
                     
                     # Show all rows (or split into messages if too many)
-                    formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=intent.metric if hasattr(intent, 'metric') else 'yield')
+                    if len(metrics_requested) == 1:
+                        formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0])
+                    else:
+                        if len(tenors) == 1:
+                            formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0], metrics=metrics_requested)
+                        else:
+                            tables = []
+                            for m in metrics_requested:
+                                tables.append(f"{m.capitalize()}\n" + format_rows_for_telegram(rows_list, include_date=True, metric=m))
+                            formatted_rows = "\n\n".join(tables)
                     
                     if len(formatted_rows) > 3500:  # Telegram message limit is 4096, leave buffer
                         # Send in multiple messages if too long
