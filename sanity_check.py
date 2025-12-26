@@ -77,8 +77,8 @@ class SanityCheck:
         print(f"\n{BOLD}{BLUE}2. CHECKING FASTAPI SERVER{RESET}")
         
         try:
-                from app_fastapi import app, get_db, ECONOMIST_PALETTE
-                from priceyield_20251223 import BondDB, yield_forecast, get_yield_series
+            from app_fastapi import app, get_db, ECONOMIST_PALETTE
+            from priceyield_20251223 import BondDB, yield_forecast, get_yield_series
             
             details = [
                 f"FastAPI app: {type(app).__name__}",
@@ -245,7 +245,7 @@ class SanityCheck:
         
         try:
             from telegram_bot import (
-                OPENAI_API_KEY, PERPLEXITY_API_KEY, API_BASE_URL, ALLOWED_USER_IDS
+                 OPENAI_API_KEY, PERPLEXITY_API_KEY, API_BASE_URL
             )
             
             details = [f"API Base URL: {API_BASE_URL}"]
