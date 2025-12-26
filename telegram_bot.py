@@ -476,9 +476,12 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
             d = intent.point_date
             params = [d.isoformat()]
             where = 'obs_date = ?'
-            if intent.tenor:
-                where += ' AND tenor = ?'
-                params.append(intent.tenor)
+            # Honor multi-tenor requests (e.g., "5 year and 10 year")
+            tenors_to_use = intent.tenors if getattr(intent, 'tenors', None) else ([intent.tenor] if getattr(intent, 'tenor', None) else None)
+            if tenors_to_use:
+                placeholders = ','.join(['?'] * len(tenors_to_use))
+                where += f' AND tenor IN ({placeholders})'
+                params.extend(tenors_to_use)
             if intent.series:
                 where += ' AND series = ?'
                 params.append(intent.series)
@@ -1379,9 +1382,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             d = intent.point_date
             params = [d.isoformat()]
             where = 'obs_date = ?'
-            if intent.tenor:
-                where += ' AND tenor = ?'
-                params.append(intent.tenor)
+            # Honor multi-tenor requests for direct Telegram responses as well
+            tenors_to_use = intent.tenors if getattr(intent, 'tenors', None) else ([intent.tenor] if getattr(intent, 'tenor', None) else None)
+            if tenors_to_use:
+                placeholders = ','.join(['?'] * len(tenors_to_use))
+                where += f' AND tenor IN ({placeholders})'
+                params.extend(tenors_to_use)
             if intent.series:
                 where += ' AND series = ?'
                 params.append(intent.series)
