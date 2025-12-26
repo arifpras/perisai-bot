@@ -1,29 +1,19 @@
-## Forecasting Types & Prompt Guide
 
-There are two types of forecasting supported:
-
-1. **Yield/Price Forecasting (Traditional Models)**
-	 - Uses ARIMA, ETS, Prophet, LSTM, GRU
-	 - Prompts: Use keywords like `yield`, `price`, `forecast`, `predict`, `estimate`, and specify series/tenor/date.
-	 - **Examples:**
-		 - `/kei forecast yield 10 year at the end of 2025`
-		 - `/kei predict price 5 year 2026-03-31 use prophet`
-		 - `/kei estimate yield 10 year 2025 using ets`
-
-2. **Auction Demand Forecasting (Ensemble ML)**
-	 - Uses ensemble ML models (Random Forest, Gradient Boosting, AdaBoost, etc.)
-	 - Prompts: Use keywords like `auction`, `demand`, `incoming bid`, `awarded`, `bid-to-cover`, `lelang`, `permintaan`, etc.
-	 - **Examples:**
-		 - `/kei auction demand January 2026`
-		 - `/kei forecast incoming bids Q2 2026`
-		 - `/kei bid-to-cover 2025`
-
-The bot automatically detects the type based on your prompt keywords and routes to the correct forecasting logic.
 # Bond Price & Yield Assistant (FastAPI + Telegram) 🏛️
 
-## Historic Changes
+Forecast Indonesian government bond prices, yields, and auction demand using ARIMA, ETS, Prophet, LSTM, GRU, and ensemble ML. Query via API or Telegram. Dual personas: Kei (quant), Kin (macro).
 
-- **2025-12-25**: Forecasting now defaults to using all models (ARIMA, ETS, Prophet, LSTM, GRU) and returns an average unless a specific model is requested. Example prompts and /examples updated. Sanity check passed, deployment ready (see SANITY_CHECK_REPORT.txt).
+**Forecasting types:**
+- Yield/Price: `/kei forecast yield 10 year at the end of 2025`, `/kei predict price 5 year 2026-03-31 use prophet`
+- Auction demand: `/kei auction demand January 2026`, `/kei forecast incoming bids Q2 2026`
+
+**/kin persona usage:**
+- `/kin` gives macroeconomic, policy, and market context, or explains results in plain English.
+- Examples:
+	- `/kin explain impact of US rates on Indo bonds`
+	- `/kin summarize auction demand drivers 2025`
+	- `/kin forecast yield 10 year at the end of 2025` (macro view, HL-CU style)
+	- `/kin explain FR95 price movement in plain English`
 
 Fast answers on Indonesian govvies: prices/yields (2023-2025), auction forecasts (through 2026), charts, and dual personas (Kei quant, Kin macro) delivered via API and Telegram.
 
@@ -32,7 +22,7 @@ Fast answers on Indonesian govvies: prices/yields (2023-2025), auction forecasts
 - Install deps: `pip install -r requirements.txt`
 - Run API: `uvicorn app_fastapi:app --reload --host 127.0.0.1 --port 8000`
 - Health check: `curl -s http://127.0.0.1:8000/health`
-
+	- **2025-12-25**: Forecasting now defaults to all models (ARIMA, ETS, Prophet, LSTM, GRU) and returns a table + average unless a specific model is requested.
 ## Env vars ⚙️
 - `OPENAI_API_KEY` (Kei)
 - `PERPLEXITY_API_KEY` (Kin)
@@ -62,29 +52,14 @@ Fast answers on Indonesian govvies: prices/yields (2023-2025), auction forecasts
 - `/start` — Welcome message
 
 ### Query patterns
-- **Single tenor**: `/kei yield 10 year 2024` or `/kei 5 year Q1 2025`
-- **Multi-tenor comparison**: `/kei yield 5 and 10 years 2024` (retrieves both tenors for analysis)
-- **Plot request**: Include `plot|chart|show|graph|visualize` → `/kei plot 10 year 2024` (returns chart + analysis)
-- **Date formats**: Year (2024), quarter (Q1 2024), month (May 2024), specific date (6 Dec 2024)
-- **Tenure range**: Average/aggregate → `/kei average yield 2024` (full year avg)
+	- Commands: `/kei` (quant), `/kin` (macro), `/both` (chain), `/examples`, `/start`
 
 
-## Yield Forecasting Methods
-
-The bot supports multiple forecasting methods for Indonesian government bond yields:
-- **ARIMA**
-- **ETS**
+	- Query patterns: `/kei yield 10 year 2024`, `/kei plot 10 year 2024`, `/kei auction demand 2026`, `/kei average yield 2024`
 - **Prophet**
 - **LSTM**
 - **GRU**
-
-**Default behavior:** If you do not specify a method, the bot will use all models and return both individual results and the average.
-
-You can request a specific method in your query. Example queries:
-- `/kei forecast yield 10 year at the end of 2025` (returns all models + average)
-- `/kei forecast yield 10 year at the end of 2025 use ets` (returns only ETS)
-- `/kei forecast yield 5 year December 2025 using prophet` (returns only Prophet)
-
+	Supported: ARIMA, ETS, Prophet, LSTM, GRU. By default, all models are used and results are shown in a table with an average and summary. To specify a model, add e.g. `use ets` to your query.
 If you want all models and the average, just omit the method or say "use all".
 
 ## Supported Data
@@ -92,9 +67,8 @@ If you want all models and the average, just omit the method or say "use all".
 - Auction demand forecasts (bids, awarded, bid-to-cover) through 2026 (ensemble ML: XGBoost, Random Forest, time-series, macro features)
 - Indonesian macroeconomic indicators (BI rate, inflation, etc.)
 
-## Persona and Response Format
-- **Kei**: CFA/MIT quant, concise, headline-led corporate update (HL-CU) style
-- **Kin**: More verbose, explanatory, plain English (if requested)
+	- **Kei**: Quant (CFA/MIT). Concise, data-driven, HL-CU style. Forecasts: table of all models + summary. Custom formats on request.
+	- **Kin**: Macro (CFA/Harvard). Explanatory, plain English by default. Custom formats on request.
 - You can request bullet points, plain English, or HL-CU format explicitly in your query.
 
 ## Example Queries
