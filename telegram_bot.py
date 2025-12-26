@@ -575,9 +575,9 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         return "⚠️ Kei could not analyze the bond data. Please try again or rephrase your query."
     else:
         return (
-            "📰 <b>Kei | General Knowledge</b>\n\n"
+            "📰 Kei | General Knowledge\n\n"
             "I encountered a temporary issue processing your question. This can happen for complex or ambiguous queries.\n\n"
-            "<b>Try:</b>\n"
+            "Try:\n"
             "• Rephrase your question more concisely\n"
             "• Ask about specific bond data: '/kei yield 5 year 2025'\n"
             "• Use /kin for broader economic and market context\n"
