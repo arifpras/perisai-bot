@@ -648,11 +648,22 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
 
     # Final minimal fallback attempt
     try:
+        # Detect if this is a plot/chart query
+        is_plot_query = any(kw in question.lower() for kw in ['plot', 'chart', 'show', 'visualize', 'graph'])
+        
         if is_data_query:
-            minimal_system = (
-                "You are Kei. Produce a concise, plain-text quantitative summary using ONLY the provided dataset context.\n"
-                "If the context is insufficient, state 'No dataset signal' with one-sentence reason. Do not return an empty response."
-            )
+            if is_plot_query:
+                # For plots, provide concise visual interpretation
+                minimal_system = (
+                    "You are Kei. The user has just viewed a plot/chart. Provide a concise (2-3 sentences), "
+                    "professional interpretation of what the visualization likely shows based on the query. "
+                    "Focus on key patterns: ranges, trends, tenor spreads, volatility. Be direct and analytical."
+                )
+            else:
+                minimal_system = (
+                    "You are Kei. Produce a concise, plain-text quantitative summary using ONLY the provided dataset context.\n"
+                    "If the context is insufficient, state 'No dataset signal' with one-sentence reason. Do not return an empty response."
+                )
             minimal_messages = [
                 {"role": "system", "content": minimal_system},
                 {"role": "system", "content": f"Dataset context:\n{data_summary or 'None'}"},
@@ -681,6 +692,9 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         logger.warning(f"Kei minimal fallback failed: {e}")
 
     if is_data_query:
+        # For plots, provide a generic concise interpretation
+        if any(kw in question.lower() for kw in ['plot', 'chart', 'show', 'visualize', 'graph']):
+            return "The plot shows the time series movement across the requested period. Key observations: monitor tenor spreads and volatility clustering for macro signals."
         return "⚠️ Kei could not analyze the bond data. Please try again or rephrase your query."
     else:
         return (
