@@ -14,6 +14,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from telegram.constants import ParseMode
 import html as html_module
 
+# Import activity logging
+from usage_store import log_event, log_error
+
 # Import bond query logic
 import importlib.util
 from pathlib import Path
@@ -1166,15 +1169,19 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming text messages with bond queries."""
     user_id = update.message.from_user.id
+    username = update.message.from_user.username or f"user_{user_id}"
+    
     if not is_user_authorized(user_id):
         await update.message.reply_text(
             "⛔ Access denied. This bot is restricted to authorized users only."
         )
+        log_error("telegram_auth", f"Unauthorized access attempt", user_id)
         logger.warning("Unauthorized access attempt from user_id=%s", user_id)
         return
     
     user_query = update.message.text or ""
     chat_id = update.message.chat_id
+    start_time = time.time()
     
     # Send typing indicator
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
@@ -1191,9 +1198,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             answer = await ask_kei(question)
             if not answer or not answer.strip():
                 await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
+                elapsed = (time.time() - start_time) * 1000
+                log_event(user_id, username, user_query, "kei_query", "kei", elapsed, False, "Empty response")
                 return
             formatted_response = f"{html_module.escape(answer)}"
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+            elapsed = (time.time() - start_time) * 1000
+            log_event(user_id, username, user_query, "kei_query", "kei", elapsed, True)
             return
 
         if lowered.startswith("\\kin"):
@@ -1205,9 +1216,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             answer = await ask_kin(question)
             if not answer or not answer.strip():
                 await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
+                elapsed = (time.time() - start_time) * 1000
+                log_event(user_id, username, user_query, "kin_query", "kin", elapsed, False, "Empty response")
                 return
             formatted_response = f"{html_module.escape(answer)}"
             await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+            elapsed = (time.time() - start_time) * 1000
+            log_event(user_id, username, user_query, "kin_query", "kin", elapsed, True)
             return
 
         # Determine if user wants a plot
@@ -1259,6 +1274,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response_text += format_rows_for_telegram(rows_list, include_date=False, metric=intent.metric if hasattr(intent, 'metric') else 'yield')
             
             await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+            
+            elapsed = (time.time() - start_time) * 1000
+            log_event(user_id, username, user_query, "point_query", "default", elapsed, True)
         
         # RANGE / AGG_RANGE query
         elif intent.type in ('RANGE', 'AGG_RANGE'):
@@ -1278,6 +1296,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 
                 await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+                elapsed = (time.time() - start_time) * 1000
+                log_event(user_id, username, user_query, "agg_query", "default", elapsed, True)
                 
                 # Generate plot if requested
                 if wants_plot:
@@ -1402,18 +1422,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else:
                         response_text += formatted_rows
                     await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+                    
+                    elapsed = (time.time() - start_time) * 1000
+                    log_event(user_id, username, user_query, "range_query", "default", elapsed, True)
                 
                 return
         
         else:
+            elapsed = (time.time() - start_time) * 1000
             await update.message.reply_text(
                 "❌ Sorry, I couldn't understand that query. Try `/examples` for sample queries.",
                 parse_mode=ParseMode.MARKDOWN
             )
+            log_event(user_id, username, user_query, "unknown", "default", elapsed, False, "Query not understood")
     
     except Exception as e:
+        elapsed = (time.time() - start_time) * 1000  # milliseconds
         error_text = f"❌ *Error:* {str(e)}\n\nTry `/examples` for valid query formats."
         await update.message.reply_text(error_text, parse_mode=ParseMode.MARKDOWN)
+        
+        # Log failure
+        log_event(
+            user_id=user_id,
+            username=username,
+            query=user_query,
+            query_type="unknown",
+            persona="default",
+            response_time_ms=elapsed,
+            success=False,
+            error=str(e)
+        )
 
 
 def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=None, highlight_date=None):
@@ -1598,6 +1636,74 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
     return buf.read()
 
 
+
+async def activity_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /activity command - show bot usage statistics for authorized users only."""
+    user_id = update.message.from_user.id
+    
+    # Restrict to admin/power users - check if admin ID is configured
+    admin_id = os.getenv("ADMIN_USER_ID")
+    is_admin = admin_id and user_id == int(admin_id)
+    
+    if not is_admin:
+        await update.message.reply_text(
+            "⛔ Activity monitoring is restricted to admin users only."
+        )
+        logger.warning("Unauthorized activity check attempt from user_id=%s", user_id)
+        return
+    
+    # Import and run activity monitor
+    try:
+        from activity_monitor import ActivityMonitor
+        
+        monitor = ActivityMonitor()
+        health = monitor.health_check()
+        query_stats = monitor.query_stats(hours=24)
+        top_users = monitor.top_users(hours=24, limit=3)
+        errors = monitor.error_summary(hours=24, limit=3)
+        
+        # Format response
+        msg = "<b>📊 PerisAI Bot Activity (Last 24h)</b>\n\n"
+        
+        # Health metrics
+        h = health['last_24h']
+        msg += f"<b>Health Status</b>\n"
+        msg += f"  Queries: {h['total_queries']} ({h['success_rate']:.0f}% success)\n"
+        msg += f"  Latency: {h['avg_latency_ms']} ms\n"
+        msg += f"  Users: {h['unique_users']} (weekly: {health['last_7d']['unique_users']})\n\n"
+        
+        # Query breakdown
+        if query_stats:
+            msg += "<b>Query Types</b>\n"
+            for qtype, stats in list(query_stats.items())[:5]:
+                msg += f"  {qtype}: {stats['count']} ({stats['success_rate']:.0f}%)\n"
+            msg += "\n"
+        
+        # Top users
+        if top_users:
+            msg += "<b>Top Users</b>\n"
+            for u in top_users:
+                msg += f"  @{u['username']}: {u['query_count']} queries ({u['success_rate']:.0f}%)\n"
+            msg += "\n"
+        
+        # Errors
+        if errors:
+            msg += "<b>Recent Errors</b>\n"
+            for e in errors:
+                error_txt = e['error'][:40] if e['error'] else 'Unknown'
+                msg += f"  {error_txt}: {e['count']}x\n"
+        else:
+            msg += "<b>Recent Errors</b>\n  ✅ None\n"
+        
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+        
+    except Exception as e:
+        logger.error(f"Error generating activity report: {e}", exc_info=True)
+        await update.message.reply_text(
+            f"❌ Error generating activity report: {str(e)}"
+        )
+
+
 def create_telegram_app(token: str) -> Application:
     """Create and configure the Telegram application."""
     application = Application.builder().token(token).build()
@@ -1605,6 +1711,7 @@ def create_telegram_app(token: str) -> Application:
     # Add handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("examples", examples_command))
+    application.add_handler(CommandHandler("activity", activity_command))
     # Personas
     application.add_handler(CommandHandler("kei", kei_command))
     application.add_handler(CommandHandler("kin", kin_command))
