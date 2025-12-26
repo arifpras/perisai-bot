@@ -6,8 +6,6 @@ import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from prophet import Prophet
-from keras.models import Sequential
-from keras.layers import GRU, Dense, Input
 
 # --- Helper: business-day step count ---
 def _bdays_between(last_date, target_date):

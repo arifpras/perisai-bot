@@ -65,8 +65,8 @@ If you want all models and the average, just omit the method or say "use all".
 The bot and API support yield forecasting with both series-specific and tenor-only inputs.
 
 - **Tenor-only averaging**: If no FRxx series is specified, yields are averaged across all series for the requested tenor per date.
-- **8 forecasting models**: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, GRU, plus AVERAGE (ensemble).
-- **GRU (deep learning)**: Only deep learning model (LSTM removed); active when sufficient history exists (≥150 observations).
+- **7 forecasting models**: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, plus AVERAGE (ensemble).
+- **Deep learning removed**: GRU and LSTM removed for faster deployments and smaller package size.
 - **ARIMA reliability**: Improved fallback mechanism with nested try-except; always returns valid forecasts using fit.forecast() or last observed value.
 - **Business-day horizons**: For "next N observations" queries, T+1..T+N automatically skip weekends using pandas business day calendar.
 - **Economist-style display**: Monospace tables with pipe delimiters, professional formatting for Telegram and web.

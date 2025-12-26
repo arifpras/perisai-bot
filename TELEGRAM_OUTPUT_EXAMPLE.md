@@ -29,7 +29,7 @@ MONTE_CARLO  | 6.1549
 MA5          | 6.1746
 VAR          | 6.1641
 PROPHET      | 6.1854
-GRU          | 5.0783
+
 AVERAGE      | 6.1667
 ```
 
@@ -44,7 +44,7 @@ MONTE_CARLO  | 6.1518
 MA5          | 6.1746
 VAR          | 6.1645
 PROPHET      | 6.1865
-GRU          | 5.0783
+
 AVERAGE      | 6.1657
 ```
 
@@ -59,7 +59,7 @@ MONTE_CARLO  | 6.1474
 MA5          | 6.1746
 VAR          | 6.1648
 PROPHET      | 6.1829
-GRU          | 5.0783
+
 AVERAGE      | 6.1637
 ```
 
@@ -74,7 +74,7 @@ MONTE_CARLO  | 6.1439
 MA5          | 6.1746
 VAR          | 6.1651
 PROPHET      | 6.1732
-GRU          | 5.0783
+
 AVERAGE      | 6.1608
 ```
 
@@ -89,7 +89,7 @@ MONTE_CARLO  | 6.1392
 MA5          | 6.1746
 VAR          | 6.1654
 PROPHET      | 6.1769
-GRU          | 5.0783
+
 AVERAGE      | 6.1599
 ```
 
@@ -102,7 +102,7 @@ AVERAGE      | 6.1599
 - **Message 2 (Separator)**: Visual break ("---")
 - **Message 3 (Analysis)**: Kei's HL-CU format response (headline + 3 paragraphs, plain text)
 - **Per-horizon tables** — each T+ forecast date gets its own economist-style table
-- **8 models** listed in consistent order: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, GRU
+- **7 models** listed in consistent order: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, GRU
 - **AVERAGE row** at bottom showing ensemble average for that horizon
 
 ### Content
@@ -165,7 +165,7 @@ MONTE_CARLO  | 6.1347
 MA5          | 6.1746
 VAR          | 6.1657
 PROPHET      | 6.1765
-GRU          | 5.0783
+
 AVERAGE      | 6.1612
 
 Ensemble average: 6.1612

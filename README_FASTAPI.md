@@ -43,7 +43,7 @@ curl -s -X POST http://127.0.0.1:8000/chat -H 'Content-Type: application/json' -
 Notes
 - The server reuses `parse_intent` and `BondDB` from `priceyield_20251223.py` and caches BondDB instances by CSV path. If you need a fresh DB instance, restart the server.
 - Tests are available in `tests/test_app_fastapi.py` (run with `pytest`).
-- **Forecasting**: Uses 8 models (ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, GRU); LSTM removed.
+- **Forecasting**: Uses 7 models (ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET); deep learning (GRU/LSTM) removed.
 - **Business-day aware**: "Next N observations" queries automatically skip weekends.
 - **ARIMA reliability**: 3-level fallback mechanism ensures valid forecasts.
 

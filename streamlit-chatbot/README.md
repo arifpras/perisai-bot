@@ -4,7 +4,7 @@ This Streamlit app provides a chat interface for querying Indonesian government 
 
 - **Economist-style table formatting** for historical and multi-tenor queries, making data easy to read and share.
 - **Professional summary blocks** for statistics (min, max, average, std dev) in a concise, aligned style.
-- **8 forecasting models**: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, GRU (LSTM removed).
+- **7 forecasting models**: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET (deep learning removed).
 - **Business-day horizons**: "Next N observations" automatically skip weekends.
 - **Improved reliability**: ARIMA 3-level fallback, Prophet clamping, 3×MAD outlier filtering.
 - **Telegram and web compatibility**: All outputs are formatted for optimal display in both Telegram and the Streamlit web UI.
@@ -30,8 +30,8 @@ Std Dev  :   0.11%
 ```
 
 ### Forecasting Models
-- **8 models**: ARIMA (with 3-level fallback), ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET (clamped ≥0), GRU (deep learning)
-- **LSTM**: Completely removed from codebase
+- **7 models**: ARIMA (with 3-level fallback), ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET (clamped ≥0)
+- **Deep learning**: GRU and LSTM removed for faster deployments (~650 MB saved)
 - **Ensemble**: Excludes negatives and 3×MAD outliers for robust averaging
 - **Business days**: T+N horizons skip weekends automatically using pandas business day calendar
 

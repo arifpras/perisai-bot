@@ -488,8 +488,6 @@ from yield_forecast_models import (
     forecast_arima,
     forecast_ets,
     forecast_prophet,
-
-    forecast_gru,
     forecast_random_walk,
     forecast_monte_carlo,
     forecast_ma5,
@@ -564,8 +562,6 @@ def yield_forecast(series: pd.Series, forecast_date: date, method: str = "all", 
         return forecast_ma5(series, forecast_date)
     elif method == "var":
         return forecast_var(series, forecast_date, **kwargs)
-    elif method == "gru":
-        return forecast_gru(series, forecast_date, **kwargs)
     else:
         raise ValueError(f"Unknown method: {method}")
 

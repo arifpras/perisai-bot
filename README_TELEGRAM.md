@@ -82,8 +82,8 @@ curl "https://perisai-api.onrender.com/telegram/set_webhook?webhook_url=https://
    What the bot returns by default for generic yield forecasts:
 
    - **Tenor-only support**: If no `FRxx` series is specified, the bot averages across all series for the requested tenor per date.
-   - **8 forecasting models**: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, GRU, plus AVERAGE (ensemble).
-   - **LSTM removed**: GRU is now the only deep learning model; requires ≥150 observations.
+   - **7 forecasting models**: ARIMA, ETS, RANDOM_WALK, MONTE_CARLO, MA5, VAR, PROPHET, plus AVERAGE (ensemble).
+   - **Deep learning removed**: GRU and LSTM removed for faster deployments (~650 MB package size reduction).
    - **ARIMA reliability**: Improved 3-level fallback ensures valid forecasts always returned.
    - **Business-day horizons**: "Next N observations" automatically skip weekends (T+1=next Monday if last obs was Friday).
    - **Dual-message display**: (1) Latest 5 observations + per-horizon tables, (2) separator, (3) Kei's HL-CU analysis.
@@ -115,7 +115,7 @@ curl "https://perisai-api.onrender.com/telegram/set_webhook?webhook_url=https://
 
    - **ARIMA**: 3-level fallback mechanism (get_forecast → fit.forecast → last observed value); always returns valid float.
    - **Prophet**: Forecasts clamped at 0.0 to avoid negative yields.
-   - **GRU**: Only deep learning model (requires ≥150 observations); LSTM completely removed.
+   - **Deep learning**: GRU and LSTM removed for faster deployments and smaller size.
    - **Ensemble**: Excludes negatives and 3×MAD outliers for robust averaging.
    - **Business days**: T+N horizons calculated using pandas.BDay (skips weekends automatically).
 
