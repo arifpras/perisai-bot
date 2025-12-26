@@ -265,7 +265,6 @@ def summarize_intent_result(intent, rows_list):
     if intent.type == 'AGG_RANGE' or (intent.type == 'RANGE' and len(rows_list) > 1):
         metric_name = intent.metric if hasattr(intent, 'metric') and intent.metric else 'yield'
         parts.append(f"Period: {intent.start_date} to {intent.end_date}")
-        parts.append(f"Records found: {len(rows_list)}")
 
         # Group by tenor and compute stats separately
         grouped = {}
@@ -289,9 +288,9 @@ def summarize_intent_result(intent, rows_list):
                 max_val = max(metric_values)
                 avg_val = stats_module.mean(metric_values)
                 std_val = stats_module.stdev(metric_values) if len(metric_values) > 1 else 0
-                parts.append(
-                    f"{tenor_label} ({len(group_rows)} records) — {metric_name}: Min={min_val:.2f}, Max={max_val:.2f}, Avg={avg_val:.2f}, StdDev={std_val:.2f}"
-                )
+                # Economist-style professional format: clean, no HTML tags, lowercase metric names
+                stat_line = f"{tenor_label.title()}: min {min_val:.2f}, max {max_val:.2f}, avg {avg_val:.2f}, std {std_val:.2f} ({len(group_rows)} obs)"
+                parts.append(stat_line)
             else:
                 parts.append(f"{tenor_label} ({len(group_rows)} records) — no numeric {metric_name} values found")
 
