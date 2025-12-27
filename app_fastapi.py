@@ -236,9 +236,12 @@ def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str
         plt.axis('off')
         plt.savefig(buf, format='png', bbox_inches='tight')
         plt.close()
-        buf.seek(0)
-        return buf.read()
-
+            fig.autofmt_xdate(rotation=0, ha='center')
+            fig.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.20)
+            tick_color = ECONOMIST_COLORS.get('gray', ECONOMIST_COLORS['grey'])
+            fig.text(0.08, 0.03, f"Source: PerisAI analytics | as of {date.today().strftime('%d %b %Y')}",
+                     fontsize=11, color=tick_color, ha='left', va='bottom', weight='normal')
+            fig.savefig(buf, format='png', dpi=150, facecolor='white')
     df['obs_date'] = pd.to_datetime(df['obs_date'])
     
     # Determine if multi-tenor plot
@@ -386,8 +389,10 @@ def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str
         date_formatter = DateFormatter('%-d %b\n%Y')
         ax.xaxis.set_major_formatter(date_formatter)
         fig.autofmt_xdate(rotation=0, ha='center')
-        
-        fig.tight_layout()
+        fig.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.20)
+        tick_color = ECONOMIST_COLORS.get('gray', ECONOMIST_COLORS['grey'])
+        fig.text(0.08, 0.03, f"Source: PerisAI analytics | as of {date.today().strftime('%d %b %Y')}",
+             fontsize=11, color=tick_color, ha='left', va='bottom', weight='normal')
         fig.savefig(buf, format='png', dpi=150, facecolor='white')
         plt.close(fig)
     buf.seek(0)
