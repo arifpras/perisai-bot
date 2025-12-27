@@ -27,6 +27,12 @@ except ImportError:
 
 import priceyield_20251223 as priceyield_mod
 from priceyield_20251223 import BondDB, AuctionDB, parse_intent
+from economist_style import (
+    ECONOMIST_COLORS,
+    ECONOMIST_PALETTE,
+    add_economist_caption,
+    apply_economist_style,
+)
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -143,58 +149,6 @@ def convert_markdown_code_fences_to_html(text: str) -> str:
 
     return fence_pattern.sub(_repl, text)
 
-
-def apply_economist_style(fig, ax):
-    """Apply The Economist styling to a matplotlib figure."""
-    ax.set_facecolor(ECONOMIST_COLORS['bg_gray'])
-    fig.patch.set_facecolor('white')
-    
-    # Remove top and right spines, hide left
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    
-    # Style bottom spine
-    ax.spines['bottom'].set_color(ECONOMIST_COLORS['black'])
-    ax.spines['bottom'].set_linewidth(0.5)
-    
-    # Grid: only horizontal, more visible
-    ax.grid(axis='y',
-        color=ECONOMIST_COLORS.get('grid', 'white'),
-        linewidth=1.8,
-        linestyle='-',
-        alpha=1.0)
-    ax.grid(axis='x', visible=False)
-    
-    # Tick styling
-    tick_color = ECONOMIST_COLORS.get('gray', ECONOMIST_COLORS['grey'])
-    ax.tick_params(axis='both', which='both', length=0, labelsize=12, colors=tick_color)
-    ax.xaxis.label.set_color(tick_color)
-    ax.yaxis.label.set_color(tick_color)
-
-    # Margins (increased bottom to accommodate caption)
-    fig.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.20)
-
-# Economist color palette (fallbacks if seaborn is unavailable)
-ECONOMIST_COLORS = {
-    'red': '#E3120B',
-    'blue': '#1DB4D0',
-    'teal': '#00847E',
-    'grey': '#7A7A7A',
-    'yellow': '#F4C20D',
-    'green': '#60BD68',
-    'gray': '#8C8C8C',
-    'bg_gray': '#F0F0F0',
-    'black': '#1A1A1A',
-    'grid': '#FFFFFF',
-}
-ECONOMIST_PALETTE = [
-    ECONOMIST_COLORS['red'],
-    ECONOMIST_COLORS['blue'],
-    ECONOMIST_COLORS['grey'],
-    ECONOMIST_COLORS['yellow'],
-    ECONOMIST_COLORS['green'],
-]
 
 
 def is_user_authorized(user_id: int) -> bool:
@@ -871,14 +825,14 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
 
     # Final minimal fallback attempt
     try:
-        # Detect if this is a plot/chart query
-        is_plot_query = any(kw in question.lower() for kw in ['plot', 'chart', 'show', 'visualize', 'graph'])
+        # Detect if this is a plot query
+        is_plot_query = any(kw in question.lower() for kw in ['plot'])
         
         if is_data_query:
             if is_plot_query:
                 # For plots, provide concise visual interpretation
                 minimal_system = (
-                    "You are Kei. The user has just viewed a plot/chart. Provide a concise (2-3 sentences), "
+                    "You are Kei. The user has just viewed a plot. Provide a concise (2-3 sentences), "
                     "professional interpretation of what the visualization likely shows based on the query. "
                     "Focus on key patterns: ranges, trends, tenor spreads, volatility. Be direct and analytical."
                 )
@@ -917,7 +871,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
 
     if is_data_query:
         # For plots, provide a generic concise interpretation
-        if any(kw in question.lower() for kw in ['plot', 'chart', 'show', 'visualize', 'graph']):
+        if any(kw in question.lower() for kw in ['plot']):
             fallback = "The plot shows the time series movement across the requested period. Key observations: monitor tenor spreads and volatility clustering for macro signals."
             return html_quote_signature(convert_markdown_code_fences_to_html(fallback))
         fallback = "⚠️ Kei could not analyze the bond data. Try narrowing the period, tenor, or metric (e.g., '/kei yield 10 year Jan 2025')."
@@ -1277,7 +1231,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Detect if user wants a plot/chart — these are handled by /kin
-    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
+    needs_plot = any(keyword in question.lower() for keyword in ["plot"])
 
     # Block Kei responses for general knowledge topics only
     lower_q = question.lower()
@@ -1403,6 +1357,15 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if wants_table:
                 # For tab requests, fetch and format data as a clean monospace table (matching forecast styling)
                 try:
+                    # Detect multi-variable queries (e.g., "yield and price; for 5 and 10 year")
+                    metrics_list = []
+                    if ';' in base_question or ' and ' in base_question.split('for')[0] if 'for' in base_question else ' and ' in base_question:
+                        # Try to extract multiple metrics
+                        if 'yield' in base_question.lower():
+                            metrics_list.append('yield')
+                        if 'price' in base_question.lower():
+                            metrics_list.append('price')
+                    
                     intent = parse_intent(base_question)
                     db = get_db()
                     if intent.type in ('RANGE', 'AGG_RANGE'):
@@ -1438,15 +1401,58 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             metrics.log_query(user_id, username, question, "text", response_time, False, "no_data", "kei")
                             return
                         
-                        # Format as monospace table (match forecast styling)
-                        metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
-                        table_output = format_rows_for_telegram(rows_list, include_date=True, metric=metric, economist_style=True)
+                        # Compute summary statistics per tenor and metric
+                        import statistics
+                        summary_lines = []
                         
-                        # Add header context
-                        tenor_display = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
-                        header = f"📊 {metric.capitalize()} | {tenor_display} | {intent.start_date} to {intent.end_date}\n\n"
+                        # If multiple metrics detected, use multi-variable table
+                        if len(metrics_list) > 1:
+                            # Format as multi-variable table
+                            table_output = format_rows_for_telegram(rows_list, include_date=True, metrics=metrics_list, economist_style=True)
+                            
+                            # Compute stats for each tenor-metric combination
+                            for m in metrics_list:
+                                unit = '%' if m == 'yield' else ''
+                                for t in tenors_to_use:
+                                    vals = [r.get(m) for r in rows_list if r['tenor'] == t and r.get(m) is not None]
+                                    if vals:
+                                        avg = statistics.mean(vals)
+                                        min_val = min(vals)
+                                        max_val = max(vals)
+                                        t_short = t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y')
+                                        summary_lines.append(f"{t_short} {m}: min {min_val:.2f}{unit}, max {max_val:.2f}{unit}, avg {avg:.2f}{unit}")
+                            
+                            tenor_display = ", ".join(t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y') for t in tenors_to_use) if tenors_to_use else "all tenors"
+                            metrics_display = " & ".join([m.capitalize() for m in metrics_list])
+                            header = f"📊 {metrics_display} | {tenor_display} | {intent.start_date} to {intent.end_date}\n\n"
+                        else:
+                            # Single metric
+                            metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
+                            table_output = format_rows_for_telegram(rows_list, include_date=True, metric=metric, economist_style=True)
+                            
+                            # Compute stats per tenor
+                            unit = '%' if metric == 'yield' else ''
+                            for t in tenors_to_use:
+                                vals = [r.get(metric) for r in rows_list if r['tenor'] == t and r.get(metric) is not None]
+                                if vals:
+                                    avg = statistics.mean(vals)
+                                    min_val = min(vals)
+                                    max_val = max(vals)
+                                    t_short = t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y')
+                                    summary_lines.append(f"{t_short}: min {min_val:.2f}{unit}, max {max_val:.2f}{unit}, avg {avg:.2f}{unit}")
+                            
+                            tenor_display = ", ".join(t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y') for t in tenors_to_use) if tenors_to_use else "all tenors"
+                            header = f"📊 {metric.capitalize()} | {tenor_display} | {intent.start_date} to {intent.end_date}\n"
                         
-                        await update.message.reply_text(header + table_output, parse_mode=ParseMode.MARKDOWN)
+                        # Build final message with header, stats, table, and signature
+                        summary_text = "\n".join(summary_lines) if summary_lines else ""
+                        response_parts = [header]
+                        if summary_text:
+                            response_parts.append(summary_text + "\n")
+                        response_parts.append(table_output)
+                        response_parts.append("\n<blockquote>~ Kei</blockquote>")
+                        
+                        await update.message.reply_text("\n".join(response_parts), parse_mode=ParseMode.HTML)
                         response_time = time.time() - start_time
                         metrics.log_query(user_id, username, question, "text", response_time, True, "table_output", "kei")
                         return
@@ -1488,10 +1494,10 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
                         table_output = format_rows_for_telegram(rows_list, include_date=False, metric=metric, economist_style=True)
-                        tenor_display = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
+                        tenor_display = ", ".join(t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y') for t in tenors_to_use) if tenors_to_use else "all tenors"
                         header = f"📊 {metric.capitalize()} | {tenor_display} | {d}\n\n"
                         
-                        await update.message.reply_text(header + table_output, parse_mode=ParseMode.MARKDOWN)
+                        await update.message.reply_text(header + table_output + "\n<blockquote>~ Kei</blockquote>", parse_mode=ParseMode.HTML)
                         response_time = time.time() - start_time
                         metrics.log_query(user_id, username, question, "text", response_time, True, "table_output", "kei")
                         return
@@ -1584,7 +1590,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     lower_q = question.lower()
-    needs_plot = any(keyword in lower_q for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
+    needs_plot = any(keyword in lower_q for keyword in ["plot"])
 
     try:
         await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
@@ -1751,8 +1757,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Usage: /both <question>")
         return
     
-    # Detect if user wants a plot/chart (route through FastAPI /chat endpoint)
-    needs_plot = any(keyword in question.lower() for keyword in ["plot", "chart", "show", "graph", "visualize", "compare"])
+    # Detect if user wants a plot (route through FastAPI /chat endpoint)
+    needs_plot = any(keyword in question.lower() for keyword in ["plot"])
     
     try:
         await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
@@ -2387,13 +2393,9 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         fig.autofmt_xdate()
     
     plt.tight_layout()
+    add_economist_caption(fig)
     
-    # Add caption at bottom left, inside figure but below plot
-    tick_color = ECONOMIST_COLORS.get('gray', ECONOMIST_COLORS['grey'])
-    fig.text(0.08, 0.1, f"Source: PerisAI analytics | as of {date.today().strftime('%d %b %Y')}", 
-             fontsize=11, color=tick_color, ha='left', va='bottom', weight='normal')
-    
-    plt.savefig(buf, format='png', dpi=150)
+    plt.savefig(buf, format='png', dpi=150, facecolor='white')
     plt.close()
     buf.seek(0)
     return buf.read()
