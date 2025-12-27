@@ -254,7 +254,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
     # Multi-tenor, multi-date (single metric)
     if include_date and len(tenors) > 1 and len(dates) > 1:
         header = f"{'Date':<12} | " + " | ".join([f"{t.replace('_',' '):<8}" for t in tenors])
-        sep = '-' * (12 + 3 + len(tenors) * 11)
+        width = 12 + len(tenors) * 11
         table_rows = []
         for d in dates:
             row_vals = []
@@ -263,21 +263,21 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
                 row_vals.append(f"{val:.2f}{'%' if metric=='yield' else ''}" if val is not None else "-")
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
-            border = '─' * (12 + 3 + len(tenors) * 11)
-            return f"```\n┌{border}┐\n│ {header}\n├{sep}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
+            border = '─' * width
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Single tenor, multi-date (single metric)
     elif include_date and len(tenors) == 1 and len(dates) > 1:
         t = tenors[0]
         header = f"{'Date':<12} | {t.replace('_',' '):<8}"
-        sep = '-' * 25
+        width = 23
         table_rows = []
         for d in dates:
             val = next((r.get(metric) for r in rows if r['tenor'] == t and r['date'] == d), None)
             table_rows.append(f"{format_date_display(d):<12} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{format_date_display(d):<12} | -")
         if economist_style:
-            border = '─' * 25
-            return f"```\n┌{border}┐\n│ {header}\n├{border}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
+            border = '─' * width
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, single date
     elif not include_date and len(tenors) > 1:
