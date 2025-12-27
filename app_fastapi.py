@@ -495,9 +495,8 @@ async def chat_endpoint(req: ChatRequest):
                     elif req.persona == "kin":
                         analysis_text = await ask_kin(req.q)
                     elif req.persona == "both":
-                        result = await ask_kei_then_kin(req.q)
-                        # For /both, combine both personas' analysis
-                        analysis_text = f"{result['kei']}\n\n---\n\n{result['kin']}"
+                        # For plots with /both, use Kin (Perplexity) for market interpretation only
+                        analysis_text = await ask_kin(req.q)
                 except Exception as e:
                     logger.warning(f"Error generating persona analysis: {e}")
                     analysis_text = text  # fallback to data description
@@ -553,9 +552,8 @@ async def chat_endpoint(req: ChatRequest):
                     elif req.persona == "kin":
                         analysis_text = await ask_kin(req.q)
                     elif req.persona == "both":
-                        result = await ask_kei_then_kin(req.q)
-                        # For /both, combine both personas' analysis
-                        analysis_text = f"{result['kei']}\n\n---\n\n{result['kin']}"
+                        # For plots with /both, use Kin (Perplexity) for market interpretation only
+                        analysis_text = await ask_kin(req.q)
                 except Exception as e:
                     logger.warning(f"Error generating persona analysis: {e}")
                     analysis_text = text  # fallback to data description

@@ -1151,10 +1151,10 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if any(r.get('yield') is not None for r in rows_list):
         response_lines.append("Yield")
-        response_lines.append(format_rows_for_telegram(rows_list, include_date=False, metric='yield'))
+        response_lines.append(format_rows_for_telegram(rows_list, include_date=False, metric='yield', economist_style=True))
     if any(r.get('price') is not None for r in rows_list):
         response_lines.append("Price")
-        response_lines.append(format_rows_for_telegram(rows_list, include_date=False, metric='price'))
+        response_lines.append(format_rows_for_telegram(rows_list, include_date=False, metric='price', economist_style=True))
 
     await update.message.reply_text("\n\n".join(response_lines), parse_mode=ParseMode.MARKDOWN)
     metrics.log_query(user_id, username, question, "check", response_time, True, persona="check")
@@ -1905,7 +1905,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             
             response_text = f"📊 *Found {len(rows_list)} bond(s) for {intent.tenor or 'all tenors'} on {d}:*\n\n"
-            response_text += format_rows_for_telegram(rows_list, include_date=False, metric=intent.metric if hasattr(intent, 'metric') else 'yield')
+            response_text += format_rows_for_telegram(rows_list, include_date=False, metric=intent.metric if hasattr(intent, 'metric') else 'yield', economist_style=True)
             
             await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
         
@@ -2059,14 +2059,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     # Show all rows (or split into messages if too many)
                     if len(metrics_requested) == 1:
-                        formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0])
+                        formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0], economist_style=True)
                     else:
                         if len(tenors) == 1:
-                            formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0], metrics=metrics_requested)
+                            formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0], metrics=metrics_requested, economist_style=True)
                         else:
                             tables = []
                             for m in metrics_requested:
-                                tables.append(f"{m.capitalize()}\n" + format_rows_for_telegram(rows_list, include_date=True, metric=m))
+                                tables.append(f"{m.capitalize()}\n" + format_rows_for_telegram(rows_list, include_date=True, metric=m, economist_style=True))
                             formatted_rows = "\n\n".join(tables)
                     
                     if len(formatted_rows) > 3500:  # Telegram message limit is 4096, leave buffer
