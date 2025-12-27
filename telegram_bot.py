@@ -227,7 +227,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
             border = '─' * (12 + 3 + len(metrics_list) * 11)
-            return f"```\n┌{border}┐\n│ {header}\n├{sep}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, multi-date, multi-metric → Date | T1_M1 | T1_M2 | T2_M1 | T2_M2 ...
     if include_date and len(tenors) > 1 and len(dates) > 1 and len(metrics_list) > 1:
@@ -249,7 +249,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
             border = '─' * col_width
-            return f"```\n┌{border}┐\n│ {header}\n├{sep}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, multi-date (single metric)
     if include_date and len(tenors) > 1 and len(dates) > 1:
@@ -289,7 +289,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{t.replace('_',' '):<8} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{t.replace('_',' '):<8} | -")
         if economist_style:
             border = '─' * 20
-            return f"```\n┌{border}┐\n│ {header}\n├{border}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Fallback: bullet style
     lines = []
