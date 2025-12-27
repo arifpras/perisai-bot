@@ -55,14 +55,26 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 
 # Metrics module
 try:
-    import metrics
-except ImportError:
+    from usage_store import log_query, log_error
+    
+    class MetricsAdapter:
+        """Adapter to provide metrics.log_query and metrics.log_error interface"""
+        @staticmethod
+        def log_query(*args, **kwargs):
+            return log_query(*args, **kwargs)
+        
+        @staticmethod
+        def log_error(*args, **kwargs):
+            return log_error(*args, **kwargs)
+    
+    metrics = MetricsAdapter()
+except ImportError as e:
     # Fallback metrics stub if module not available
     class MetricsStub:
         def log_query(self, *args, **kwargs): pass
         def log_error(self, *args, **kwargs): pass
     metrics = MetricsStub()
-    logger.warning("metrics module not available - using stub")
+    logger.warning(f"Could not import usage_store metrics - using stub: {e}")
 
 _db_cache: Dict[str, object] = {}
 

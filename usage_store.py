@@ -112,6 +112,11 @@ def log_error(endpoint: str, error: str, user_id: Any = None):
             conn.close()
 
 
+def log_query(user_id: Any, username: str, query: str, query_type: str, response_time_ms: float, success: bool, error: str = None, persona: str = None):
+    """Wrapper for log_event to maintain backward compatibility with telegram_bot.py"""
+    return log_event(user_id, username, query, query_type, persona, response_time_ms, success, error)
+
+
 def load_recent(limit: int = 1000) -> List[Dict[str, Any]]:
     if not DB_PATH.exists():
         return []
