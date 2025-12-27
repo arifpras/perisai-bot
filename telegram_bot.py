@@ -1453,7 +1453,10 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error in /kei command: {e}")
             await update.message.reply_text("⚠️ Error processing query. Please try again.")
             response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kei")
+            try:
+                metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kei")
+            except Exception as log_err:
+                logger.error(f"Failed to log /kei error metrics: {log_err}")
             return
 
 
@@ -1610,7 +1613,10 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error in /kin command: {e}")
         await update.message.reply_text("⚠️ Error processing query. Please try again.")
         response_time = time.time() - start_time
-        metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kin")
+        try:
+            metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kin")
+        except Exception as log_err:
+            logger.error(f"Failed to log /kin error metrics: {log_err}")
         return
 
 
@@ -1784,7 +1790,10 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error in /both command: {e}")
             await update.message.reply_text("⚠️ Error processing query. Please try again.")
             response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "both")
+            try:
+                metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "both")
+            except Exception as log_err:
+                logger.error(f"Failed to log /both error metrics: {log_err}")
             return
 
 
