@@ -47,7 +47,7 @@ else:
 
 # Perplexity configuration
 PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
-PERPLEXITY_MODEL = os.environ.get("PERPLEXITY_MODEL", "llama-3.1-sonar-large-128k-online")
+PERPLEXITY_MODEL = os.environ.get("PERPLEXITY_MODEL", "sonar-pro")
 
 # API configuration
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
@@ -279,7 +279,7 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
             )
     lines.append("")
     lines.append("Data reflect observed values in the period; simple averages, no inference beyond sample.")
-    lines.append("Kei")
+    lines.append("~ Kei, quant. researcher")
     return "\n".join(lines)
 
 def format_models_economist_table(models: dict) -> str:
@@ -529,7 +529,7 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     pass
 
             lines.append("")
-            lines.append("Kei")
+            lines.append("~ Kei, quant. researcher")
             return "\n".join(lines)
         # Handle bond data queries
         db = get_db()
@@ -655,7 +655,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     is_data_query = data_summary is not None
 
     # Short signature to reduce token footprint
-    signature_text = "Kei&Kin" if dual_mode else "Kei"
+    signature_text = "~ Kei & Kin" if dual_mode else "~ Kei, quant. researcher"
 
     if is_data_query:
         system_prompt = (
@@ -812,7 +812,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: {{'Kei&Kin' if dual_mode else 'Kin'}}.\n"
+            f"Signature: {{'~ Kei & Kin' if dual_mode else '~ Kin, macro strategist'}}.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -832,7 +832,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: {{'Kei&Kin' if dual_mode else 'Kin'}}.\n"
+            f"Signature: {{'~ Kei & Kin' if dual_mode else '~ Kin, macro strategist'}}.\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -1166,6 +1166,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Error generating plot. Please try again.")
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kin")
+            return
         return
     else:
         try:
@@ -1229,6 +1230,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Error processing query. Please try again.")
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kei")
+            return
 
 
 async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1288,6 +1290,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Error generating plot. Please try again.")
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kin")
+            return
         return
 
     # Block quantitative/forecasting topics when not plotting
@@ -1328,6 +1331,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Error processing query. Please try again.")
         response_time = time.time() - start_time
         metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kin")
+        return
 
 
 async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
