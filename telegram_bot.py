@@ -2185,6 +2185,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 f"avg={t_avg:>6.2f}{unit} std={t_std:>6.2f}{unit}\n"
                             )
                     
+                    # Add blank line after summary before tables
+                    response_text += "\n"
+                    
                     # Show all rows (or split into messages if too many)
                     if len(metrics_requested) == 1:
                         formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0], economist_style=True)
