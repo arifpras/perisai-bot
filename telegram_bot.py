@@ -794,6 +794,9 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         return "⚠️ Persona /kei unavailable: OPENAI_API_KEY not configured."
 
     data_summary = await try_compute_bond_summary(question)
+    # Truncate dataset context to prevent excessive token usage
+    if data_summary and len(data_summary) > 2000:
+        data_summary = data_summary[:2000] + "…"
     is_data_query = data_summary is not None
 
     # Short signature to reduce token footprint (HTML blockquote)
@@ -839,7 +842,8 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     for attempt in range(max_retries):
         try:
             temperature = 0.3 if is_data_query else 0.7
-            max_tokens = 220 if is_data_query else 300
+            # Slightly higher completion allowance to reduce empty responses
+            max_tokens = 260 if is_data_query else 360
             resp = await _openai_client.chat.completions.create(
                 model="gpt-5.2",
                 messages=messages,
@@ -901,8 +905,8 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         resp2 = await _openai_client.chat.completions.create(
             model="gpt-5.2",
             messages=minimal_messages,
-            max_completion_tokens=240,
-            temperature=0.6,
+            max_completion_tokens=260,
+            temperature=0.4,
         )
         content2 = resp2.choices[0].message.content.strip() if resp2.choices else ""
         if content2:
@@ -914,10 +918,12 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     if is_data_query:
         # For plots, provide a generic concise interpretation
         if any(kw in question.lower() for kw in ['plot', 'chart', 'show', 'visualize', 'graph']):
-            return "The plot shows the time series movement across the requested period. Key observations: monitor tenor spreads and volatility clustering for macro signals."
-        return "⚠️ Kei could not analyze the bond data. Please try again or rephrase your query."
+            fallback = "The plot shows the time series movement across the requested period. Key observations: monitor tenor spreads and volatility clustering for macro signals."
+            return html_quote_signature(convert_markdown_code_fences_to_html(fallback))
+        fallback = "⚠️ Kei could not analyze the bond data. Try narrowing the period, tenor, or metric (e.g., '/kei yield 10 year Jan 2025')."
+        return html_quote_signature(convert_markdown_code_fences_to_html(fallback))
     else:
-        return (
+        fallback = (
             "📰 Kei | General Knowledge\n\n"
             "I encountered a temporary issue processing your question. This can happen for complex or ambiguous queries.\n\n"
             "Try:\n"
@@ -926,6 +932,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "• Use /kin for broader economic and market context\n"
             "• Use /examples for query samples"
         )
+        return html_quote_signature(convert_markdown_code_fences_to_html(fallback))
 
 
 async def ask_kin(question: str, dual_mode: bool = False) -> str:
