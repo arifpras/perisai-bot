@@ -2152,10 +2152,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     seen = set()
                     metrics_requested = [m for m in metrics_requested if not (m in seen or seen.add(m))]
 
-                    response_text = f"📊 *Found {len(rows_list)} records*\n"
+                    response_text = f"📊 Found {len(rows_list)} records\n"
                     response_text += f"Period: {intent.start_date} → {intent.end_date}\n"
                     
-                    # Per-metric, per-tenor summaries
+                    # Per-metric, per-tenor summaries (plain text with bullet points)
                     import statistics
                     tenors = sorted(set(r.get('tenor') for r in rows_list))
                     for m in metrics_requested:
@@ -2180,9 +2180,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             t_avg = statistics.mean(vals)
                             t_std = statistics.stdev(vals) if len(vals) > 1 else 0
                             response_text += (
-                                f"{tenor:>8}: n={len(vals):>3} "
-                                f"min={t_min:>6.2f}{unit} max={t_max:>6.2f}{unit} "
-                                f"avg={t_avg:>6.2f}{unit} std={t_std:>6.2f}{unit}\n"
+                                f"• {tenor}: n={len(vals)} "
+                                f"min={t_min:.2f}{unit} max={t_max:.2f}{unit} "
+                                f"avg={t_avg:.2f}{unit} std={t_std:.2f}\n"
                             )
                     
                     # Add blank line after summary before tables
