@@ -1447,7 +1447,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kei")
                     return
                 formatted_response = f"{answer}"
-                await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
             
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "text", response_time, True, persona="kei")
@@ -1601,13 +1601,13 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kin")
             return
-        # Sanitize markdown emphasis to reduce Telegram parse errors
-        formatted_response = strip_markdown_emphasis(f"{answer}")
+        # Format response for HTML display
+        formatted_response = f"{answer}"
         try:
-            await update.message.reply_text(formatted_response, parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
         except BadRequest as e:
-            # Fallback: resend without parse mode if Telegram rejects Markdown entities
-            logger.warning(f"Kin BadRequest on Markdown parse: {e}. Resending without parse mode.")
+            # Fallback: resend without parse mode if Telegram rejects HTML entities
+            logger.warning(f"Kin BadRequest on HTML parse: {e}. Resending without parse mode.")
             await update.message.reply_text(formatted_response)
         response_time = time.time() - start_time
         metrics.log_query(user_id, username, question, "text", response_time, True, persona="kin")
