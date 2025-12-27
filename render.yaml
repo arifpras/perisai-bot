@@ -34,3 +34,5 @@ services:
         sync: false
       - key: PERPLEXITY_API_KEY
         sync: false
+      - key: API_BASE_URL
+        value: https://perisai-api.onrender.com
