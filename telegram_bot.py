@@ -10,6 +10,7 @@ import time
 from datetime import date, datetime
 import statistics
 from typing import Optional, List, Dict
+import html as html_module
 from openai import AsyncOpenAI
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -90,6 +91,22 @@ def apply_economist_style(fig, ax):
     ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
     ax.set_axisbelow(True)
 
+# Economist color palette (fallbacks if seaborn is unavailable)
+ECONOMIST_COLORS = {
+    'red': '#E3120B',
+    'blue': '#1DB4D0',
+    'grey': '#7A7A7A',
+    'yellow': '#F4C20D',
+    'green': '#60BD68',
+}
+ECONOMIST_PALETTE = [
+    ECONOMIST_COLORS['red'],
+    ECONOMIST_COLORS['blue'],
+    ECONOMIST_COLORS['grey'],
+    ECONOMIST_COLORS['yellow'],
+    ECONOMIST_COLORS['green'],
+]
+
 
 def is_user_authorized(user_id: int) -> bool:
     """Check if a user is authorized to use the bot.
@@ -126,9 +143,10 @@ def get_auction_db(csv_path: str = "20251224_auction_forecast.csv"):
     return _db_cache[cache_key]
 
 
-def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=None):
+def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=None, economist_style=False):
     """Format data rows for Telegram message (monospace style).
     - Supports single or multiple metrics (e.g., ['yield','price']).
+    - economist_style: Apply Economist table formatting with borders and professional styling.
     """
     if not rows:
         return "No data found."
@@ -154,6 +172,31 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
                 suffix = '%' if m == 'yield' else ''
                 row_vals.append(f"{val:.2f}{suffix}" if val is not None else "-")
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
+        if economist_style:
+            border = '─' * (12 + 3 + len(metrics_list) * 11)
+            return f"```\n┌{border}┐\n│ {header}\n├{sep}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
+        return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
+    # Multi-tenor, multi-date, multi-metric → Date | T1_M1 | T1_M2 | T2_M1 | T2_M2 ...
+    if include_date and len(tenors) > 1 and len(dates) > 1 and len(metrics_list) > 1:
+        col_headers = []
+        for t in tenors:
+            for m in metrics_list:
+                col_headers.append(f"{t.replace('_',' ').replace(' year', 'Y')}_{m.capitalize()[:1]}")
+        header = f"{'Date':<12} | " + " | ".join([f"{h:<8}" for h in col_headers])
+        col_width = 12 + 3 + len(col_headers) * 11
+        sep = '-' * col_width
+        table_rows = []
+        for d in dates:
+            row_vals = []
+            for t in tenors:
+                for m in metrics_list:
+                    val = next((r.get(m) for r in rows if r['tenor'] == t and r['date'] == d), None)
+                    suffix = '%' if m == 'yield' else ''
+                    row_vals.append(f"{val:.2f}{suffix}" if val is not None else "-")
+            table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
+        if economist_style:
+            border = '─' * col_width
+            return f"```\n┌{border}┐\n│ {header}\n├{sep}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, multi-date (single metric)
     if include_date and len(tenors) > 1 and len(dates) > 1:
@@ -166,6 +209,9 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
                 val = next((r.get(metric) for r in rows if r['tenor'] == t and r['date'] == d), None)
                 row_vals.append(f"{val:.2f}{'%' if metric=='yield' else ''}" if val is not None else "-")
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
+        if economist_style:
+            border = '─' * (12 + 3 + len(tenors) * 11)
+            return f"```\n┌{border}┐\n│ {header}\n├{sep}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Single tenor, multi-date (single metric)
     elif include_date and len(tenors) == 1 and len(dates) > 1:
@@ -176,6 +222,9 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         for d in dates:
             val = next((r.get(metric) for r in rows if r['tenor'] == t and r['date'] == d), None)
             table_rows.append(f"{format_date_display(d):<12} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{format_date_display(d):<12} | -")
+        if economist_style:
+            border = '─' * 25
+            return f"```\n┌{border}┐\n│ {header}\n├{border}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, single date
     elif not include_date and len(tenors) > 1:
@@ -185,6 +234,9 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         for t in tenors:
             val = next((r.get(metric) for r in rows if r['tenor'] == t), None)
             table_rows.append(f"{t.replace('_',' '):<8} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{t.replace('_',' '):<8} | -")
+        if economist_style:
+            border = '─' * 20
+            return f"```\n┌{border}┐\n│ {header}\n├{border}┤\n│ " + "\n│ ".join(table_rows) + f"\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Fallback: bullet style
     lines = []
@@ -279,7 +331,8 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
             )
     lines.append("")
     lines.append("Data reflect observed values in the period; simple averages, no inference beyond sample.")
-    lines.append("~ Kei, quant. researcher")
+    lines.append("")
+    lines.append("_~ Kei_")
     return "\n".join(lines)
 
 def format_models_economist_table(models: dict) -> str:
@@ -529,7 +582,7 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     pass
 
             lines.append("")
-            lines.append("~ Kei, quant. researcher")
+            lines.append("_~ Kei_")
             return "\n".join(lines)
         # Handle bond data queries
         db = get_db()
@@ -655,7 +708,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     is_data_query = data_summary is not None
 
     # Short signature to reduce token footprint
-    signature_text = "~ Kei & Kin" if dual_mode else "~ Kei, quant. researcher"
+    signature_text = "\n<i>~ Kei x Kin</i>" if dual_mode else "\n<i>~ Kei</i>"
 
     if is_data_query:
         system_prompt = (
@@ -812,7 +865,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: {{'~ Kei & Kin' if dual_mode else '~ Kin, macro strategist'}}.\n"
+            f"Signature: {{\\n<i>~ Kei x Kin</i> if dual_mode else \\n<i>~ Kin</i>}}.\\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -832,7 +885,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: {{'~ Kei & Kin' if dual_mode else '~ Kin, macro strategist'}}.\n"
+            f"Signature: {{\\n<i>~ Kei x Kin</i> if dual_mode else \\n<i>~ Kin</i>}}.\\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -918,29 +971,32 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     welcome_text = (
-        "<b>PerisAI</b>: Pengelolaan Pembiayaan & Risiko Berbasis AI\n"
+        "<b>PerisAI</b>\n"
+        "<i>Pengelolaan Pembiayaan & Risiko Berbasis AI</i>\n"
         f"v. {datetime.now().year} (c) arifpras\n\n"
-        "─────────────────\n\n"
+        "───────────────────\n\n"
         "<b>Commands</b>\n"
-        "/kei — Quant analyst (💹 data)\n"
-        "/kin — Macro strategist (🌍 context)\n"
-        "/both — Combined (⚡ insight)\n"
+        "/kei — Quant analyst (💹 data, tables, forecasts)\n"
+        "/kin — Macro strategist (🌍 context, insights)\n"
+        "/both — Combined (⚡ data → insight)\n"
         "/check — Quick point lookup\n\n"
-        "<b>Examples</b>\n"
-        "• /kei yield 10 year 2025\n"
-        "• /kei tab yield 5 and 10 year Feb 2025 (table only)\n"
+        "<b>Table Format (NEW!)</b>\n"
+        "Add 'tab' or 'table' to get clean Economist-style tables:\n"
+        "• /kei tab yield 5 and 10 year Feb 2025\n"
+        "• /kei tab price and yield 5 year this week\n\n"
+        "<b>Query Examples</b>\n"
+        "• /kei yield 10 year 2025-12-27\n"
+        "• /kei forecast next 10 observations\n"
         "• /kei auction demand 2026\n"
         "• /kin plot 10 year 2024\n"
         "• /kin what is fiscal policy\n"
-        "• /kin explain impact of BI rate\n"
         "• /both compare yields 2024 vs 2025\n"
-        "• /check 2025-12-12 10 year\n\n"
-        "<b>Routing</b>\n"
-        "• Plots auto-run via /kin even if asked in /kei\n"
-        "• Quant/bond (yield, price, tenor, auction) → /kei\n"
-        "• General/policy/context → /kin\n\n"
-        "Type /examples for more\n"
-        "Type /start anytime"
+        "• /check 2025-12-27 10 year\n\n"
+        "<b>Smart Routing</b>\n"
+        "• Plots auto-route to /kin (even if asked in /kei)\n"
+        "• Policy/general questions → /kin\n"
+        "• Bond data/yields/auctions → /kei\n\n"
+        "Type /examples for detailed queries"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
 
@@ -956,11 +1012,14 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     examples_text = (
-        "<b>📚 Query Examples</b>\n\n"
+        "<b>📚 Query Examples (Updated)</b>\n\n"
         "<b>💹 /kei (Quant Analyst):</b>\n"
-        "/kei yield 10 year 2025\n"
+        "/kei yield 10 year 2025-12-27\n"
         "/kei forecast yield 10 year 2026-01-15\n"
-        "/kei auction demand 2026\n\n"
+        "/kei auction demand 2026\n"
+        "/kei plot 5 and 10 year Feb 2025\n"
+        "/kei tab yield 5 and 10 year Feb 2025 ← table format\n"
+        "/kei tab price and yield 5 year this week ← multi-variable\n\n"
         "<b>🌍 /kin (Macro Strategist):</b>\n"
         "/kin plot yield 10 year Jan 2025\n"
         "/kin what is fiscal policy\n"
@@ -970,17 +1029,17 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/both 5 and 10 years 2024\n"
         "/both compare yields 2024 vs 2025\n\n"
         "<b>📌 /check (Quick Lookup):</b>\n"
-        "/check 2025-12-12 10 year\n"
+        "/check 2025-12-27 10 year\n"
         "/check price 5 and 10 years 6 Dec 2024\n\n"
-        "<b>⚠️ Auto-Redirects</b>\n\n"
-        "<b>→ Plots via /kin:</b> /kei plot requests are auto-handled by Kin\n"
-        "  • /kei plot 5 and 10 year → seamlessly generates Kin plot\n\n"
-        "<b>→ Data via /kei:</b> /kin quantitative requests redirect to Kei\n"
-        "  • /kin auction demand → redirects to /kei\n\n"
+        "<b>✨ Table Format (NEW!)</b>\n"
+        "Use 'tab' or 'table' in /kei queries for clean Economist-style tables:\n"
+        "  • Single tenor: /kei tab yield 5 year Feb 2025\n"
+        "  • Multi-tenor: /kei tab yield 5 and 10 year Feb 2025\n"
+        "  • Multi-variable: /kei tab yield and price 5 and 10 year Feb 2025\n\n"
         "<b>👥 Personas</b>\n\n"
-        "<b>💹 Kei:</b> Quant analyst (MIT/CFA) → Bond data, forecasts, auctions\n"
-        "<b>🌍 Kin:</b> Macro strategist (Harvard/CFA) → Context, policy, web search, plots\n"
-        "<b>⚡ Both:</b> Full analysis (Kei data → Kin insight)"
+        "<b>💹 Kei:</b> MIT/CFA quant → Bond data, forecasts, auctions, tables\n"
+        "<b>🌍 Kin:</b> Harvard/CFA macro → Context, policy, insights, plots\n"
+        "<b>⚡ Both:</b> Full chain (Kei data → Kin analysis)"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
 
@@ -1114,12 +1173,6 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Block Kei responses for general knowledge topics only
     lower_q = question.lower()
     disallowed_phrases = [
-        "fiscal policy",
-        "global financial market",
-        "what is",
-        "explain",
-        "tell me about",
-        "opinion",
     ]
     if any(phrase in lower_q for phrase in disallowed_phrases):
         await update.message.reply_text(
@@ -1163,27 +1216,186 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     metrics.log_query(user_id, username, question, "plot", response_time, False, f"API error {resp.status_code}", "kin")
         except Exception as e:
             logger.error(f"Error calling /chat endpoint for auto-redirect: {e}")
-            await update.message.reply_text("⚠️ Error generating plot. Please try again.")
-            response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kin")
-            return
+            # Fallback: generate plot locally using database
+            try:
+                intent = parse_intent(question)
+                db = get_db()
+                if intent.type in ("RANGE", "AGG_RANGE"):
+                    tenors_to_use = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
+                    png = generate_plot(
+                        db,
+                        intent.start_date,
+                        intent.end_date,
+                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield',
+                        tenor=intent.tenor,
+                        tenors=tenors_to_use,
+                        highlight_date=getattr(intent, 'highlight_date', None)
+                    )
+                    await update.message.reply_photo(photo=io.BytesIO(png))
+                    # Build and send quantitative summary text
+                    params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
+                    where = 'obs_date BETWEEN ? AND ?'
+                    if tenors_to_use:
+                        placeholders = ','.join(['?'] * len(tenors_to_use))
+                        where += f' AND tenor IN ({placeholders})'
+                        params.extend(tenors_to_use)
+                    elif intent.tenor:
+                        where += ' AND tenor = ?'
+                        params.append(intent.tenor)
+                    if intent.series:
+                        where += ' AND series = ?'
+                        params.append(intent.series)
+                    rows = db.con.execute(
+                        f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
+                        params
+                    ).fetchall()
+                    rows_list = [
+                        dict(
+                            series=r[0], tenor=r[1], date=r[2].isoformat(),
+                            price=round(r[3], 2) if r[3] is not None else None,
+                            **{'yield': round(r[4], 2) if r[4] is not None else None}
+                        ) for r in rows
+                    ]
+                    summary_text = format_range_summary_text(
+                        rows_list,
+                        start_date=intent.start_date,
+                        end_date=intent.end_date,
+                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield'
+                    )
+                    if summary_text:
+                        await update.message.reply_text(strip_markdown_emphasis(summary_text))
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, True, "local_fallback", "kei")
+                    return
+                else:
+                    await update.message.reply_text("⚠️ Could not parse a plotting range. Please try again.")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, False, "parse_intent_failed", "kei")
+                    return
+            except Exception as e2:
+                logger.error(f"Local plot fallback failed: {type(e2).__name__}: {e2}")
+                await update.message.reply_text("⚠️ Error generating plot. Please try again.")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "plot", response_time, False, str(e2), "kei")
+                return
         return
     else:
         try:
-            # If user explicitly asks for a table (e.g., "/kei tab ..."), send the computed table directly
+            # If user explicitly asks for a table (e.g., "/kei tab ..."), send as monospace table
             wants_table = lower_q.startswith("tab ") or lower_q.startswith("table ") or " tab " in lower_q or " table " in lower_q
             base_question = re.sub(r"^(tab|table)\s+", "", question, flags=re.IGNORECASE) if wants_table else question
             if wants_table:
-                tables_summary = await try_compute_bond_summary(base_question)
-                if tables_summary:
+                # For tab requests, fetch and format data as a clean monospace table (matching forecast styling)
+                try:
+                    intent = parse_intent(base_question)
+                    db = get_db()
+                    if intent.type in ('RANGE', 'AGG_RANGE'):
+                        # Multi-tenor or multi-date range: use table format
+                        params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
+                        where = 'obs_date BETWEEN ? AND ?'
+                        tenors_to_use = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
+                        if tenors_to_use:
+                            tenor_placeholders = ','.join('?' * len(tenors_to_use))
+                            where += f' AND tenor IN ({tenor_placeholders})'
+                            params.extend(tenors_to_use)
+                        if intent.series:
+                            where += ' AND series = ?'
+                            params.append(intent.series)
+                        rows = db.con.execute(
+                            f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
+                            params
+                        ).fetchall()
+                        rows_list = [
+                            dict(
+                                series=r[0], tenor=r[1], date=r[2].isoformat(),
+                                price=round(r[3], 2) if r[3] is not None else None,
+                                **{'yield': round(r[4], 2) if r[4] is not None else None}
+                            ) for r in rows
+                        ]
+                        
+                        if not rows_list:
+                            await update.message.reply_text(
+                                f"❌ No data found for {intent.tenor or 'all tenors'} in {intent.start_date} to {intent.end_date}.",
+                                parse_mode=ParseMode.MARKDOWN
+                            )
+                            response_time = time.time() - start_time
+                            metrics.log_query(user_id, username, question, "text", response_time, False, "no_data", "kei")
+                            return
+                        
+                        # Format as monospace table (match forecast styling)
+                        metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
+                        table_output = format_rows_for_telegram(rows_list, include_date=True, metric=metric, economist_style=True)
+                        
+                        # Add header context
+                        tenor_display = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
+                        header = f"📊 {metric.capitalize()} | {tenor_display} | {intent.start_date} to {intent.end_date}\n\n"
+                        
+                        await update.message.reply_text(header + table_output, parse_mode=ParseMode.MARKDOWN)
+                        response_time = time.time() - start_time
+                        metrics.log_query(user_id, username, question, "text", response_time, True, "table_output", "kei")
+                        return
+                    elif intent.type == 'POINT':
+                        # Single point date
+                        d = intent.point_date
+                        params = [d.isoformat()]
+                        where = 'obs_date = ?'
+                        tenors_to_use = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
+                        if tenors_to_use:
+                            placeholders = ','.join(['?'] * len(tenors_to_use))
+                            where += f' AND tenor IN ({placeholders})'
+                            params.extend(tenors_to_use)
+                        if intent.series:
+                            where += ' AND series = ?'
+                            params.append(intent.series)
+                        rows = db.con.execute(
+                            f'SELECT series, tenor, price, "yield" FROM ts WHERE {where} ORDER BY series',
+                            params
+                        ).fetchall()
+                        rows_list = [
+                            dict(
+                                series=r[0],
+                                tenor=r[1],
+                                price=round(r[2], 2) if r[2] is not None else None,
+                                **{'yield': round(r[3], 2) if r[3] is not None else None}
+                            )
+                            for r in rows
+                        ]
+                        
+                        if not rows_list:
+                            await update.message.reply_text(
+                                f"❌ No data found for {intent.tenor or 'all tenors'} on {d}.",
+                                parse_mode=ParseMode.MARKDOWN
+                            )
+                            response_time = time.time() - start_time
+                            metrics.log_query(user_id, username, question, "text", response_time, False, "no_data", "kei")
+                            return
+                        
+                        metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
+                        table_output = format_rows_for_telegram(rows_list, include_date=False, metric=metric, economist_style=True)
+                        tenor_display = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
+                        header = f"📊 {metric.capitalize()} | {tenor_display} | {d}\n\n"
+                        
+                        await update.message.reply_text(header + table_output, parse_mode=ParseMode.MARKDOWN)
+                        response_time = time.time() - start_time
+                        metrics.log_query(user_id, username, question, "text", response_time, True, "table_output", "kei")
+                        return
+                    else:
+                        await update.message.reply_text(
+                            "❌ Table format expects a date range or point date query. Try: '/kei tab yield 5 year Feb 2025'",
+                            parse_mode=ParseMode.MARKDOWN
+                        )
+                        response_time = time.time() - start_time
+                        metrics.log_query(user_id, username, question, "text", response_time, False, "invalid_query_type", "kei")
+                        return
+                except Exception as e:
+                    logger.error(f"Error processing /kei tab query: {e}", exc_info=True)
                     await update.message.reply_text(
-                        tables_summary,
+                        f"❌ Could not parse that query. Try: '/kei tab yield 5 year Feb 2025'",
                         parse_mode=ParseMode.MARKDOWN
                     )
                     response_time = time.time() - start_time
-                    metrics.log_query(user_id, username, question, "text", response_time, True, "table_only", "kei")
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "parse_error", "kei")
                     return
-                # If no data found, fall through to normal handling
             # Check if this is a "next N observations" forecast query
             next_match = re.search(r"next\s+(\d+)\s+(observations?|obs|points|days)", question.lower())
             is_forecast_next = next_match and any(kw in question.lower() for kw in ["forecast", "predict", "estimate"])
@@ -1287,18 +1499,74 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     metrics.log_query(user_id, username, question, "plot", response_time, False, f"API error {resp.status_code}", "kin")
         except Exception as e:
             logger.error(f"Error calling /chat endpoint: {e}")
-            await update.message.reply_text("⚠️ Error generating plot. Please try again.")
-            response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "kin")
-            return
+            # Fallback: generate plot locally using database
+            try:
+                intent = parse_intent(question)
+                db = get_db()
+                if intent.type in ("RANGE", "AGG_RANGE"):
+                    tenors_to_use = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
+                    png = generate_plot(
+                        db,
+                        intent.start_date,
+                        intent.end_date,
+                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield',
+                        tenor=intent.tenor,
+                        tenors=tenors_to_use,
+                        highlight_date=getattr(intent, 'highlight_date', None)
+                    )
+                    await update.message.reply_photo(photo=io.BytesIO(png))
+
+                    # Build and send quantitative summary text
+                    params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
+                    where = 'obs_date BETWEEN ? AND ?'
+                    if tenors_to_use:
+                        placeholders = ','.join(['?'] * len(tenors_to_use))
+                        where += f' AND tenor IN ({placeholders})'
+                        params.extend(tenors_to_use)
+                    elif intent.tenor:
+                        where += ' AND tenor = ?'
+                        params.append(intent.tenor)
+                    if intent.series:
+                        where += ' AND series = ?'
+                        params.append(intent.series)
+                    rows = db.con.execute(
+                        f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
+                        params
+                    ).fetchall()
+                    rows_list = [
+                        dict(
+                            series=r[0], tenor=r[1], date=r[2].isoformat(),
+                            price=round(r[3], 2) if r[3] is not None else None,
+                            **{'yield': round(r[4], 2) if r[4] is not None else None}
+                        ) for r in rows
+                    ]
+                    summary_text = format_range_summary_text(
+                        rows_list,
+                        start_date=intent.start_date,
+                        end_date=intent.end_date,
+                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield'
+                    )
+                    if summary_text:
+                        await update.message.reply_text(strip_markdown_emphasis(summary_text))
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kin")
+                    return
+                else:
+                    await update.message.reply_text("⚠️ Could not parse a plotting range. Please try again.")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, False, "parse_intent_failed", "kin")
+                    return
+            except Exception as e2:
+                logger.error(f"Local plot fallback failed: {type(e2).__name__}: {e2}")
+                await update.message.reply_text("⚠️ Error generating plot. Please try again.")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "plot", response_time, False, str(e2), "kin")
+                return
         return
 
     # Block quantitative/forecasting topics when not plotting
     disallowed_keywords = [
-        "forecast", "forecasting", "incoming", "machine learning",
-        "auction", "demand", "yield", "price", "bond", "tenor",
-        "historical", "backtest", "model", "arima", "prophet",
-        "data analysis", "quantitative", "algorithm"
+        'forecast', 'predict', 'estimate'
     ]
     if any(keyword in lower_q for keyword in disallowed_keywords):
         await update.message.reply_text(
@@ -1394,9 +1662,69 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     metrics.log_query(user_id, username, question, "plot", response_time, False, f"API error {resp.status_code}", "both")
         except Exception as e:
             logger.error(f"Error calling /chat endpoint: {e}")
-            await update.message.reply_text("⚠️ Error generating plot. Please try again.")
-            response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "plot", response_time, False, str(e), "both")
+            # Fallback: generate plot locally using database
+            try:
+                intent = parse_intent(question)
+                db = get_db()
+                if intent.type in ("RANGE", "AGG_RANGE"):
+                    tenors_to_use = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
+                    png = generate_plot(
+                        db,
+                        intent.start_date,
+                        intent.end_date,
+                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield',
+                        tenor=intent.tenor,
+                        tenors=tenors_to_use,
+                        highlight_date=getattr(intent, 'highlight_date', None)
+                    )
+                    await update.message.reply_photo(photo=io.BytesIO(png))
+                    # Build and send quantitative summary text
+                    params = [intent.start_date.isoformat(), intent.end_date.isoformat()]
+                    where = 'obs_date BETWEEN ? AND ?'
+                    if tenors_to_use:
+                        placeholders = ','.join(['?'] * len(tenors_to_use))
+                        where += f' AND tenor IN ({placeholders})'
+                        params.extend(tenors_to_use)
+                    elif intent.tenor:
+                        where += ' AND tenor = ?'
+                        params.append(intent.tenor)
+                    if intent.series:
+                        where += ' AND series = ?'
+                        params.append(intent.series)
+                    rows = db.con.execute(
+                        f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
+                        params
+                    ).fetchall()
+                    rows_list = [
+                        dict(
+                            series=r[0], tenor=r[1], date=r[2].isoformat(),
+                            price=round(r[3], 2) if r[3] is not None else None,
+                            **{'yield': round(r[4], 2) if r[4] is not None else None}
+                        ) for r in rows
+                    ]
+                    summary_text = format_range_summary_text(
+                        rows_list,
+                        start_date=intent.start_date,
+                        end_date=intent.end_date,
+                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield'
+                    )
+                    if summary_text:
+                        await update.message.reply_text(
+                            f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{strip_markdown_emphasis(html_module.escape(summary_text))}",
+                            parse_mode=ParseMode.HTML
+                        )
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, True, "local_fallback", "both")
+                else:
+                    await update.message.reply_text("⚠️ Could not parse a plotting range. Please try again.")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, False, "parse_intent_failed", "both")
+            except Exception as e2:
+                logger.error(f"Local plot fallback failed: {type(e2).__name__}: {e2}")
+                await update.message.reply_text("⚠️ Error generating plot. Please try again.")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "plot", response_time, False, str(e2), "both")
+                return
     else:
         try:
             result = await ask_kei_then_kin(question)
@@ -1434,7 +1762,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{html_module.escape(kei_clean)}\n\n"
                 "---\n\n"
                 f"{html_module.escape(kin_clean)}\n\n"
-                "________"
+                "<i>~ Kei x Kin</i>"
             )
             
             await update.message.reply_text(response, parse_mode=ParseMode.HTML)
@@ -1445,6 +1773,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Error processing query. Please try again.")
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "both")
+            return
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
