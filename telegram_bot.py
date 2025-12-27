@@ -344,7 +344,7 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
     lines.append("")
     lines.append("Data reflect observed values in the period; simple averages, no inference beyond sample.")
     lines.append("")
-    lines.append("_~ Kei_")
+    lines.append("~ Kei")
     return "\n".join(lines)
 
 def format_models_economist_table(models: dict) -> str:
@@ -594,7 +594,7 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     pass
 
             lines.append("")
-            lines.append("_~ Kei_")
+            lines.append("~ Kei")
             return "\n".join(lines)
         # Handle bond data queries
         db = get_db()
@@ -720,7 +720,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     is_data_query = data_summary is not None
 
     # Short signature to reduce token footprint
-    signature_text = "\n<i>~ Kei x Kin</i>" if dual_mode else "\n<i>~ Kei</i>"
+    signature_text = "\n~ Kei x Kin" if dual_mode else "\n~ Kei"
 
     if is_data_query:
         system_prompt = (
@@ -877,7 +877,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: {{\\n<i>~ Kei x Kin</i> if dual_mode else \\n<i>~ Kin</i>}}.\\n"
+            f"Signature: {{\\n~ Kei x Kin if dual_mode else \\n~ Kin}}.\\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -897,7 +897,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: {{\\n<i>~ Kei x Kin</i> if dual_mode else \\n<i>~ Kin</i>}}.\\n"
+            f"Signature: {{\\n~ Kei x Kin if dual_mode else \\n~ Kin}}.\\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -1780,7 +1780,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{html_module.escape(kei_clean)}\n\n"
                 "---\n\n"
                 f"{html_module.escape(kin_clean)}\n\n"
-                "<i>~ Kei x Kin</i>"
+                "~ Kei x Kin"
             )
             
             await update.message.reply_text(response, parse_mode=ParseMode.HTML)
