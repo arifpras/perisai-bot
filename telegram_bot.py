@@ -103,24 +103,34 @@ def strip_markdown_emphasis(text: str) -> str:
 def html_quote_signature(text: str) -> str:
     """Wrap trailing signature lines in HTML blockquote for Telegram HTML parse mode.
 
-    Converts any trailing line matching '~ Kei', '~ Kin', or '~ Kei x Kin' into
-    '<blockquote>…</blockquote>'. Idempotent: leaves already-quoted signatures unchanged.
+    Removes all duplicate signatures (plain text and blockquote format) and ensures
+    exactly one blockquote signature at the end. Handles '~ Kei', '~ Kin', or '~ Kei x Kin'.
     """
     if not isinstance(text, str) or not text:
         return text
-    # If already contains a blockquote signature at the end, return as-is
-    if re.search(r"\n<blockquote>~\s+(Kei|Kin|Kei x Kin)</blockquote>\s*$", text):
+    
+    # Detect which signature should be used (prioritize 'Kei x Kin' for dual mode)
+    signature_type = None
+    if 'kei x kin' in text.lower() or 'kei & kin' in text.lower():
+        signature_type = 'Kei x Kin'
+    elif '~ kin' in text.lower():
+        signature_type = 'Kin'
+    elif '~ kei' in text.lower():
+        signature_type = 'Kei'
+    
+    if not signature_type:
         return text
-    # Replace plain signatures at the end of the text
-    patterns = [
-        (r"\n~\s+Kei\s*$", "\n<blockquote>~ Kei</blockquote>"),
-        (r"\n~\s+Kin\s*$", "\n<blockquote>~ Kin</blockquote>"),
-        (r"\n~\s+Kei\s+x\s+Kin\s*$", "\n<blockquote>~ Kei x Kin</blockquote>"),
-    ]
-    for pat, rep in patterns:
-        if re.search(pat, text):
-            return re.sub(pat, rep, text)
-    return text
+    
+    # Remove ALL occurrences of signatures (both plain text and blockquote format)
+    # This ensures no duplicates remain
+    text = re.sub(r'\n*<blockquote>~\s+(Kei|Kin|Kei x Kin|Kei & Kin)</blockquote>\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\n+~\s+(Kei|Kin|Kei x Kin|Kei & Kin)\s*', '', text, flags=re.IGNORECASE)
+    
+    # Clean up any trailing whitespace
+    text = text.rstrip()
+    
+    # Add exactly one signature at the end
+    return f"{text}\n\n<blockquote>~ {signature_type}</blockquote>"
 
 
 def convert_markdown_code_fences_to_html(text: str) -> str:
