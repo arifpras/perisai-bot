@@ -50,6 +50,24 @@ uvicorn app_fastapi:app --host 0.0.0.0 --port 8000
 # The Telegram bot will automatically start when TELEGRAM_BOT_TOKEN is set
 ```
 
+### 4.1 Configure API Base URL (Required for /chat routing)
+
+The bot routes plot requests through the FastAPI `/chat` endpoint for consistent Economist-style visuals.
+
+Set one of the following:
+- `API_BASE_URL` — Recommended: your public Render URL (e.g., `https://perisai-api.onrender.com`)
+- Or rely on automatic fallback: `http://localhost:$PORT` (works inside Render where `PORT` is set)
+
+Examples:
+```bash
+# Render (public)
+export API_BASE_URL="https://perisai-api.onrender.com"
+
+# Local dev
+export PORT=8000
+export API_BASE_URL="http://localhost:$PORT"
+```
+
 ### 5. Set Webhook (Production Only)
 
 After deploying to Render, set the webhook URL:

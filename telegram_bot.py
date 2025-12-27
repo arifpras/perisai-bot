@@ -51,7 +51,13 @@ PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 PERPLEXITY_MODEL = os.environ.get("PERPLEXITY_MODEL", "sonar-pro")
 
 # API configuration
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
+# Prefer explicit API_BASE_URL; else use localhost with Render's PORT; else fallback to external URL
+_port = os.environ.get("PORT", "8000")
+API_BASE_URL = (
+    os.environ.get("API_BASE_URL")
+    or f"http://localhost:{_port}"
+    or os.environ.get("RENDER_EXTERNAL_URL")
+)
 
 # Metrics module
 try:
