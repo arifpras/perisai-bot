@@ -5,15 +5,20 @@ Indonesian government bond analysis & forecasting via Telegram. Dual personas: *
 
 **Key Features:**
 - 💹 **Bond Data** — Historical prices/yields (2023-2025), multi-tenor queries
-- 📊 **Tables** — New! Clean Economist-style monospace tables with `/kei tab`
+- 📊 **Tables** — Clean Economist-style monospace tables with `/kei tab`
 - 🔮 **Forecasting** — 7-model ensemble (ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo)
-- 📈 **Plots** — Multi-tenor yield curves with Economist styling
+- 📈 **Plots** — Professional Economist magazine aesthetic via `/kin plot`
+  - Gray background (#F0F0F0), white gridlines (1.8 linewidth)
+  - Left-aligned titles (13pt), clear typography hierarchy
+  - Source caption: "PerisAI analytics | as of [date]"
+  - Multi-tenor support with color-coded lines
 - 🌍 **Macro Context** — Policy, BI rates, fiscal implications via Kin persona
 - ⚡ **Dual Analysis** — Chain both personas for complete insights
 
-**Forecasting Examples:**
-- `/kei forecast yield 10 year 2025-12-31`
-- `/kei auction demand January 2026`
+**Query Examples:**
+- `/kei forecast yield 10 year 2025-12-31` (7-model ensemble)
+- `/kei tab yield 5 and 10 year Feb 2025` (Economist-style table)
+- `/kin plot 5 and 10 year Jan 2025` (Economist magazine aesthetic)
 - `/kin explain impact of BI rate cuts on bond yields`
 - `/both compare yields 2024 vs 2025` (Kei data → Kin insight)
 
@@ -103,6 +108,26 @@ ETS          | 6.1494%
 PROPHET      | 6.1829%
 AVERAGE      | 6.1637%
 ```
+
+## Economist-Style Visualizations 📊
+
+**Professional Design:**
+- **Typography**: Left-aligned titles (13pt), labels (12pt), caption (11pt)
+- **Colors**: Gray background (#F0F0F0), white gridlines, red/blue data lines
+- **Grid**: Horizontal-only, 1.8 linewidth for clear visibility
+- **Caption**: "Source: PerisAI analytics | as of [date]" at bottom left
+- **Spacing**: 20% bottom margin for clean layout
+
+**Multi-Tenor Plots:**
+```
+/kin plot 5 and 10 year Jan 2025
+```
+- Separate color-coded lines per tenor
+- Stable color mapping (consistent across queries)
+- Legend at upper right, frameless
+
+**Styling Philosophy:**
+Inspired by *The Economist* magazine charts—minimal, data-focused, publication-ready. No chart junk, clear hierarchy, professional presentation.
 
 ## Personas 👥
 

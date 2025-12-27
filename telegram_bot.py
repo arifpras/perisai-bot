@@ -88,28 +88,99 @@ def strip_markdown_emphasis(text: str) -> str:
     return text
 
 
+def html_quote_signature(text: str) -> str:
+    """Wrap trailing signature lines in HTML blockquote for Telegram HTML parse mode.
+
+    Converts any trailing line matching '~ Kei', '~ Kin', or '~ Kei x Kin' into
+    '<blockquote>…</blockquote>'. Idempotent: leaves already-quoted signatures unchanged.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    # If already contains a blockquote signature at the end, return as-is
+    if re.search(r"\n<blockquote>~\s+(Kei|Kin|Kei x Kin)</blockquote>\s*$", text):
+        return text
+    # Replace plain signatures at the end of the text
+    patterns = [
+        (r"\n~\s+Kei\s*$", "\n<blockquote>~ Kei</blockquote>"),
+        (r"\n~\s+Kin\s*$", "\n<blockquote>~ Kin</blockquote>"),
+        (r"\n~\s+Kei\s+x\s+Kin\s*$", "\n<blockquote>~ Kei x Kin</blockquote>"),
+    ]
+    for pat, rep in patterns:
+        if re.search(pat, text):
+            return re.sub(pat, rep, text)
+    return text
+
+
+def convert_markdown_code_fences_to_html(text: str) -> str:
+    """Convert Markdown triple-backtick code fences to HTML <pre> blocks.
+
+    - Replaces ```...``` blocks with <pre>escaped_content</pre>
+    - Escapes &, <, > inside the block to avoid HTML parsing issues.
+    - Idempotent for already-converted content (no effect on <pre> blocks).
+    """
+    if not isinstance(text, str) or not text:
+        return text
+
+    def _escape_html(s: str) -> str:
+        return (
+            s.replace('&', '&amp;')
+             .replace('<', '&lt;')
+             .replace('>', '&gt;')
+        )
+
+    # Regex to capture code fences, optionally with a language hint on the first line
+    fence_pattern = re.compile(r"```(?:[a-zA-Z0-9_+-]*\n)?(.*?)```", re.DOTALL)
+
+    def _repl(match: re.Match) -> str:
+        content = match.group(1)
+        return f"<pre>{_escape_html(content).strip()}</pre>"
+
+    return fence_pattern.sub(_repl, text)
+
+
 def apply_economist_style(fig, ax):
-    """Apply Economist-style formatting to matplotlib figure."""
-    # Set colors
-    ax.set_facecolor('#F5F5F5')
+    """Apply The Economist styling to a matplotlib figure."""
+    ax.set_facecolor(ECONOMIST_COLORS['bg_gray'])
     fig.patch.set_facecolor('white')
     
-    # Style spines
-    for spine in ax.spines.values():
-        spine.set_edgecolor('#CCCCCC')
-        spine.set_linewidth(0.5)
+    # Remove top and right spines, hide left
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
     
-    # Grid
-    ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
-    ax.set_axisbelow(True)
+    # Style bottom spine
+    ax.spines['bottom'].set_color(ECONOMIST_COLORS['black'])
+    ax.spines['bottom'].set_linewidth(0.5)
+    
+    # Grid: only horizontal, more visible
+    ax.grid(axis='y',
+        color=ECONOMIST_COLORS.get('grid', 'white'),
+        linewidth=1.8,
+        linestyle='-',
+        alpha=1.0)
+    ax.grid(axis='x', visible=False)
+    
+    # Tick styling
+    tick_color = ECONOMIST_COLORS.get('gray', ECONOMIST_COLORS['grey'])
+    ax.tick_params(axis='both', which='both', length=0, labelsize=12, colors=tick_color)
+    ax.xaxis.label.set_color(tick_color)
+    ax.yaxis.label.set_color(tick_color)
+
+    # Margins (increased bottom to accommodate caption)
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.20)
 
 # Economist color palette (fallbacks if seaborn is unavailable)
 ECONOMIST_COLORS = {
     'red': '#E3120B',
     'blue': '#1DB4D0',
+    'teal': '#00847E',
     'grey': '#7A7A7A',
     'yellow': '#F4C20D',
     'green': '#60BD68',
+    'gray': '#8C8C8C',
+    'bg_gray': '#F0F0F0',
+    'black': '#1A1A1A',
+    'grid': '#FFFFFF',
 }
 ECONOMIST_PALETTE = [
     ECONOMIST_COLORS['red'],
@@ -267,7 +338,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
     return "\n\n".join(lines)
 
 
-def format_range_summary_text(rows, start_date=None, end_date=None, metric='yield'):
+def format_range_summary_text(rows, start_date=None, end_date=None, metric='yield', signature_persona: str = 'Kei'):
     """Generate plain-text quantitative summary for range queries.
     - Per-tenor stats: avg/min/max/std, n
     - Curve spread when exactly two tenors and metric is yield
@@ -344,7 +415,7 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
     lines.append("")
     lines.append("Data reflect observed values in the period; simple averages, no inference beyond sample.")
     lines.append("")
-    lines.append("~ Kei")
+    lines.append(f"<blockquote>~ {signature_persona}</blockquote>")
     return "\n".join(lines)
 
 def format_models_economist_table(models: dict) -> str:
@@ -594,7 +665,7 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     pass
 
             lines.append("")
-            lines.append("~ Kei")
+            lines.append("<blockquote>~ Kei</blockquote>")
             return "\n".join(lines)
         # Handle bond data queries
         db = get_db()
@@ -719,8 +790,8 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
     data_summary = await try_compute_bond_summary(question)
     is_data_query = data_summary is not None
 
-    # Short signature to reduce token footprint
-    signature_text = "\n~ Kei x Kin" if dual_mode else "\n~ Kei"
+    # Short signature to reduce token footprint (HTML blockquote)
+    signature_text = "\n<blockquote>~ Kei x Kin</blockquote>" if dual_mode else "\n<blockquote>~ Kei</blockquote>"
 
     if is_data_query:
         system_prompt = (
@@ -773,7 +844,9 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             if content:
                 if not is_data_query and not content.startswith("📰"):
                     content = f"📰 {content}"
-                return content
+                # Convert any Markdown code fences to HTML <pre> for HTML parse mode
+                content = convert_markdown_code_fences_to_html(content)
+                return html_quote_signature(content)
             if attempt < max_retries - 1:
                 logger.warning(f"Kei attempt {attempt + 1}: empty response, retrying (query_type={'data' if is_data_query else 'general'})...")
             else:
@@ -827,7 +900,8 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         )
         content2 = resp2.choices[0].message.content.strip() if resp2.choices else ""
         if content2:
-            return content2
+            content2 = convert_markdown_code_fences_to_html(content2)
+            return html_quote_signature(content2)
     except Exception as e:
         logger.warning(f"Kei minimal fallback failed: {e}")
 
@@ -878,7 +952,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: ALWAYS end your response with a blank line followed by: {'~ Kei x Kin' if dual_mode else '~ Kin'}\n"
+            f"Signature: ALWAYS end your response with a blank line followed by: {'<blockquote>~ Kei x Kin</blockquote>' if dual_mode else '<blockquote>~ Kin</blockquote>'}\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -899,7 +973,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
-            f"Signature: ALWAYS end your response with a blank line followed by: {'~ Kei x Kin' if dual_mode else '~ Kin'}\n"
+            f"Signature: ALWAYS end your response with a blank line followed by: {'<blockquote>~ Kei x Kin</blockquote>' if dual_mode else '<blockquote>~ Kin</blockquote>'}\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
@@ -935,12 +1009,16 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             r.raise_for_status()
             data = r.json()
 
-        return (
+        content = (
             data.get("choices", [{}])[0]
             .get("message", {})
             .get("content", "")
             .strip()
         ) or "(empty response)"
+
+        # Convert Markdown code fences to HTML <pre> before wrapping signature
+        content = convert_markdown_code_fences_to_html(content)
+        return html_quote_signature(content)
 
     except httpx.HTTPStatusError as e:
         error_detail = ""
@@ -991,25 +1069,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "───────────────────\n\n"
         "<b>Commands</b>\n"
         "/kei — Quant analyst (💹 data, tables, forecasts)\n"
-        "/kin — Macro strategist (🌍 context, insights)\n"
+        "/kin — Macro strategist (🌍 context, insights, plots)\n"
         "/both — Combined (⚡ data → insight)\n"
         "/check — Quick point lookup\n\n"
-        "<b>Table Format (NEW!)</b>\n"
-        "Add 'tab' or 'table' to get clean Economist-style tables:\n"
-        "• /kei tab yield 5 and 10 year Feb 2025\n"
-        "• /kei tab price and yield 5 year this week\n\n"
+        "<b>📊 Economist-Style Output</b>\n"
+        "• Tables: /kei tab yield 5 and 10 year Feb 2025\n"
+        "• Plots: /kin plot 5 and 10 year Jan 2025\n"
+        "• Multi-variable: /kei tab yield and price 5 year\n\n"
         "<b>Query Examples</b>\n"
         "• /kei yield 10 year 2025-12-27\n"
         "• /kei forecast next 10 observations\n"
         "• /kei auction demand 2026\n"
-        "• /kin plot 10 year 2024\n"
+        "• /kin plot 5 and 10 year Jan 2025 (Economist style!)\n"
         "• /kin what is fiscal policy\n"
         "• /both compare yields 2024 vs 2025\n"
         "• /check 2025-12-27 10 year\n\n"
         "<b>Smart Routing</b>\n"
-        "• Plots auto-route to /kin (even if asked in /kei)\n"
-        "• Policy/general questions → /kin\n"
-        "• Bond data/yields/auctions → /kei\n\n"
+        "• Plots → /kin (Economist magazine aesthetic)\n"
+        "• Policy/macro → /kin\n"
+        "• Bond data/forecasts → /kei\n\n"
         "Type /examples for detailed queries"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
@@ -1026,34 +1104,38 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     examples_text = (
-        "<b>📚 Query Examples (Updated)</b>\n\n"
+        "<b>📚 Query Examples</b>\n\n"
         "<b>💹 /kei (Quant Analyst):</b>\n"
         "/kei yield 10 year 2025-12-27\n"
         "/kei forecast yield 10 year 2026-01-15\n"
+        "/kei forecast next 10 observations\n"
         "/kei auction demand 2026\n"
-        "/kei plot 5 and 10 year Feb 2025\n"
-        "/kei tab yield 5 and 10 year Feb 2025 ← table format\n"
-        "/kei tab price and yield 5 year this week ← multi-variable\n\n"
+        "/kei tab yield 5 and 10 year Feb 2025 ← table\n"
+        "/kei tab price and yield 5 year this week ← multi-var\n\n"
         "<b>🌍 /kin (Macro Strategist):</b>\n"
-        "/kin plot yield 10 year Jan 2025\n"
+        "/kin plot 5 and 10 year Jan 2025 ← Economist style\n"
         "/kin what is fiscal policy\n"
-        "/kin explain impact of BI rate\n"
+        "/kin explain impact of BI rate cuts\n"
         "/kin what is monetary policy\n\n"
         "<b>⚡ /both (Combined Analysis):</b>\n"
-        "/both 5 and 10 years 2024\n"
+        "/both plot 5 and 10 years 2024\n"
         "/both compare yields 2024 vs 2025\n\n"
         "<b>📌 /check (Quick Lookup):</b>\n"
         "/check 2025-12-27 10 year\n"
         "/check price 5 and 10 years 6 Dec 2024\n\n"
-        "<b>✨ Table Format (NEW!)</b>\n"
-        "Use 'tab' or 'table' in /kei queries for clean Economist-style tables:\n"
-        "  • Single tenor: /kei tab yield 5 year Feb 2025\n"
-        "  • Multi-tenor: /kei tab yield 5 and 10 year Feb 2025\n"
-        "  • Multi-variable: /kei tab yield and price 5 and 10 year Feb 2025\n\n"
+        "<b>📊 Economist-Style Output</b>\n"
+        "<b>Tables:</b> Use 'tab' or 'table' in /kei queries\n"
+        "  • Single: /kei tab yield 5 year Feb 2025\n"
+        "  • Multi-tenor: /kei tab yield 5 and 10 year Feb\n"
+        "  • Multi-variable: /kei tab yield and price 5 year\n\n"
+        "<b>Plots:</b> Professional charts via /kin or /both\n"
+        "  • Gray background, white grid (1.8 linewidth)\n"
+        "  • Multi-tenor: /kin plot 5 and 10 year Jan 2025\n"
+        "  • Caption: 'Source: PerisAI analytics | as of [date]'\n\n"
         "<b>👥 Personas</b>\n\n"
-        "<b>💹 Kei:</b> MIT/CFA quant → Bond data, forecasts, auctions, tables\n"
-        "<b>🌍 Kin:</b> Harvard/CFA macro → Context, policy, insights, plots\n"
-        "<b>⚡ Both:</b> Full chain (Kei data → Kin analysis)"
+        "<b>💹 Kei:</b> MIT/CFA quant → Data, forecasts, tables\n"
+        "<b>🌍 Kin:</b> Harvard/CFA macro → Context, plots, insights\n"
+        "<b>⚡ Both:</b> Kei analysis → Kin interpretation"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
 
@@ -1217,11 +1299,17 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         image_bytes = base64.b64decode(data["image"])
                         await update.message.reply_photo(photo=image_bytes)
                         if data_summary and data_summary.strip():
-                            await update.message.reply_text(strip_markdown_emphasis(data_summary))
+                            # Ensure HTML mode consistency: convert fences and append Kin signature
+                            content = convert_markdown_code_fences_to_html(data_summary)
+                            if not re.search(r"\n<blockquote>~\s+Kin</blockquote>\s*$", content):
+                                content = content.rstrip() + "\n<blockquote>~ Kin</blockquote>"
+                            await update.message.reply_text(content, parse_mode=ParseMode.HTML)
                     else:
-                        await update.message.reply_text(
-                            f"🌍 Kin | Economics & Strategy\n\n{strip_markdown_emphasis(data_summary)}"
-                        )
+                        # No image returned; send analysis in HTML with Kin signature
+                        content = convert_markdown_code_fences_to_html(data_summary)
+                        if not re.search(r"\n<blockquote>~\s+Kin</blockquote>\s*$", content):
+                            content = content.rstrip() + "\n<blockquote>~ Kin</blockquote>"
+                        await update.message.reply_text(content, parse_mode=ParseMode.HTML)
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, "auto_redirect_kin", "kin")
                 else:
@@ -1274,10 +1362,11 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         rows_list,
                         start_date=intent.start_date,
                         end_date=intent.end_date,
-                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield'
+                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield',
+                        signature_persona='Kin'
                     )
                     if summary_text:
-                        await update.message.reply_text(strip_markdown_emphasis(summary_text))
+                        await update.message.reply_text(summary_text, parse_mode=ParseMode.HTML)
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, "local_fallback", "kei")
                     return
@@ -1503,10 +1592,15 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         image_bytes = base64.b64decode(data["image"])
                         await update.message.reply_photo(photo=image_bytes)
                         if data_summary and data_summary.strip():
-                            await update.message.reply_text(strip_markdown_emphasis(data_summary))
+                            analysis_html = convert_markdown_code_fences_to_html(data_summary)
+                            analysis_html = html_quote_signature(f"{analysis_html}\n\n<blockquote>~ Kin</blockquote>")
+                            await update.message.reply_text(analysis_html, parse_mode=ParseMode.HTML)
                     else:
+                        analysis_html = convert_markdown_code_fences_to_html(data_summary)
+                        analysis_html = html_quote_signature(f"{analysis_html}\n\n<blockquote>~ Kin</blockquote>")
                         await update.message.reply_text(
-                            f"🌍 Kin | Economics & Strategy\n\n{strip_markdown_emphasis(data_summary)}"
+                            f"🌍 Kin | Economics & Strategy\n\n{analysis_html}",
+                            parse_mode=ParseMode.HTML
                         )
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kin")
@@ -1561,10 +1655,13 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         rows_list,
                         start_date=intent.start_date,
                         end_date=intent.end_date,
-                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield'
+                        metric=intent.metric if getattr(intent, 'metric', None) else 'yield',
+                        signature_persona='Kin'
                     )
                     if summary_text:
-                        await update.message.reply_text(strip_markdown_emphasis(summary_text))
+                        summary_html = convert_markdown_code_fences_to_html(summary_text)
+                        summary_html = html_quote_signature(summary_html)
+                        await update.message.reply_text(summary_html, parse_mode=ParseMode.HTML)
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kin")
                     return
@@ -1782,7 +1879,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{html_module.escape(kei_clean)}\n\n"
                 "---\n\n"
                 f"{html_module.escape(kin_clean)}\n\n"
-                "~ Kei x Kin"
+                "<blockquote>~ Kei x Kin</blockquote>"
             )
             
             await update.message.reply_text(response, parse_mode=ParseMode.HTML)
@@ -2186,62 +2283,70 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
     if highlight_date:
         # Always convert to pd.Timestamp to ensure compatibility with DatetimeArray operations
         highlight_ts = pd.Timestamp(highlight_date)
+
+    # Axis labels and title strings
+    metric_label = metric.capitalize()
+    y_label = 'Yield (%)' if metric == 'yield' else metric_label
+    title_top = f"{metric_label} {display_tenor}".strip()
+    title_bottom = f"{title_start} to {title_end}"
     
     if has_seaborn:
-        sns.set_theme(style='whitegrid', context='notebook', palette='bright')
-        fig, ax = plt.subplots(figsize=(10, 8))
+        # Use a clean Economist-like look with slightly larger fonts
+        sns.set_theme(style='whitegrid', context='talk', palette=ECONOMIST_PALETTE)
+        fig, ax = plt.subplots(figsize=(12, 7))
         apply_economist_style(fig, ax)
-        
+
         if is_multi_tenor:
-            # Multi-tenor: plot separate lines for each tenor with distinct colors
-            sns.lineplot(data=daily, x='obs_date', y=metric, hue='tenor_label', 
-                        linewidth=2.5, ax=ax, errorbar=None, palette=ECONOMIST_PALETTE, legend='full')
-            # Improve legend
-            ax.legend(title='Tenor', fontsize=11, title_fontsize=12, 
-                     loc='best', frameon=True, fancybox=True, shadow=True)
+            # Ensure stable color mapping per tenor
+            tenor_order = sorted(daily['tenor_label'].unique())
+            palette_map = {label: ECONOMIST_PALETTE[i % len(ECONOMIST_PALETTE)] for i, label in enumerate(tenor_order)}
+            sns.lineplot(
+                data=daily,
+                x='obs_date',
+                y=metric,
+                hue='tenor_label',
+                hue_order=tenor_order,
+                linewidth=2.25,
+                ax=ax,
+                errorbar=None,
+                palette=palette_map,
+                legend='full'
+            )
+            ax.legend(title=None, fontsize=12, loc='upper right', frameon=False)
         else:
-            # Single tenor: original single-line plot
-            sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2.5, ax=ax, color=ECONOMIST_COLORS['red'])
-        
+            sns.lineplot(data=daily, x='obs_date', y=metric, linewidth=2.25, ax=ax, color=ECONOMIST_COLORS['red'])
+            leg = ax.get_legend()
+            if leg:
+                leg.remove()
+
         # Add highlight marker if date is in the data
         if highlight_ts is not None:
             if is_multi_tenor:
-                # Highlight all tenors at the date
                 highlight_rows = daily[daily['obs_date'] == highlight_ts]
                 if not highlight_rows.empty:
                     for _, row in highlight_rows.iterrows():
-                        ax.plot(highlight_ts, row[metric], 'r*', markersize=15, zorder=5)
-                    ax.text(highlight_ts, highlight_rows[metric].mean(), 
-                           f'  📍 {format_date(highlight_ts)}', fontsize=9, va='center')
+                        ax.plot(highlight_ts, row[metric], 'k*', markersize=14, zorder=5)
+                    ax.text(highlight_ts, highlight_rows[metric].mean(), f'  📍 {format_date(highlight_ts)}', fontsize=10, va='center')
             else:
                 highlight_row = daily[daily['obs_date'] == highlight_ts]
                 if not highlight_row.empty:
                     y_val = highlight_row[metric].iloc[0]
-                    ax.plot(highlight_ts, y_val, 'r*', markersize=20, 
-                           label=f'📍 {format_date(highlight_ts)}', zorder=5)
-                    ax.legend(fontsize=10)
+                    ax.plot(highlight_ts, y_val, 'k*', markersize=16, zorder=5)
                 else:
-                    # If exact date not found, find closest date
                     daily['date_diff'] = (daily['obs_date'] - highlight_ts).abs()
                     closest = daily.loc[daily['date_diff'].idxmin()]
                     y_val = closest[metric]
-                    ax.plot(closest['obs_date'], y_val, 'r*', markersize=20,
-                           label=f'📍 {format_date(closest["obs_date"])} (closest)', zorder=5)
-                    ax.legend(fontsize=10)
-        
-        ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}', 
-                    fontsize=14, fontweight='bold', pad=20)
-        if is_multi_tenor:
-            # Legend already set above with better styling
-            pass
-        ax.set_xlabel('Date', fontsize=12)
-        ax.set_ylabel(metric.capitalize(), fontsize=12)
-        
+                    ax.plot(closest['obs_date'], y_val, 'k*', markersize=16, zorder=5)
+
+        ax.set_title(f"{title_top}\n{title_bottom}", fontsize=13, pad=14, loc='left', color=ECONOMIST_COLORS['black'])
+        ax.set_xlabel('', fontsize=12)
+        ax.set_ylabel(y_label, fontsize=12)
+
         from matplotlib.dates import DateFormatter
-        date_formatter = DateFormatter('%-d %b %Y')
+        date_formatter = DateFormatter('%-d %b\n%Y')
         ax.xaxis.set_major_formatter(date_formatter)
-        plt.gcf().autofmt_xdate()
-        plt.grid(alpha=0.3)
+        plt.setp(ax.get_xticklabels(), rotation=0, ha='center')
+        # Grid already configured by apply_economist_style() - no override needed
     else:
         fig, ax = plt.subplots(figsize=(10, 8))
         ax.plot(daily['obs_date'], daily[metric], linewidth=2)
@@ -2263,13 +2368,18 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
                        label=f'📍 {format_date(closest["obs_date"])} (closest)', zorder=5)
                 ax.legend(fontsize=10)
         
-        ax.set_title(f'{metric.capitalize()} {display_tenor} from {title_start} to {title_end}')
-        ax.set_xlabel('Date')
-        ax.set_ylabel(metric.capitalize())
+        ax.set_title(f"{title_top}\n{title_bottom}", loc='left')
+        ax.set_xlabel('')
+        ax.set_ylabel(y_label)
         fig.autofmt_xdate()
-        plt.grid(alpha=0.3)
     
     plt.tight_layout()
+    
+    # Add caption at bottom left, inside figure but below plot
+    tick_color = ECONOMIST_COLORS.get('gray', ECONOMIST_COLORS['grey'])
+    fig.text(0.08, 0.1, f"Source: PerisAI analytics | as of {date.today().strftime('%d %b %Y')}", 
+             fontsize=11, color=tick_color, ha='left', va='bottom', weight='normal')
+    
     plt.savefig(buf, format='png', dpi=150)
     plt.close()
     buf.seek(0)
