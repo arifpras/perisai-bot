@@ -1549,9 +1549,34 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         else:
                             # Single metric
                             metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
-                            table_output = format_rows_for_telegram(rows_list, include_date=True, metric=metric, economist_style=True)
+                            # Compute summary_stats per tenor for bottom-of-table stats
+                            import statistics as _stats
+                            _per_tenor = {}
+                            for r in rows_list:
+                                t = r.get('tenor') or 'all'
+                                v = r.get(metric)
+                                if v is None:
+                                    continue
+                                _per_tenor.setdefault(t, []).append(v)
+                            summary_stats = {metric: {}}
+                            for _t, _vals in _per_tenor.items():
+                                if _vals:
+                                    summary_stats[metric][_t] = {
+                                        'count': len(_vals),
+                                        'min': min(_vals),
+                                        'max': max(_vals),
+                                        'avg': _stats.mean(_vals),
+                                        'std': _stats.stdev(_vals) if len(_vals) > 1 else 0,
+                                    }
+                            table_output = format_rows_for_telegram(
+                                rows_list,
+                                include_date=True,
+                                metric=metric,
+                                economist_style=True,
+                                summary_stats=summary_stats,
+                            )
                             
-                            # Compute stats per tenor
+                            # Compute stats per tenor (kept above the table for quick glance)
                             unit = '%' if metric == 'yield' else ''
                             for t in tenors_to_use:
                                 vals = [r.get(metric) for r in rows_list if r['tenor'] == t and r.get(metric) is not None]
