@@ -1480,7 +1480,9 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         response_parts.append(table_output)
                         response_parts.append("\n<blockquote>~ Kei</blockquote>")
                         
-                        await update.message.reply_text("\n".join(response_parts), parse_mode=ParseMode.HTML)
+                        full_response = "\n".join(response_parts)
+                        rendered = convert_markdown_code_fences_to_html(full_response)
+                        await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
                         response_time = time.time() - start_time
                         metrics.log_query(user_id, username, question, "text", response_time, True, "table_output", "kei")
                         return
@@ -1520,12 +1522,23 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             metrics.log_query(user_id, username, question, "text", response_time, False, "no_data", "kei")
                             return
                         
+                        import re
+                        def normalize_tenor_display(tenor_str):
+                            """Normalize tenor labels: '05_year' or '5 year' -> '5Y', '10_year' -> '10Y'"""
+                            label = str(tenor_str or '').replace('_', ' ').strip()
+                            # Normalize patterns like '5year', '5 year', '5Yyear' to '5Y'
+                            label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
+                            label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+                            return label
+                        
                         metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
                         table_output = format_rows_for_telegram(rows_list, include_date=False, metric=metric, economist_style=True)
-                        tenor_display = ", ".join(t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y') for t in tenors_to_use) if tenors_to_use else "all tenors"
+                        tenor_display = ", ".join(normalize_tenor_display(t) for t in tenors_to_use) if tenors_to_use else "all tenors"
                         header = f"📊 {metric.capitalize()} | {tenor_display} | {d}\n\n"
                         
-                        await update.message.reply_text(header + table_output + "\n<blockquote>~ Kei</blockquote>", parse_mode=ParseMode.HTML)
+                        full_response = header + table_output + "\n<blockquote>~ Kei</blockquote>"
+                        rendered = convert_markdown_code_fences_to_html(full_response)
+                        await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
                         response_time = time.time() - start_time
                         metrics.log_query(user_id, username, question, "text", response_time, True, "table_output", "kei")
                         return
