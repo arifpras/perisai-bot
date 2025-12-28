@@ -236,8 +236,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         if economist_style:
             width = 12 + 3 + len(metrics_list) * 11
             border = '─' * width
-            rows_with_borders = "\n".join([f"│ {row}" for row in table_rows])
-            return f"```\n┌{border}\n│ {header}\n├{border}\n{rows_with_borders}\n└{border}\n```"
+            rows_with_borders = "\n".join([f"│ {row:<{width}}" for row in table_rows])
+            return f"```\n┌{border}\n│ {header:<{width}}\n├{border}\n{rows_with_borders}\n└{border}\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, multi-date, multi-metric → Date | T1_M1 | T1_M2 | T2_M1 | T2_M2 ...
     if include_date and len(tenors) > 1 and len(dates) > 1 and len(metrics_list) > 1:
@@ -259,8 +259,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
             border = '─' * col_width
-            rows_with_borders = "\n".join([f"│ {row}" for row in table_rows])
-            return f"```\n┌{border}\n│ {header}\n├{border}\n{rows_with_borders}\n└{border}\n```"
+            rows_with_borders = "\n".join([f"│ {row:<{col_width}}" for row in table_rows])
+            return f"```\n┌{border}\n│ {header:<{col_width}}\n├{border}\n{rows_with_borders}\n└{border}\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, multi-date (single metric)
     if include_date and len(tenors) > 1 and len(dates) > 1:
@@ -275,8 +275,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
             border = '─' * width
-            rows_with_borders = "\n".join([f"│ {row}" for row in table_rows])
-            return f"```\n┌{border}\n│ {header}\n├{border}\n{rows_with_borders}\n└{border}\n```"
+            rows_with_borders = "\n".join([f"│ {row:<{width}}" for row in table_rows])
+            return f"```\n┌{border}\n│ {header:<{width}}\n├{border}\n{rows_with_borders}\n└{border}\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Single tenor, multi-date (single metric)
     elif include_date and len(tenors) == 1 and len(dates) > 1:
@@ -289,8 +289,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{format_date_display(d):<12} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{format_date_display(d):<12} | -")
         if economist_style:
             border = '─' * width
-            rows_with_borders = "\n".join([f"│ {row}" for row in table_rows])
-            return f"```\n┌{border}\n│ {header}\n├{border}\n{rows_with_borders}\n└{border}\n```"
+            rows_with_borders = "\n".join([f"│ {row:<{width}}" for row in table_rows])
+            return f"```\n┌{border}\n│ {header:<{width}}\n├{border}\n{rows_with_borders}\n└{border}\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, single date
     elif not include_date and len(tenors) > 1:
@@ -302,8 +302,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{normalize_tenor_display(t):<8} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{normalize_tenor_display(t):<8} | -")
         if economist_style:
             border = '─' * 20
-            rows_with_borders = "\n".join([f"│ {row}" for row in table_rows])
-            return f"```\n┌{border}\n│ {header}\n├{border}\n{rows_with_borders}\n└{border}\n```"
+            rows_with_borders = "\n".join([f"│ {row:<20}" for row in table_rows])
+            return f"```\n┌{border}\n│ {header:<20}\n├{border}\n{rows_with_borders}\n└{border}\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Fallback: bullet style
     lines = []
@@ -424,8 +424,9 @@ def format_models_economist_table(models: dict) -> str:
     if not table_rows:
         table_rows.append("(no model outputs)")
     
-    rows_with_borders = "\n".join([f"│ {row}" for row in table_rows])
-    return f"┌{border}\n│ {header}\n├{border}\n{rows_with_borders}\n└{border}"
+    # Add 10 characters of right padding for visual balance
+    rows_with_borders = "\n".join([f"│ {row:<{width + 10}}" for row in table_rows])
+    return f"┌{border}\n│ {header:<{width + 10}}\n├{border}\n{rows_with_borders}\n└{border}"
 
 
 def summarize_intent_result(intent, rows_list: List[dict]) -> str:
