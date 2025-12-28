@@ -213,11 +213,13 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         except:
             return date_str
     def normalize_tenor_display(tenor_str):
-        """Normalize tenor labels: '05_year' or '5 year' -> '5Y', '10_year' -> '10Y'"""
+        """Normalize tenor labels: '5_year' -> '05Y', '10_year' -> '10Y' (with zero-padding for single digits)"""
         label = str(tenor_str or '').replace('_', ' ').strip()
         # Normalize patterns like '5year', '5 year', '5Yyear' to '5Y'
         label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
         label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+        # Pad single-digit years with leading zero (1Y -> 01Y, 9Y -> 09Y)
+        label = re.sub(r'(?i)^(\d)Y$', r'0\1Y', label)
         return label
     tenors = sorted(set(row['tenor'] for row in rows))
     dates = sorted(set(row['date'] for row in rows if 'date' in row))
@@ -1431,14 +1433,14 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         summary_lines = []
                         
                         def normalize_tenor_display(tenor_str):
-                            """Normalize tenor labels: '05_year' or '5 year' -> '5Y', '10_year' -> '10Y'"""
+                            """Normalize tenor labels: '5_year' -> '05Y', '10_year' -> '10Y' (with zero-padding for single digits)"""
                             label = str(tenor_str or '').replace('_', ' ').strip()
                             # Normalize patterns like '5year', '5 year', '5Yyear' to '5Y'
                             label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
                             label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+                            # Pad single-digit years with leading zero (1Y -> 01Y, 9Y -> 09Y)
+                            label = re.sub(r'(?i)^(\d)Y$', r'0\1Y', label)
                             return label
-                        
-                        # If multiple metrics detected, use multi-variable table
                         if len(metrics_list) > 1:
                             # Format as multi-variable table
                             table_output = format_rows_for_telegram(rows_list, include_date=True, metrics=metrics_list, economist_style=True)
@@ -1530,11 +1532,13 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             return
                         
                         def normalize_tenor_display(tenor_str):
-                            """Normalize tenor labels: '05_year' or '5 year' -> '5Y', '10_year' -> '10Y'"""
+                            """Normalize tenor labels: '5_year' -> '05Y', '10_year' -> '10Y' (with zero-padding for single digits)"""
                             label = str(tenor_str or '').replace('_', ' ').strip()
                             # Normalize patterns like '5year', '5 year', '5Yyear' to '5Y'
                             label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
                             label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+                            # Pad single-digit years with leading zero (1Y -> 01Y, 9Y -> 09Y)
+                            label = re.sub(r'(?i)^(\d)Y$', r'0\1Y', label)
                             return label
                         
                         metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
