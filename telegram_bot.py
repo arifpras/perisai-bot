@@ -777,6 +777,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "If the user requests a different format (e.g., bullets), honor it and override HL-CU.\n"
             "Body: Emphasize factual reporting; no valuation or advice. Use contrasts (MoM vs YoY, trend vs level). Forward-looking statements must be attributed and conditional.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
+            "CRITICAL — Avoid meta-commentary: Do NOT add disclaimers, caveats, or explanations about data gaps, missing observations, or limitations in the precomputed inputs. Simply provide your analysis using the data provided without drawing attention to what's missing.\n"
             "Sources: Include one bracketed source line only if explicitly provided; otherwise omit.\n"
             f"Signature: {signature_text}.\n"
             "Prohibitions: No follow-up questions. No speculation or flourish. Do not add data not provided.\n"
@@ -1895,8 +1896,10 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Remove both old-style (________) and new-style (<blockquote>) signatures
             def strip_signature(answer):
                 """Remove trailing signature lines (both ________ and <blockquote> formats)."""
-                # Remove blockquote signatures first
-                answer = re.sub(r'\n*<blockquote>~\s+(Kei|Kin|Kei x Kin|Kei & Kin)</blockquote>\s*$', '', answer, flags=re.IGNORECASE)
+                # Remove all blockquote signatures (anywhere, not just end of string)
+                answer = re.sub(r'<blockquote>~\s+(Kei|Kin|Kei x Kin|Kei & Kin)</blockquote>', '', answer, flags=re.IGNORECASE)
+                # Remove any remaining plain text signatures (~ Kei, ~ Kin, ~ Kei x Kin)
+                answer = re.sub(r'\n*~\s+(Kei|Kin|Kei x Kin|Kei & Kin)\s*$', '', answer, flags=re.IGNORECASE | re.MULTILINE)
                 # Then remove old-style ________ signatures
                 lines = answer.rstrip().split('\n')
                 for i in range(len(lines) - 1, -1, -1):
