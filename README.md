@@ -38,7 +38,7 @@ ALLOWED_USER_IDS=<ids>  # optional
 | `/both` | Combined analysis | `/both compare 5 and 10 year 2024 vs 2025` |
 | `/check` | Quick lookup | `/check 2025-12-27 10 year` |
 
-**Table Format:** Add `tab` to `/kei` queries for formatted tables with summary statistics.
+**Table Format:** Add `tab` to `/kei` queries for formatted tables with summary statistics. See examples in [examples/bond_tables.md](examples/bond_tables.md) and use the in-bot `/examples` command.
 
 ## Auction Tab Queries
 
@@ -58,22 +58,29 @@ Tables render in Economist-style monospace with borders. Periods can be months (
 
 ## Output Format
 
-**Tables:** Right-aligned numeric columns with summary statistics (Count/Min/Max/Avg/Std)
-```
-/kei tab yield 5 and 10 year Feb 2025
+**Tables:** Right-aligned numeric columns with summary statistics (Count/Min/Max/Avg/Std) in Economist-style boxes. Examples:
 
-Date         |     05Y |     10Y  
-───────────────────────────────
-2025-02-01   |    5.45 |    5.62
-2025-02-02   |    5.46 |    5.63
-
-Summary Statistics:
-Count        |      20 |      20
-Min          |    5.42 |    5.58
-Max          |    5.52 |    5.72
-Avg          |    5.47 |    5.65
-Std          |    0.03 |    0.04
 ```
+/kei tab yield and price 5 year Feb 2025
+
+┌───────────────────────────────────────┐
+│ Date         |      Yield |      Price│
+├───────────────────────────────────────┤
+│ 03 Feb 2025  |       6.88 |      98.31│
+│ 04 Feb 2025  |       6.79 |      98.69│
+│ 05 Feb 2025  |       6.72 |      99.02│
+│ ...          |        ... |        ...│
+│ 28 Feb 2025  |       6.73 |      98.97│
+├───────────────────────────────────────┤
+│ Count        |         20 |         20│
+│ Min          |       6.51 |      98.31│
+│ Max          |       6.88 |      99.94│
+│ Avg          |       6.63 |      99.42│
+│ Std          |       0.10 |       0.45│
+└───────────────────────────────────────┘
+```
+
+More in [examples/bond_tables.md](examples/bond_tables.md).
 
 **Charts:** Economist-style aesthetics (gray background, white gridlines, left-aligned typography)
 
