@@ -1591,13 +1591,8 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             tenor_display = ", ".join(normalize_tenor_display(t) for t in tenors_to_use) if tenors_to_use else "all tenors"
                             header = f"📊 {metric.capitalize()} | {tenor_display} | {intent.start_date} to {intent.end_date}\n"
                         
-                        # Build final message with header, stats, table, and signature
-                        summary_text = "\n".join(summary_lines) if summary_lines else ""
-                        response_parts = [header]
-                        if summary_text:
-                            response_parts.append(summary_text + "\n")
-                        response_parts.append(table_output)
-                        response_parts.append("\n<blockquote>~ Kei</blockquote>")
+                        # Build final message with header, table, and signature (drop duplicated top summaries)
+                        response_parts = [header, table_output, "\n<blockquote>~ Kei</blockquote>"]
                         
                         full_response = "\n".join(response_parts)
                         rendered = convert_markdown_code_fences_to_html(full_response)
