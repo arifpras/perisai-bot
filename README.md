@@ -93,10 +93,4 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-## Documentation
-
-- [SECURITY.md](SECURITY.md) — Vulnerability reporting and security policy
-- [ACTIVITY_MONITORING.md](ACTIVITY_MONITORING.md) — Usage logging and analytics
-- [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md) — Production validation
-
 **Current Version:** `v2025.12.28-stable-tables`
