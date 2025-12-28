@@ -236,7 +236,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         if economist_style:
             width = 12 + 3 + len(metrics_list) * 11
             border = '─' * width
-            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
+            rows_with_borders = "\n".join([f"│ {row} │" for row in table_rows])
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, multi-date, multi-metric → Date | T1_M1 | T1_M2 | T2_M1 | T2_M2 ...
     if include_date and len(tenors) > 1 and len(dates) > 1 and len(metrics_list) > 1:
@@ -258,7 +259,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
             border = '─' * col_width
-            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
+            rows_with_borders = "\n".join([f"│ {row} │" for row in table_rows])
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, multi-date (single metric)
     if include_date and len(tenors) > 1 and len(dates) > 1:
@@ -273,7 +275,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
             border = '─' * width
-            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
+            rows_with_borders = "\n".join([f"│ {row} │" for row in table_rows])
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Single tenor, multi-date (single metric)
     elif include_date and len(tenors) == 1 and len(dates) > 1:
@@ -286,7 +289,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{format_date_display(d):<12} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{format_date_display(d):<12} | -")
         if economist_style:
             border = '─' * width
-            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
+            rows_with_borders = "\n".join([f"│ {row} │" for row in table_rows])
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, single date
     elif not include_date and len(tenors) > 1:
@@ -298,7 +302,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{normalize_tenor_display(t):<8} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{normalize_tenor_display(t):<8} | -")
         if economist_style:
             border = '─' * 20
-            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
+            rows_with_borders = "\n".join([f"│ {row} │" for row in table_rows])
+            return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Fallback: bullet style
     lines = []
@@ -1059,10 +1064,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/kin — Macro strategist (🌍 context, insights, plots)\n"
         "/both — Combined (⚡ data → insight)\n"
         "/check — Quick point lookup\n\n"
-        "<b>📊 Economist-Style Output</b>\n"
-        "• Tables: /kei tab yield 5 and 10 year Feb 2025\n"
-        "• Plots: /kin plot 5 and 10 year Jan 2025\n"
-        "• Multi-variable: /kei tab yield and price 5 year\n\n"
         "<b>Query Examples</b>\n"
         "• /kei yield 10 year 2025-12-27\n"
         "• /kei forecast next 10 observations\n"
@@ -1071,10 +1072,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /kin what is fiscal policy\n"
         "• /both compare yields 2024 vs 2025\n"
         "• /check 2025-12-27 10 year\n\n"
-        "<b>Smart Routing</b>\n"
-        "• Plots → /kin (Economist magazine aesthetic)\n"
-        "• Policy/macro → /kin\n"
-        "• Bond data/forecasts → /kei\n\n"
         "Type /examples for detailed queries"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
