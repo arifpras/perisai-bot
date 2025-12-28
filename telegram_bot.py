@@ -2183,8 +2183,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             t_max = max(vals)
                             t_avg = statistics.mean(vals)
                             t_std = statistics.stdev(vals) if len(vals) > 1 else 0
+                            tenor_display = tenor.replace('_', ' ').strip()
                             response_text += (
-                                f"• {tenor}: n={len(vals)} "
+                                f"• {tenor_display}: n={len(vals)} "
                                 f"min={t_min:.2f}{unit} max={t_max:.2f}{unit} "
                                 f"avg={t_avg:.2f}{unit} std={t_std:.2f}\n"
                             )
