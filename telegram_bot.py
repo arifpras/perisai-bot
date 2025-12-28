@@ -7,7 +7,8 @@ import base64
 import logging
 import re
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from dateutil.relativedelta import relativedelta
 import statistics
 from typing import Optional, List, Dict
 import html as html_module
@@ -194,6 +195,873 @@ def get_auction_db(csv_path: str = "20251224_auction_forecast.csv"):
     if cache_key not in _db_cache:
         _db_cache[cache_key] = AuctionDB(csv_path)
     return _db_cache[cache_key]
+
+
+def get_historical_auction_data(year: int, quarter: int) -> Optional[Dict]:
+    """Load historical auction data from auction_train.csv for a specific quarter."""
+    try:
+        df = pd.read_csv('auction_train.csv')
+        
+        # Map quarter to months
+        quarter_months = {1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12]}
+        months = quarter_months.get(quarter, [])
+        
+        # Filter for specific year and quarter
+        mask = (df['auction_year'] == year) & (df['auction_month'].isin(months))
+        quarter_data = df[mask]
+        
+        if quarter_data.empty:
+            return None
+        
+        # Calculate totals (incoming_bio_log is log base 10 of billions)
+        monthly_incoming = []
+        monthly_btc = []
+        
+        for _, row in quarter_data.iterrows():
+            incoming_billions = 10 ** row['incoming_bio_log']
+            incoming_trillions = incoming_billions / 1000.0
+            monthly_incoming.append({
+                'month': int(row['auction_month']),
+                'incoming': incoming_trillions,
+                'bid_to_cover': row['bid_to_cover']
+            })
+            monthly_btc.append(row['bid_to_cover'])
+        
+        total_incoming = sum(m['incoming'] for m in monthly_incoming)
+        avg_btc = sum(monthly_btc) / len(monthly_btc) if monthly_btc else 0
+        
+        return {
+            'year': year,
+            'quarter': quarter,
+            'monthly': monthly_incoming,
+            'total_incoming': total_incoming,
+            'avg_bid_to_cover': avg_btc
+        }
+    except Exception as e:
+        logger.error(f"Error loading historical auction data: {e}")
+        return None
+
+
+def get_historical_auction_month_data(year: int, month: int) -> Optional[Dict]:
+    """Load historical auction data from auction_train.csv for a specific month."""
+    try:
+        df = pd.read_csv('auction_train.csv')
+        mask = (df['auction_year'] == year) & (df['auction_month'] == month)
+        month_data = df[mask]
+        if month_data.empty:
+            return None
+        # Single month aggregate
+        incoming_vals = []
+        btc_vals = []
+        for _, row in month_data.iterrows():
+            incoming_vals.append((10 ** row['incoming_bio_log']) / 1000.0)
+            btc_vals.append(row['bid_to_cover'])
+        total_incoming = sum(incoming_vals)
+        avg_btc = sum(btc_vals) / len(btc_vals) if btc_vals else 0
+        return {
+            'type': 'month',
+            'year': year,
+            'month': int(month),
+            'monthly': [{
+                'month': int(month),
+                'incoming': total_incoming,
+                'bid_to_cover': avg_btc
+            }],
+            'total_incoming': total_incoming,
+            'avg_bid_to_cover': avg_btc,
+        }
+    except Exception as e:
+        logger.error(f"Error loading historical auction month data: {e}")
+        return None
+
+
+def get_historical_auction_year_data(year: int) -> Optional[Dict]:
+    """Load historical auction data from auction_train.csv for a year (sum of months)."""
+    try:
+        df = pd.read_csv('auction_train.csv')
+        year_df = df[df['auction_year'] == year]
+        if year_df.empty:
+            return None
+        monthly_vals = {}
+        btc_vals = []
+        for _, row in year_df.iterrows():
+            m = int(row['auction_month'])
+            monthly_vals.setdefault(m, {'incoming': 0.0, 'btc_items': []})
+            monthly_vals[m]['incoming'] += (10 ** row['incoming_bio_log']) / 1000.0
+            monthly_vals[m]['btc_items'].append(row['bid_to_cover'])
+            btc_vals.append(row['bid_to_cover'])
+        monthly = []
+        for m in sorted(monthly_vals.keys()):
+            items = monthly_vals[m]
+            avg_btc_m = sum(items['btc_items']) / len(items['btc_items']) if items['btc_items'] else 0
+            monthly.append({'month': m, 'incoming': items['incoming'], 'bid_to_cover': avg_btc_m})
+        total_incoming = sum(x['incoming'] for x in monthly)
+        avg_btc = sum(btc_vals) / len(btc_vals) if btc_vals else 0
+        return {
+            'type': 'year',
+            'year': year,
+            'monthly': monthly,
+            'total_incoming': total_incoming,
+            'avg_bid_to_cover': avg_btc,
+        }
+    except Exception as e:
+        logger.error(f"Error loading historical auction year data: {e}")
+        return None
+
+
+def _period_label(data: Dict) -> str:
+    month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    if data.get('quarter'):
+        return f"Q{int(data['quarter'])} {int(data['year'])}"
+    if data.get('type') == 'month':
+        return f"{month_names[int(data['month'])]} {int(data['year'])}"
+    return f"{int(data['year'])}"
+
+
+def load_auction_period(period: Dict) -> Optional[Dict]:
+    """Load auction period data, preferring forecast (AuctionDB) and falling back to historical train CSV.
+    period: {'type': 'month'|'quarter'|'year', 'year': int, 'month'?: int, 'quarter'?: int}
+    Returns standardized dict: {'type','year','month?'/'quarter?','monthly':[...],'total_incoming','avg_bid_to_cover'}
+    """
+    try:
+        auction_db = get_auction_db()
+        year = int(period['year'])
+        kind = period['type']
+        months_map = {1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12]}
+        months = []
+        if kind == 'month':
+            months = [int(period['month'])]
+        elif kind == 'quarter':
+            months = months_map.get(int(period['quarter']), [])
+        elif kind == 'year':
+            months = list(range(1, 13))
+
+        forecast_rows = []
+        for m in months:
+            intent_obj = type('obj', (object,), {
+                'start_date': date(year, m, 1),
+                'end_date': date(year, m, 28)
+            })()
+            rows = auction_db.query_forecast(intent_obj)
+            if rows:
+                forecast_rows.extend(rows)
+
+        if forecast_rows:
+            monthly_data = []
+            total_incoming = 0.0
+            total_awarded = 0.0
+            btc_vals = []
+            for row in forecast_rows:
+                m = int(row['auction_month'])
+                inc = float(row['incoming_billions'])
+                awd = float(row['awarded_billions']) if row.get('awarded_billions') is not None else None
+                btc = float(row['bid_to_cover']) if row.get('bid_to_cover') is not None else 0.0
+                md = {'month': m, 'incoming': inc, 'bid_to_cover': btc}
+                if awd is not None:
+                    md['awarded'] = awd
+                    total_awarded += awd
+                monthly_data.append(md)
+                total_incoming += inc
+                btc_vals.append(btc)
+            avg_btc = sum(btc_vals) / len(btc_vals) if btc_vals else 0.0
+            result = {
+                'type': kind,
+                'year': year,
+                'monthly': sorted(monthly_data, key=lambda x: x['month']),
+                'total_incoming': total_incoming,
+                'avg_bid_to_cover': avg_btc,
+            }
+            if total_awarded > 0.0:
+                result['total_awarded'] = total_awarded
+            if kind == 'month':
+                result['month'] = months[0]
+            if kind == 'quarter':
+                result['quarter'] = int(period['quarter'])
+            return result
+
+        # Fallback to historical
+        if kind == 'month':
+            return get_historical_auction_month_data(year, int(period['month']))
+        if kind == 'quarter':
+            return get_historical_auction_data(year, int(period['quarter']))
+        if kind == 'year':
+            return get_historical_auction_year_data(year)
+        return None
+    except Exception as e:
+        logger.error(f"Error loading auction period {period}: {e}")
+        return None
+
+
+def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -> str:
+    """Economist-style table for requested metrics across periods.
+    Rows: periods (month/quarter/year labels)
+    Columns: one or two of ['Incoming','Awarded'] in Rp T
+    """
+    # Determine columns
+    cols = []
+    if any(m.strip().lower().startswith('incoming') for m in metrics):
+        cols.append('Incoming')
+    if any(m.strip().lower().startswith('awarded') for m in metrics):
+        cols.append('Awarded')
+    if not cols:
+        cols = ['Incoming']
+
+    # Compute widths
+    label_width = max(14, max(len(_period_label(p)) for p in periods_data))
+    col_width = 14  # reduced by 1
+    total_width = label_width + 3 + len(cols) * (col_width + 3) - 3
+    border = '─' * (total_width + 1)
+
+    # Header
+    header = f"{'Period':<{label_width}} | " + " | ".join([f"{c:<{col_width}}" for c in cols])
+
+    # Rows
+    rows = []
+    for p in periods_data:
+        label = _period_label(p)
+        values = []
+        for c in cols:
+            if c == 'Incoming':
+                val = p.get('total_incoming')
+            else:
+                val = p.get('total_awarded')
+            values.append(f"Rp {val:,.2f}T" if isinstance(val, (int, float)) else '-')
+        rows.append(f"{label:<{label_width}} | " + " | ".join([f"{v:>{col_width}}" for v in values]))
+
+    rows_box = "\n".join([f"│ {r:<{total_width}}│" for r in rows])
+    return f"""```
+┌{border}┐
+│ {header:<{total_width}}│
+├{border}┤
+{rows_box}
+└{border}┘
+```"""
+
+
+def parse_auction_table_query(q: str) -> Optional[Dict]:
+    """Parse 'tab incoming/awarded bid ...' queries into metrics and periods.
+    Returns {'metrics': [..], 'periods': [period_dict,...]} or None.
+    Supported connectors: 'from X to Y', 'in X and Y', single 'in X'.
+    Period types: month, quarter, year.
+    """
+    import re
+    q = q.lower()
+    if 'tab' not in q:
+        return None
+    # Metrics
+    metrics = []
+    if 'incoming and awarded' in q:
+        metrics = ['incoming', 'awarded']
+    else:
+        if 'incoming' in q:
+            metrics.append('incoming')
+        if 'awarded' in q:
+            metrics.append('awarded')
+    if not metrics:
+        metrics = ['incoming']
+
+    # Period parsing helpers
+    months_map = {
+        'jan':1,'january':1,
+        'feb':2,'february':2,
+        'mar':3,'march':3,
+        'apr':4,'april':4,
+        'may':5,
+        'jun':6,'june':6,
+        'jul':7,'july':7,
+        'aug':8,'august':8,
+        'sep':9,'sept':9,'september':9,
+        'oct':10,'october':10,
+        'nov':11,'november':11,
+        'dec':12,'december':12,
+    }
+    def parse_one_period(text: str) -> Optional[Dict]:
+        text = text.strip()
+        m = re.match(r'^q(\d)\s+(\d{4})$', text)
+        if m:
+            qn, yr = map(int, m.groups())
+            return {'type': 'quarter', 'quarter': qn, 'year': yr}
+        m = re.match(r'^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|\d{1,2})\s+(\d{4})$', text)
+        if m:
+            mo, yr = m.groups()
+            mo = months_map[mo] if mo in months_map else int(mo)
+            return {'type': 'month', 'month': mo, 'year': int(yr)}
+        m = re.match(r'^(\d{4})$', text)
+        if m:
+            return {'type': 'year', 'year': int(m.group(1))}
+        return None
+
+    periods: List[Dict] = []
+    # from X to Y
+    m_from = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q)
+    if m_from:
+        p1 = parse_one_period(m_from.group(1))
+        p2 = parse_one_period(m_from.group(2))
+        if p1 and p2:
+            periods = [p1, p2]
+            return {'metrics': metrics, 'periods': periods}
+    # in X and Y
+    m_and = re.search(r'in\s+(.+?)\s+and\s+(.+)$', q)
+    if m_and:
+        p1 = parse_one_period(m_and.group(1))
+        p2 = parse_one_period(m_and.group(2))
+        if p1 and p2:
+            periods = [p1, p2]
+            return {'metrics': metrics, 'periods': periods}
+    # single in X
+    m_in = re.search(r'in\s+(.+)$', q)
+    if m_in:
+        p1 = parse_one_period(m_in.group(1))
+        if p1:
+            periods = [p1]
+            return {'metrics': metrics, 'periods': periods}
+    # fallback year-to-year without explicit 'in'
+    m_years = re.findall(r'\b(\d{4})\b', q)
+    if m_years and 'from' not in q and 'in' not in q:
+        years = [int(y) for y in m_years][:3]
+        if len(years) >= 2:
+            periods = [{'type': 'year', 'year': y} for y in years]
+            return {'metrics': metrics, 'periods': periods}
+    return None
+
+
+def format_auction_comparison_general(periods_data: List[Dict]) -> str:
+    """Format comparison across two or more periods (month/quarter/year). Baseline is first period."""
+    if not periods_data:
+        return "No data found."
+    lines = []
+    month_names = ['', 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    # Sections per period
+    for pdata in periods_data:
+        label = _period_label(pdata)
+        lines.append(f"<b>{label} Auction Demand:</b>")
+        for m in pdata.get('monthly', []):
+            lines.append(f"• {month_names[m['month']]}: Rp {m['incoming']:.2f}T | {m['bid_to_cover']:.2f}x bid-to-cover")
+        lines.append(f"<b>Total:</b> Rp {pdata['total_incoming']:.2f}T | Avg BtC: {pdata['avg_bid_to_cover']:.2f}x")
+        lines.append("")
+    lines.append("─" * 50)
+    # Changes vs baseline
+    base = periods_data[0]
+    for idx, pdata in enumerate(periods_data[1:], start=2):
+        inc_chg = ((pdata['total_incoming'] / base['total_incoming']) - 1) * 100 if base['total_incoming'] else 0.0
+        btc_chg = ((pdata['avg_bid_to_cover'] / base['avg_bid_to_cover']) - 1) * 100 if base['avg_bid_to_cover'] else 0.0
+        lines.append(f"<b>Change vs { _period_label(base) } → { _period_label(pdata) }:</b>")
+        lines.append(f"• Incoming bids: {inc_chg:+.1f}% (Rp {base['total_incoming']:.0f}T → Rp {pdata['total_incoming']:.0f}T)")
+        lines.append(f"• Bid-to-cover: {btc_chg:+.1f}% ({base['avg_bid_to_cover']:.2f}x → {pdata['avg_bid_to_cover']:.2f}x)")
+        lines.append("")
+    lines.append("<blockquote>~ Kei</blockquote>")
+    return "\n".join(lines)
+
+
+def parse_auction_compare_query(q: str) -> Optional[List[Dict]]:
+    """Parse flexible 'compare auction ... vs ...' queries.
+    Supports: months (name/number), quarters, years, with 2+ periods (years up to 3).
+    Returns list of period dicts or None.
+    """
+    import re
+    q = q.lower()
+    # Try quarters first to preserve existing formatting path
+    m_q = re.search(r'q(\d)\s+(\d{4}).*?vs.*?q(\d)\s+(\d{4})', q)
+    if m_q:
+        q1, y1, q2, y2 = map(int, m_q.groups())
+        return [
+            {'type': 'quarter', 'quarter': q1, 'year': y1},
+            {'type': 'quarter', 'quarter': q2, 'year': y2},
+        ]
+    # Months: names or numeric
+    months_map = {
+        'jan':1,'january':1,
+        'feb':2,'february':2,
+        'mar':3,'march':3,
+        'apr':4,'april':4,
+        'may':5,
+        'jun':6,'june':6,
+        'jul':7,'july':7,
+        'aug':8,'august':8,
+        'sep':9,'sept':9,'september':9,
+        'oct':10,'october':10,
+        'nov':11,'november':11,
+        'dec':12,'december':12,
+    }
+    m_m = re.search(r'(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|\d{1,2})\s+(\d{4}).*?vs.*?(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|\d{1,2})\s+(\d{4})', q)
+    if m_m:
+        a1, y1, a2, y2 = m_m.groups()
+        def _to_month(x):
+            return months_map[x] if x in months_map else int(x)
+        return [
+            {'type': 'month', 'month': _to_month(a1), 'year': int(y1)},
+            {'type': 'month', 'month': _to_month(a2), 'year': int(y2)},
+        ]
+    # Years: allow 2 or 3
+    m_y = re.findall(r'\b(\d{4})\b', q)
+    if m_y and 'vs' in q:
+        years = [int(y) for y in m_y][:3]
+        if len(years) >= 2:
+            return [{'type': 'year', 'year': y} for y in years]
+    return None
+
+
+def format_auction_comparison(hist_data: Dict, forecast_data: Dict) -> str:
+    """Format auction comparison between historical and forecast periods."""
+    lines = []
+    
+    # Historical period
+    hist_q = f"Q{hist_data['quarter']} {hist_data['year']}"
+    lines.append(f"<b>{hist_q} Auction Demand (Historical):</b>")
+    month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    for m in hist_data['monthly']:
+        month_name = month_names[m['month']]
+        lines.append(f"• {month_name}: Rp {m['incoming']:,.2f}T | {m['bid_to_cover']:.2f}x bid-to-cover")
+    lines.append(f"<b>Total:</b> Rp {hist_data['total_incoming']:,.2f}T | Avg BtC: {hist_data['avg_bid_to_cover']:.2f}x")
+    
+    lines.append("")
+    
+    # Forecast period
+    forecast_q = f"Q{forecast_data['quarter']} {forecast_data['year']}"
+    lines.append(f"<b>{forecast_q} Auction Demand (Forecast):</b>")
+    for m in forecast_data['monthly']:
+        month_name = month_names[m['month']]
+        lines.append(f"• {month_name}: Rp {m['incoming']:,.2f}T | {m['bid_to_cover']:.2f}x bid-to-cover")
+    lines.append(f"<b>Total:</b> Rp {forecast_data['total_incoming']:,.2f}T | Avg BtC: {forecast_data['avg_bid_to_cover']:.2f}x")
+    
+    lines.append("")
+    lines.append("─" * 50)
+    
+    # YoY comparison
+    incoming_change = ((forecast_data['total_incoming'] / hist_data['total_incoming']) - 1) * 100
+    btc_change = ((forecast_data['avg_bid_to_cover'] / hist_data['avg_bid_to_cover']) - 1) * 100
+    
+    lines.append(f"<b>Year-over-Year Change:</b>")
+    lines.append(f"• Incoming bids: {incoming_change:+.1f}% (Rp {hist_data['total_incoming']:,.0f}T → Rp {forecast_data['total_incoming']:,.0f}T)")
+    lines.append(f"• Bid-to-cover: {btc_change:+.1f}% ({hist_data['avg_bid_to_cover']:.2f}x → {forecast_data['avg_bid_to_cover']:.2f}x)")
+    
+    lines.append("")
+    lines.append("<blockquote>~ Kei</blockquote>")
+    
+    return "\n".join(lines)
+
+
+def parse_bond_table_query(q: str) -> Optional[Dict]:
+    """Parse '/kei tab' bond table queries for yield/price data.
+    Supported patterns:
+    - '/kei tab yield 5 year in jan 2025'
+    - '/kei tab price 5 and 10 year in q1 2025'
+    - '/kei tab yield 5 year in 2025'
+    - '/kei tab yield 5 and 10 year from oct 2024 to mar 2025'
+    - '/kei tab price 5 and 10 year from q2 2024 to q1 2025'
+    - '/kei tab yield and price 5 year in feb 2025'
+    
+    Returns dict: {'metrics': ['yield'|'price'|both], 'tenors': ['05_year','10_year'], 
+                   'start_date': date, 'end_date': date} or None
+    """
+    q = q.lower()
+    if 'tab' not in q:
+        return None
+    
+    # Extract metrics: 'yield', 'price', or 'yield and price'
+    metrics = []
+    if 'yield and price' in q or 'price and yield' in q:
+        metrics = ['yield', 'price']
+    elif 'yield' in q:
+        metrics = ['yield']
+    elif 'price' in q:
+        metrics = ['price']
+    else:
+        return None
+    
+    # Extract tenors using pattern: "X year" or "X and Y year"
+    tenors = []
+    # Try "X and Y year" pattern first
+    and_pattern = re.search(r'(\d+)\s+and\s+(\d+)\s+years?', q)
+    if and_pattern:
+        t1 = f"{int(and_pattern.group(1)):02d}_year"
+        t2 = f"{int(and_pattern.group(2)):02d}_year"
+        tenors = [t1, t2]
+    else:
+        # Try single "X year" pattern (find all)
+        tenor_matches = re.findall(r'(\d+)\s+years?', q)
+        if tenor_matches:
+            tenors = [f"{int(t):02d}_year" for t in tenor_matches]
+    
+    if not tenors:
+        return None
+    
+    # Extract period: single or range
+    # Helper to parse month name or quarter
+    month_map = {
+        'jan':1, 'january':1, 'feb':2, 'february':2, 'mar':3, 'march':3,
+        'apr':4, 'april':4, 'may':5, 'jun':6, 'june':6, 'jul':7, 'july':7,
+        'aug':8, 'august':8, 'sep':9, 'sept':9, 'september':9, 'oct':10,
+        'october':10, 'nov':11, 'november':11, 'dec':12, 'december':12
+    }
+    
+    def parse_period_spec(spec: str) -> Optional[tuple]:
+        """Parse 'jan 2025', 'q1 2025', or '2025' into (start_date, end_date)."""
+        spec = spec.strip().lower()
+        
+        # Quarter pattern: q1 2025
+        q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_match:
+            q_num = int(q_match.group(1))
+            year = int(q_match.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        
+        # Month-year pattern: jan 2025
+        m_match = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_match:
+            month_str = m_match.group(1)
+            year = int(m_match.group(2))
+            if month_str in month_map:
+                month = month_map[month_str]
+                start = date(year, month, 1)
+                end = start + relativedelta(months=1) - timedelta(days=1)
+                return start, end
+        
+        # Year only pattern: 2025
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            start = date(year, 1, 1)
+            end = date(year, 12, 31)
+            return start, end
+        
+        return None
+    
+    # "from X to Y" pattern
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q)
+    if from_match:
+        start_spec = from_match.group(1).strip()
+        end_spec = from_match.group(2).strip()
+        start_res = parse_period_spec(start_spec)
+        end_res = parse_period_spec(end_spec)
+        if start_res and end_res:
+            return {
+                'metrics': metrics,
+                'tenors': tenors,
+                'start_date': start_res[0],
+                'end_date': end_res[1],
+            }
+    
+    # "in X" pattern (single period)
+    in_match = re.search(r'in\s+(.+)$', q)
+    if in_match:
+        period_spec = in_match.group(1).strip()
+        period_res = parse_period_spec(period_spec)
+        if period_res:
+            return {
+                'metrics': metrics,
+                'tenors': tenors,
+                'start_date': period_res[0],
+                'end_date': period_res[1],
+            }
+    
+    return None
+
+
+def parse_bond_plot_query(q: str) -> Optional[Dict]:
+    """Parse '/kin plot' bond plot queries.
+    Same patterns as parse_bond_table_query but for plots.
+    Returns dict with 'metrics', 'tenors', 'start_date', 'end_date' or None.
+    """
+    q = q.lower()
+    if 'plot' not in q:
+        return None
+    
+    # Remove the /kin and 'plot' prefix to avoid matching 'in' in '/kin'
+    # Find where 'plot' starts and work from there
+    plot_idx = q.find('plot')
+    if plot_idx == -1:
+        return None
+    q_after_plot = q[plot_idx + 4:].strip()  # Everything after "plot"
+    
+    # Extract metrics: 'yield', 'price'
+    metrics = []
+    if 'yield' in q_after_plot:
+        metrics = ['yield']
+    elif 'price' in q_after_plot:
+        metrics = ['price']
+    else:
+        return None
+    
+    metric = metrics[0]  # Plot one metric at a time
+    
+    # Extract tenors
+    tenors = []
+    and_pattern = re.search(r'(\d+)\s+and\s+(\d+)\s+years?', q_after_plot)
+    if and_pattern:
+        t1 = f"{int(and_pattern.group(1)):02d}_year"
+        t2 = f"{int(and_pattern.group(2)):02d}_year"
+        tenors = [t1, t2]
+    else:
+        tenor_matches = re.findall(r'(\d+)\s+years?', q_after_plot)
+        if tenor_matches:
+            tenors = [f"{int(t):02d}_year" for t in tenor_matches]
+    
+    if not tenors:
+        return None
+    
+    # Helper function (same as in parse_bond_table_query)
+    month_map = {
+        'jan':1, 'january':1, 'feb':2, 'february':2, 'mar':3, 'march':3,
+        'apr':4, 'april':4, 'may':5, 'jun':6, 'june':6, 'jul':7, 'july':7,
+        'aug':8, 'august':8, 'sep':9, 'sept':9, 'september':9, 'oct':10,
+        'october':10, 'nov':11, 'november':11, 'dec':12, 'december':12
+    }
+    
+    def parse_period_spec(spec: str) -> Optional[tuple]:
+        spec = spec.strip().lower()
+        
+        q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_match:
+            q_num = int(q_match.group(1))
+            year = int(q_match.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        
+        m_match = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_match:
+            month_str = m_match.group(1)
+            year = int(m_match.group(2))
+            if month_str in month_map:
+                month = month_map[month_str]
+                start = date(year, month, 1)
+                end = start + relativedelta(months=1) - timedelta(days=1)
+                return start, end
+        
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            start = date(year, 1, 1)
+            end = date(year, 12, 31)
+            return start, end
+        
+        return None
+    
+    # "from X to Y" pattern
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q_after_plot)
+    if from_match:
+        start_spec = from_match.group(1).strip()
+        end_spec = from_match.group(2).strip()
+        start_res = parse_period_spec(start_spec)
+        end_res = parse_period_spec(end_spec)
+        if start_res and end_res:
+            return {
+                'metric': metric,
+                'tenors': tenors,
+                'start_date': start_res[0],
+                'end_date': end_res[1],
+            }
+    
+    # "in X" pattern (single period)
+    in_match = re.search(r'in\s+(.+)$', q_after_plot)
+    if in_match:
+        period_spec = in_match.group(1).strip()
+        period_res = parse_period_spec(period_spec)
+        if period_res:
+            return {
+                'metric': metric,
+                'tenors': tenors,
+                'start_date': period_res[0],
+                'end_date': period_res[1],
+            }
+    
+    return None
+
+
+def format_bond_metrics_table(db, start_date: date, end_date: date, metrics: List[str], tenors: List[str]) -> str:
+    """Format bond yield/price data as economist-style table.
+    
+    Rows: dates (daily observations)
+    Columns: one or more of [Yield, Price] for each tenor
+    
+    For single tenor + single metric: columns are dates and values
+    For multi-tenor: each tenor gets its own metric columns (with summary stats)
+    For multi-metric: each metric gets its own columns per tenor
+    """
+    # Query database for the period and tenors
+    params = [start_date.isoformat(), end_date.isoformat()]
+    placeholders = ','.join(['?'] * len(tenors))
+    query = f"""
+        SELECT obs_date, tenor, {', '.join(metrics)}
+        FROM ts
+        WHERE obs_date BETWEEN ? AND ? AND tenor IN ({placeholders})
+        ORDER BY obs_date, tenor
+    """
+    params.extend(tenors)
+    
+    try:
+        rows = db.con.execute(query, params).fetchall()
+    except Exception as e:
+        logger.error(f"Error querying bond data: {e}")
+        return f"❌ Error querying bond data: {e}"
+    
+    if not rows:
+        return "❌ No bond data found for the specified period and tenors."
+    
+    # Convert to DataFrame for easier manipulation
+    df = pd.DataFrame(rows, columns=['obs_date'] + metrics + ['tenor'])
+    df['obs_date'] = pd.to_datetime(df['obs_date'])
+    
+    # Sort by date
+    df = df.sort_values('obs_date').reset_index(drop=True)
+    
+    # Determine column layout
+    if len(tenors) == 1 and len(metrics) == 1:
+        # Single tenor, single metric: Date | Value
+        tenor_display = tenors[0].replace('_', ' ')
+        metric_cap = metrics[0].capitalize()
+        header = f"{'Date':<12} | {metric_cap:>12}"
+        border = '─' * 28
+        
+        rows_list = []
+        for _, row in df.iterrows():
+            date_str = row['obs_date'].strftime('%d %b %Y')
+            val = row[metrics[0]]
+            val_str = f"{val:.4f}" if val is not None else "N/A"
+            rows_list.append(f"{date_str:<12} | {val_str:>12}")
+        
+        rows_text = "\n".join([f"│ {r:<{len(border)-3}}│" for r in rows_list])
+        return f"""```
+┌{border}┐
+│ {header:<{len(border)-3}}│
+├{border}┤
+{rows_text}
+└{border}┘
+```"""
+    
+    elif len(tenors) > 1 and len(metrics) == 1:
+        # Multiple tenors, single metric with summary stats
+        metric_name = metrics[0]
+        tenor_labels = [t.replace('_', ' ') for t in tenors]
+        date_width = 12
+        col_width = 10
+        header = f"{'Date':<{date_width}} | " + " | ".join([f"{h:>{col_width}}" for h in tenor_labels])
+        total_width = date_width + 3 + len(tenors) * (col_width + 3) - 3
+        border = '─' * (total_width + 1)
+
+        rows_list = []
+        for _, date_group in df.groupby('obs_date'):
+            date_str = date_group['obs_date'].iloc[0].strftime('%d %b %Y')
+            values = []
+            for tenor in tenors:
+                tenor_data = date_group[date_group['tenor'] == tenor]
+                if not tenor_data.empty:
+                    val = tenor_data[metric_name].iloc[0]
+                    val_str = f"{val:>{col_width}.2f}" if val is not None else f"{'N/A':>{col_width}}"
+                else:
+                    val_str = f"{'N/A':>{col_width}}"
+                values.append(val_str)
+            row_str = f"{date_str:<{date_width}} | " + " | ".join(values)
+            rows_list.append(row_str)
+
+        # Summary statistics per tenor
+        summary_rows = []
+        stats_labels = ['Count', 'Min', 'Max', 'Avg', 'Std']
+        for label in stats_labels:
+            vals = []
+            for tenor in tenors:
+                series = df[df['tenor'] == tenor][metric_name].dropna()
+                if label == 'Count':
+                    val_str = f"{len(series):>{col_width}d}" if len(series) > 0 else f"{'N/A':>{col_width}}"
+                elif series.empty:
+                    val_str = f"{'N/A':>{col_width}}"
+                else:
+                    if label == 'Min':
+                        val = series.min()
+                    elif label == 'Max':
+                        val = series.max()
+                    elif label == 'Avg':
+                        val = series.mean()
+                    else:  # Std
+                        val = series.std()
+                    val_str = f"{val:>{col_width}.2f}" if pd.notnull(val) else f"{'N/A':>{col_width}}"
+                vals.append(val_str)
+            summary_rows.append(f"{label:<{date_width}} | " + " | ".join(vals))
+
+        data_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list])
+        summary_text = "\n".join([f"│ {r:<{total_width}}│" for r in summary_rows])
+        return f"""```
+┌{border}┐
+│ {header:<{total_width}}│
+├{border}┤
+{data_text}
+├{border}┤
+{summary_text}
+└{border}┘
+```"""
+    
+    elif len(tenors) == 1 and len(metrics) > 1:
+        # Single tenor, multiple metrics
+        tenor_display = tenors[0].replace('_', ' ')
+        metric_caps = [m.capitalize() for m in metrics]
+        header_parts = ['Date'] + metric_caps
+        col_width = 12
+        header = " | ".join([f"{h:^{col_width}}" for h in header_parts])
+        total_width = col_width + 3 + len(metrics) * (col_width + 3) - 3
+        border = '─' * (total_width + 1)
+        
+        rows_list = []
+        for _, row in df.iterrows():
+            date_str = row['obs_date'].strftime('%d %b %Y')
+            values = [date_str]
+            for metric in metrics:
+                val = row[metric]
+                val_str = f"{val:.4f}" if val is not None else "N/A"
+                values.append(val_str)
+            row_str = " | ".join([f"{values[0]:<{col_width}}"] + [f"{v:>{col_width}}" for v in values[1:]])
+            rows_list.append(row_str)
+        
+        rows_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list])
+        return f"""```
+┌{border}┐
+│ {header:<{total_width}}│
+├{border}┤
+{rows_text}
+└{border}┘
+```"""
+    
+    else:
+        # Multiple tenors and multiple metrics: Tenor_Metric columns
+        tenor_labels = [t.replace('_', ' ') for t in tenors]
+        metric_caps = [m.capitalize() for m in metrics]
+        col_headers = []
+        for tenor_label in tenor_labels:
+            for metric_cap in metric_caps:
+                col_headers.append(f"{tenor_label} {metric_cap}")
+        
+        header_parts = ['Date'] + col_headers
+        col_width = 12
+        header = " | ".join([f"{h:<{col_width}}" if i == 0 else f"{h:>{col_width}}" for i, h in enumerate(header_parts)])
+        total_width = col_width + 3 + len(col_headers) * (col_width + 3) - 3
+        border = '─' * (total_width + 1)
+        
+        rows_list = []
+        for _, date_group in df.groupby('obs_date'):
+            date_str = date_group['obs_date'].iloc[0].strftime('%d %b %Y')
+            values = [date_str]
+            for tenor in tenors:
+                for metric in metrics:
+                    tenor_data = date_group[date_group['tenor'] == tenor]
+                    if not tenor_data.empty:
+                        val = tenor_data[metric].iloc[0]
+                        val_str = f"{val:.4f}" if val is not None else "N/A"
+                    else:
+                        val_str = "N/A"
+                    values.append(val_str)
+            row_str = " | ".join([f"{values[0]:<{col_width}}"] + [f"{v:>{col_width}}" for v in values[1:]])
+            rows_list.append(row_str)
+        
+        rows_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list])
+        return f"""```
+┌{border}┐
+│ {header:<{total_width}}│
+├{border}┤
+{rows_text}
+└{border}┘
+```"""
 
 
 def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=None, economist_style=False, summary_stats=None):
@@ -1173,14 +2041,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/both — Combined (⚡ data → insight)\n"
         "/check — Quick point lookup\n\n"
         "<b>Query Examples</b>\n"
-        "• /kei yield 10 year 2025-12-27\n"
+        "• /kei yield 10 year 2025-12-12\n"
         "• /kei forecast next 10 observations\n"
         "• /kei auction demand 2026\n"
-        "• /kin plot 5 and 10 year Jan 2025 (Economist style!)\n"
+        "• /kei tab yield 5 and 10 year in feb 2025\n"
+        "• /kei tab price 5 year from oct 2024 to mar 2025\n"
+        "• /kei tab incoming bid from 2024 to 2025\n"
+        "• /kei tab yield and price 10 year in q2 2025\n"
+        "• /kin plot yield 5 and 10 year from jan 2025 to mar 2025\n"
+        "• /kin plot price 5 year in q3 2024\n"
         "• /kin what is fiscal policy\n"
         "• /both compare yields 2024 vs 2025\n"
-        "• /check 2025-12-27 10 year\n\n"
-        "Type /examples for detailed queries"
+        "• /check 2025-12-12 10 year\n\n"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
 
@@ -1201,29 +2073,49 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/kei yield 10 year 2025-12-12\n"
         "/kei forecast yield 10 year 2026-12-15\n"
         "/kei forecast next 5 observations\n"
-        "/kei auction demand 2026\n"
-        "/kei tab yield 5 and 10 year Feb 2025\n\n"
-        "<b>🌍 /kin (Macro Strategist):</b>\n"
-        "/kin plot 5 and 10 year Jan 2025\n"
+        "/kei auction demand 2026\n\n"
+        "<b>Bond Yield/Price Tables:</b>\n"
+        "/kei tab yield 5 year in feb 2025\n"
+        "/kei tab price 5 and 10 year in q1 2025\n"
+        "/kei tab yield 5 year from oct 2024 to mar 2025\n"
+        "/kei tab price 5 and 10 year from q2 2024 to q1 2025\n"
+        "/kei tab yield 5 and 10 year from 2023 to 2024\n"
+        "/kei tab yield and price 5 year in apr 2023\n"
+        "/kei tab yield and price 5 and 10 year from apr 2024 to feb 2025\n\n"
+        "<b>Auction Demand Tables:</b>\n"
+        "/kei tab incoming bid in May 2025\n"
+        "/kei tab incoming bid from 2024 to 2025\n"
+        "/kei tab awarded bid from Apr 2026 to Jun 2026\n"
+        "/kei tab incoming and awarded bid from Q2 2026 to Q3 2026\n\n"
+        "<b>🌍 /kin (Macro Strategist):</b>\n\n"
+        "<b>Bond Plots:</b>\n"
+        "/kin plot yield 5 year in jan 2025\n"
+        "/kin plot price 10 year in q3 2025\n"
+        "/kin plot yield 5 and 10 year from oct 2024 to mar 2025\n"
+        "/kin plot price 5 and 10 year from q2 2024 to q1 2025\n"
+        "/kin plot yield 5 and 10 year from 2023 to 2024\n\n"
+        "<b>Economic Analysis:</b>\n"
         "/kin what is fiscal policy\n"
         "/kin explain impact of BI rate cuts\n"
         "/kin what is monetary policy\n\n"
         "<b>⚡ /both (Combined Analysis):</b>\n"
-        "/both plot 5 and 10 years 2024\n"
+        "/both plot 5 and 10 year jan 2025\n"
         "/both compare yields 2024 vs 2025\n\n"
         "<b>📌 /check (Quick Lookup):</b>\n"
         "/check 2025-12-12 10 year\n"
         "/check price 5 and 10 years 6 Dec 2024\n\n"
-        "<b>📊 Economist-Style Output</b>\n"
-        "<b>Tables:</b> Use 'tab' or 'table' in /kei queries\n"
-        "  • Single: /kei tab yield 5 year Feb 2025\n"
-        "  • Multi-tenor: /kei tab yield 5 and 10 year Feb 2025\n"
-        "  • Multi-variable: /kei tab yield and price 5 year\n\n"
-        "<b>Plots:</b> Professional charts via /kin or /both\n"
-        "  • Multi-tenor: /kin plot 5 and 10 year Jan 2025\n"
-        "  • Caption: 'Source: PerisAI analytics | as of [date]'\n\n"
-        "<b>👥 Personas</b>\n\n"
-        "<b>💹 Kei:</b> MIT/CFA quant → Data, forecasts, tables\n"
+        "<b>📊 Output Formats</b>\n\n"
+        "<b>Bond Tables (Economist-style):</b>\n"
+        "  • Single tenor, single metric: Date | Value\n"
+        "  • Multi-tenor: Date | Tenor1 | Tenor2\n"
+        "  • Multi-metric: Date | Yield | Price\n"
+        "  • Example: /kei tab yield 5 and 10 year in feb 2025\n\n"
+        "<b>Plots (Professional Economist style):</b>\n"
+        "  • Single/multi-tenor curves\n"
+        "  • Professional formatting\n"
+        "  • Example: /kin plot 5 and 10 year from jan 2025 to mar 2025\n\n"
+        "<b>👥 Personas</b>\n"
+        "<b>💹 Kei:</b> MIT/CFA quant → Data, tables, forecasts\n"
         "<b>🌍 Kin:</b> Harvard/CFA macro → Context, plots, insights\n"
         "<b>⚡ Both:</b> Kei analysis → Kin interpretation"
     )
@@ -1352,6 +2244,133 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not question:
         await update.message.reply_text("Usage: /kei <question>")
         return
+    
+    # Detect 'tab' bond metric queries (yield/price data across periods)
+    lower_q = question.lower()
+    bond_tab_req = parse_bond_table_query(lower_q)
+    if bond_tab_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            db = get_db()
+            table_text = format_bond_metrics_table(db, bond_tab_req['start_date'], bond_tab_req['end_date'], 
+                                                   bond_tab_req['metrics'], bond_tab_req['tenors'])
+            await update.message.reply_text(table_text, parse_mode=ParseMode.MARKDOWN)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "bond_tab", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing bond table query: {e}")
+            await update.message.reply_text(f"❌ Error formatting bond table: {e}")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "bond_tab", response_time, False, str(e), "kei")
+        return
+    
+    # Detect 'tab' auction metric queries (incoming/awarded totals across periods)
+    lower_q = question.lower()
+    tab_req = parse_auction_table_query(lower_q)
+    if tab_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        periods = []
+        for p in tab_req['periods']:
+            pdata = load_auction_period(p)
+            if not pdata:
+                label = (
+                    f"Q{p['quarter']} {p['year']}" if p['type'] == 'quarter' else (
+                        f"{p.get('month')} {p['year']}" if p['type'] == 'month' else f"{p['year']}"
+                    )
+                )
+                await update.message.reply_text(
+                    f"❌ No auction data found for {label}.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+            periods.append(pdata)
+        table_text = format_auction_metrics_table(periods, tab_req['metrics'])
+        try:
+            # Send table in Markdown to render code fence/borders
+            await update.message.reply_text(table_text, parse_mode=ParseMode.MARKDOWN)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "auction_tab", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error sending auction table: {e}")
+            await update.message.reply_text(f"❌ Error formatting response: {e}")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "auction_tab", response_time, False, str(e), "kei")
+        return
+
+    # Detect auction comparison queries (quarters, months, years)
+    lower_q = question.lower()
+    if "compare" in lower_q and "auction" in lower_q:
+        periods = parse_auction_compare_query(lower_q)
+        if periods and len(periods) >= 2:
+            try:
+                await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+            except Exception:
+                pass
+
+            # If exactly two quarters, preserve existing formatting (Historical vs Forecast)
+            if len(periods) == 2 and periods[0]['type'] == 'quarter' and periods[1]['type'] == 'quarter':
+                q1, year1 = periods[0]['quarter'], periods[0]['year']
+                q2, year2 = periods[1]['quarter'], periods[1]['year']
+                hist_data = get_historical_auction_data(year1, q1)
+                if not hist_data:
+                    await update.message.reply_text(
+                        f"❌ No historical auction data found for Q{q1} {year1}.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    return
+                forecast_data = load_auction_period({'type': 'quarter', 'quarter': q2, 'year': year2})
+                if not forecast_data:
+                    await update.message.reply_text(
+                        f"❌ No auction data found for Q{q2} {year2}.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    return
+                comparison_text = format_auction_comparison(hist_data, forecast_data)
+                try:
+                    await update.message.reply_text(comparison_text, parse_mode=ParseMode.HTML)
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "auction_compare", response_time, True, "success", "kei")
+                except Exception as e:
+                    logger.error(f"Error sending auction comparison: {e}")
+                    await update.message.reply_text(f"❌ Error formatting response: {e}")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "auction_compare", response_time, False, str(e), "kei")
+                return
+
+            # Otherwise: load each period and format general comparison
+            loaded = []
+            for p in periods:
+                pdata = load_auction_period(p)
+                if not pdata:
+                    label = (
+                        f"Q{p['quarter']} {p['year']}" if p['type'] == 'quarter' else (
+                            f"{p.get('month')} {p['year']}" if p['type'] == 'month' else f"{p['year']}"
+                        )
+                    )
+                    await update.message.reply_text(
+                        f"❌ No auction data found for {label}.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    return
+                loaded.append(pdata)
+
+            comparison_text = format_auction_comparison_general(loaded)
+            try:
+                await update.message.reply_text(comparison_text, parse_mode=ParseMode.HTML)
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "auction_compare", response_time, True, "success", "kei")
+            except Exception as e:
+                logger.error(f"Error sending auction comparison: {e}")
+                await update.message.reply_text(f"❌ Error formatting response: {e}")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "auction_compare", response_time, False, str(e), "kei")
+            return
     
     # Detect if user wants a plot/chart — these are handled by /kin
     needs_plot = any(keyword in question.lower() for keyword in ["plot"])
@@ -1765,6 +2784,29 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning(f"Failed to send typing indicator in /kin: {type(e).__name__}. Continuing anyway.")
 
     if needs_plot:
+        # Check for bond plot query first (specific period formats)
+        bond_plot_req = parse_bond_plot_query(lower_q)
+        if bond_plot_req:
+            try:
+                db = get_db()
+                png = generate_plot(
+                    db,
+                    bond_plot_req['start_date'],
+                    bond_plot_req['end_date'],
+                    metric=bond_plot_req['metric'],
+                    tenors=bond_plot_req['tenors']
+                )
+                await update.message.reply_photo(photo=io.BytesIO(png))
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "bond_plot", response_time, True, "success", "kin")
+            except Exception as e:
+                logger.error(f"Error generating bond plot: {e}")
+                await update.message.reply_text(f"❌ Error generating plot: {e}")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "bond_plot", response_time, False, str(e), "kin")
+            return
+        
+        # Fall back to general plot handling via API or local generation
         try:
             import httpx
             import base64

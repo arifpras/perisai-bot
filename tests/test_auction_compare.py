@@ -19,9 +19,9 @@ def test_historical_q2_2024_totals_and_btc():
     data = get_historical_auction_data(2024, 2)
     assert data is not None, "Expected historical data for Q2 2024"
 
-    # Totals derived from auction_train.csv:
-    # Apr: 66_467.50T, May: 129_032.50T, Jun: 141_894.70T
-    expected_total = 66467.50 + 129032.50 + 141894.70
+    # Totals derived from auction_train.csv (converted to trillions):
+    # Apr: 66.46750T, May: 129.03250T, Jun: 141.89470T
+    expected_total = 66.46750 + 129.03250 + 141.89470
     assert approx_equal(data["total_incoming"], expected_total, tol=0.1)
 
     # Average bid-to-cover ~ 2.32x
@@ -32,9 +32,9 @@ def test_historical_q2_2025_totals_and_btc():
     data = get_historical_auction_data(2025, 2)
     assert data is not None, "Expected historical/derived data for Q2 2025"
 
-    # Totals derived from auction_train.csv:
-    # Apr: 146_275.90T, May: 241_297.90T, Jun: 234_831.60T
-    expected_total = 146275.90 + 241297.90 + 234831.60
+    # Totals derived from auction_train.csv (converted to trillions):
+    # Apr: 146.27590T, May: 241.29790T, Jun: 234.83160T
+    expected_total = 146.27590 + 241.29790 + 234.83160
     assert approx_equal(data["total_incoming"], expected_total, tol=0.1)
 
     # Average bid-to-cover ~ 2.97x

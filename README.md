@@ -40,6 +40,22 @@ ALLOWED_USER_IDS=<ids>  # optional
 
 **Table Format:** Add `tab` to `/kei` queries for formatted tables with summary statistics.
 
+## Auction Tab Queries
+
+- Incoming totals:
+	- `/kei tab incoming bid in May 2025`
+	- `/kei tab incoming bid in May 2025 and Jun 2025`
+	- `/kei tab incoming bid from Q2 2025 to Q2 2026`
+	- `/kei tab incoming bid from 2024 to 2025`
+
+- Awarded totals:
+	- `/kei tab awarded bid from Apr 2026 to Jun 2026`
+
+- Incoming and Awarded:
+	- `/kei tab incoming and awarded bid from Q2 2026 to Q3 2026`
+
+Tables render in Economist-style monospace with borders. Periods can be months (names or numbers), quarters (Q1–Q4), or years. Data loads forecast-first and falls back to historical where available.
+
 ## Output Format
 
 **Tables:** Right-aligned numeric columns with summary statistics (Count/Min/Max/Avg/Std)
