@@ -265,7 +265,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, multi-date (single metric)
     if include_date and len(tenors) > 1 and len(dates) > 1:
-        header = f"{'Date':<12} | " + " | ".join([f"{normalize_tenor_display(t):<8}" for t in tenors])
+        header = f"{'Date':<12} | " + " | ".join([f"{normalize_tenor_display(t):>8}" for t in tenors])
         width = 12 + len(tenors) * 11
         table_rows = []
         for d in dates:
@@ -310,12 +310,12 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
     # Single tenor, multi-date (single metric)
     elif include_date and len(tenors) == 1 and len(dates) > 1:
         t = tenors[0]
-        header = f"{'Date':<12} | {normalize_tenor_display(t):<8}"
+        header = f"{'Date':<12} | {normalize_tenor_display(t):>8}"
         width = 23
         table_rows = []
         for d in dates:
             val = next((r.get(metric) for r in rows if r['tenor'] == t and r['date'] == d), None)
-            table_rows.append(f"{format_date_display(d):<12} | {val:.2f}" if val is not None else f"{format_date_display(d):<12} | -")
+            table_rows.append(f"{format_date_display(d):<12} | {val:>8.2f}" if val is not None else f"{format_date_display(d):<12} | {'-':>8}")
         if economist_style:
             border = '─' * width
             rows_with_borders = "\n".join([f"│{row:<{width}}│" for row in table_rows])
@@ -1212,15 +1212,14 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/both plot 5 and 10 years 2024\n"
         "/both compare yields 2024 vs 2025\n\n"
         "<b>📌 /check (Quick Lookup):</b>\n"
-        "/check 2025-12-27 10 year\n"
+        "/check 2025-12-12 10 year\n"
         "/check price 5 and 10 years 6 Dec 2024\n\n"
         "<b>📊 Economist-Style Output</b>\n"
         "<b>Tables:</b> Use 'tab' or 'table' in /kei queries\n"
         "  • Single: /kei tab yield 5 year Feb 2025\n"
-        "  • Multi-tenor: /kei tab yield 5 and 10 year Feb\n"
+        "  • Multi-tenor: /kei tab yield 5 and 10 year Feb 2025\n"
         "  • Multi-variable: /kei tab yield and price 5 year\n\n"
         "<b>Plots:</b> Professional charts via /kin or /both\n"
-        "  • Gray background, white grid (1.8 linewidth)\n"
         "  • Multi-tenor: /kin plot 5 and 10 year Jan 2025\n"
         "  • Caption: 'Source: PerisAI analytics | as of [date]'\n\n"
         "<b>👥 Personas</b>\n\n"
