@@ -1791,14 +1791,15 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         await update.message.reply_photo(photo=image_bytes)
                         # Send pre-computed analysis from FastAPI (no redundant LLM calls)
                         if data_summary and data_summary.strip():
+                            # Don't escape HTML blockquote tags - they're already safe from the API
                             await update.message.reply_text(
-                                strip_markdown_emphasis(html_module.escape(data_summary)),
+                                strip_markdown_emphasis(data_summary),
                                 parse_mode=ParseMode.HTML
                             )
                     else:
                         # No image, send analysis-only response
                         await update.message.reply_text(
-                            f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{strip_markdown_emphasis(html_module.escape(data_summary))}",
+                            f"📊 <b>Kei & Kin | Numbers to Meaning</b>\n\n{strip_markdown_emphasis(data_summary)}",
                             parse_mode=ParseMode.HTML
                         )
                     response_time = time.time() - start_time
