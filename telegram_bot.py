@@ -2161,6 +2161,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                     response_text = f"📊 Found {len(rows_list)} records\n"
                     response_text += f"Period: {intent.start_date} → {intent.end_date}\n"
+
+                    import re
+                    def _format_tenor_display(label: str) -> str:
+                        label = str(label or '').replace('_', ' ').strip()
+                        # Normalize patterns like '5year', '5 year', '5Yyear' to '5Y'
+                        label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
+                        label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+                        return label
                     
                     # Per-metric, per-tenor summaries (plain text with bullet points)
                     import statistics
@@ -2186,7 +2194,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             t_max = max(vals)
                             t_avg = statistics.mean(vals)
                             t_std = statistics.stdev(vals) if len(vals) > 1 else 0
-                            tenor_display = tenor.replace('_', ' ').strip()
+                            tenor_display = _format_tenor_display(tenor)
                             response_text += (
                                 f"• {tenor_display}: n={len(vals)} "
                                 f"min={t_min:.2f}{unit} max={t_max:.2f}{unit} "
@@ -2211,12 +2219,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if len(formatted_rows) > 3500:  # Telegram message limit is 4096, leave buffer
                         # Send in multiple messages if too long
                         response_text += formatted_rows[:3500]
-                        await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+                        rendered = convert_markdown_code_fences_to_html(response_text)
+                        await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
                         response_text = formatted_rows[3500:]
-                        await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+                        rendered = convert_markdown_code_fences_to_html(response_text)
+                        await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
                     else:
                         response_text += formatted_rows
-                    await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
+                        rendered = convert_markdown_code_fences_to_html(response_text)
+                        await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
                 
                 return
         
