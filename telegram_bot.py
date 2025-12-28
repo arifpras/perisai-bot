@@ -213,19 +213,24 @@ def get_historical_auction_data(year: int, quarter: int) -> Optional[Dict]:
         if quarter_data.empty:
             return None
         
-        # Calculate totals (incoming_bio_log is log base 10 of billions)
+        # Calculate totals (incoming_bio_log and awarded_bio_log are log base 10 of billions)
         monthly_incoming = []
         monthly_btc = []
+        total_awarded = 0.0
         
         for _, row in quarter_data.iterrows():
             incoming_billions = 10 ** row['incoming_bio_log']
             incoming_trillions = incoming_billions / 1000.0
+            awarded_billions = 10 ** row['awarded_bio_log'] if pd.notnull(row['awarded_bio_log']) else 0.0
+            awarded_trillions = awarded_billions / 1000.0
             monthly_incoming.append({
                 'month': int(row['auction_month']),
                 'incoming': incoming_trillions,
+                'awarded': awarded_trillions,
                 'bid_to_cover': row['bid_to_cover']
             })
             monthly_btc.append(row['bid_to_cover'])
+            total_awarded += awarded_trillions
         
         total_incoming = sum(m['incoming'] for m in monthly_incoming)
         avg_btc = sum(monthly_btc) / len(monthly_btc) if monthly_btc else 0
@@ -235,6 +240,7 @@ def get_historical_auction_data(year: int, quarter: int) -> Optional[Dict]:
             'quarter': quarter,
             'monthly': monthly_incoming,
             'total_incoming': total_incoming,
+            'total_awarded': total_awarded,
             'avg_bid_to_cover': avg_btc
         }
     except Exception as e:
@@ -252,11 +258,15 @@ def get_historical_auction_month_data(year: int, month: int) -> Optional[Dict]:
             return None
         # Single month aggregate
         incoming_vals = []
+        awarded_vals = []
         btc_vals = []
         for _, row in month_data.iterrows():
             incoming_vals.append((10 ** row['incoming_bio_log']) / 1000.0)
+            awarded_billions = 10 ** row['awarded_bio_log'] if pd.notnull(row['awarded_bio_log']) else 0.0
+            awarded_vals.append(awarded_billions / 1000.0)
             btc_vals.append(row['bid_to_cover'])
         total_incoming = sum(incoming_vals)
+        total_awarded = sum(awarded_vals)
         avg_btc = sum(btc_vals) / len(btc_vals) if btc_vals else 0
         return {
             'type': 'month',
@@ -265,9 +275,11 @@ def get_historical_auction_month_data(year: int, month: int) -> Optional[Dict]:
             'monthly': [{
                 'month': int(month),
                 'incoming': total_incoming,
+                'awarded': total_awarded,
                 'bid_to_cover': avg_btc
             }],
             'total_incoming': total_incoming,
+            'total_awarded': total_awarded,
             'avg_bid_to_cover': avg_btc,
         }
     except Exception as e:
@@ -286,22 +298,26 @@ def get_historical_auction_year_data(year: int) -> Optional[Dict]:
         btc_vals = []
         for _, row in year_df.iterrows():
             m = int(row['auction_month'])
-            monthly_vals.setdefault(m, {'incoming': 0.0, 'btc_items': []})
+            monthly_vals.setdefault(m, {'incoming': 0.0, 'awarded': 0.0, 'btc_items': []})
             monthly_vals[m]['incoming'] += (10 ** row['incoming_bio_log']) / 1000.0
+            awarded_billions = 10 ** row['awarded_bio_log'] if pd.notnull(row['awarded_bio_log']) else 0.0
+            monthly_vals[m]['awarded'] += awarded_billions / 1000.0
             monthly_vals[m]['btc_items'].append(row['bid_to_cover'])
             btc_vals.append(row['bid_to_cover'])
         monthly = []
         for m in sorted(monthly_vals.keys()):
             items = monthly_vals[m]
             avg_btc_m = sum(items['btc_items']) / len(items['btc_items']) if items['btc_items'] else 0
-            monthly.append({'month': m, 'incoming': items['incoming'], 'bid_to_cover': avg_btc_m})
+            monthly.append({'month': m, 'incoming': items['incoming'], 'awarded': items['awarded'], 'bid_to_cover': avg_btc_m})
         total_incoming = sum(x['incoming'] for x in monthly)
+        total_awarded = sum(x['awarded'] for x in monthly)
         avg_btc = sum(btc_vals) / len(btc_vals) if btc_vals else 0
         return {
             'type': 'year',
             'year': year,
             'monthly': monthly,
             'total_incoming': total_incoming,
+            'total_awarded': total_awarded,
             'avg_bid_to_cover': avg_btc,
         }
     except Exception as e:
