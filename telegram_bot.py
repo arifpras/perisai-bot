@@ -410,8 +410,8 @@ def format_models_economist_table(models: dict) -> str:
     header = f"{'MODEL':<12} | Forecast"
     content_width = 27  # Width of header/row content (12 + 3 + 8 + 4)
     padding = 10  # Additional right padding for visual balance
-    total_width = content_width + padding  # Total width for borders
-    border = '─' * total_width
+    total_width = content_width + padding  # Total width for content only
+    border = '─' * (total_width + 1)  # +1 to account for leading space in content rows
     
     table_rows = []
     for m in order:
