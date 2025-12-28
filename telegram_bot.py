@@ -300,11 +300,8 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
                             stat_vals.append(formatted_val)
                         else:
                             stat_vals.append('-')
-                    # Right-align all values in 8-char columns, but std with 7-char for tighter display
-                    if stat_name == 'std':
-                        summary_rows.append(f"{stat_name.capitalize():<12} | " + " | ".join([f"{v:>7}" for v in stat_vals]))
-                    else:
-                        summary_rows.append(f"{stat_name.capitalize():<12} | " + " | ".join([f"{v:>8}" for v in stat_vals]))
+                    # Right-align all values in 8-char columns for perfect '|' alignment across rows
+                    summary_rows.append(f"{stat_name.capitalize():<12} | " + " | ".join([f"{v:>8}" for v in stat_vals]))
                 summary_with_borders = "\n".join([f"│ {row:<{width}}│" for row in summary_rows])
                 return f"```\n┌{border}┐\n│ {header:<{width}}│\n├{border}┤\n{rows_with_borders}\n├{border}┤\n{summary_with_borders}\n└{border}┘\n```"
             else:
