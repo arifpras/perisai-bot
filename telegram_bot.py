@@ -1420,7 +1420,6 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         # Compute summary statistics per tenor and metric
                         import statistics
-                        import re
                         summary_lines = []
                         
                         def normalize_tenor_display(tenor_str):
@@ -1522,7 +1521,6 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             metrics.log_query(user_id, username, question, "text", response_time, False, "no_data", "kei")
                             return
                         
-                        import re
                         def normalize_tenor_display(tenor_str):
                             """Normalize tenor labels: '05_year' or '5 year' -> '5Y', '10_year' -> '10Y'"""
                             label = str(tenor_str or '').replace('_', ' ').strip()
@@ -2191,7 +2189,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     response_text = f"📊 Found {len(rows_list)} records\n"
                     response_text += f"Period: {intent.start_date} → {intent.end_date}\n"
 
-                    import re
                     def _format_tenor_display(label: str) -> str:
                         label = str(label or '').replace('_', ' ').strip()
                         # Normalize patterns like '5year', '5 year', '5Yyear' to '5Y'
