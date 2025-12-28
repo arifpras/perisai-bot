@@ -334,9 +334,22 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{normalize_tenor_display(t):<8} | {val:.2f}" if val is not None else f"{normalize_tenor_display(t):<8} | -")
         if economist_style:
             border = '─' * 20
-            rows_with_borders = "\n".join([f"│ {row:<20}│" for row in table_rows])
-            return f"```\n┌{border}┐\n│ {header:<20}│\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
+            rows_with_borders = "\n".join([f"│{row:<20}│" for row in table_rows])
+            return f"```\n┌{border}┐\n│{header:<20}│\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
+
+    # Single tenor, single date (no date column) → Tenor | Metric (even for one row)
+    elif not include_date and len(tenors) == 1:
+        header = f"{'Tenor':<8} | {metric.capitalize():<8}"
+        t = tenors[0]
+        val = next((r.get(metric) for r in rows if r['tenor'] == t), None)
+        row = f"{normalize_tenor_display(t):<8} | {val:.2f}" if val is not None else f"{normalize_tenor_display(t):<8} | -"
+        if economist_style:
+            border = '─' * 20
+            return f"```\n┌{border}┐\n│{header:<20}│\n├{border}┤\n│{row:<20}│\n└{border}┘\n```"
+        else:
+            sep = '-' * 20
+            return f"```\n{header}\n{sep}\n{row}\n```"
     # Fallback: bullet style
     lines = []
     for row in rows:
@@ -344,12 +357,12 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             formatted_date = format_date_display(row['date'])
             lines.append(
                 f"🔹 {row['series']} | {normalize_tenor_display(row['tenor'])} | {formatted_date}\n"
-                f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
+                f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}"
             )
         else:
             lines.append(
-                f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')}\n"
-                f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
+                f"🔹 {row['series']} | {normalize_tenor_display(row['tenor'])}\n"
+                f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}"
             )
     return "\n\n".join(lines)
 
