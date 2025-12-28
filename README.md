@@ -3,11 +3,13 @@
 Indonesian government bond analysis via Telegram. Dual AI personas: **Kei** (quantitative) and **Kin** (macro/policy).
 
 **Features:**
-- Historical prices/yields (2023-2025), multi-tenor queries
+- Bond yields & prices: Historical (2015–2025) and forecasts (2025–2026)
+- Auction data: Incoming & awarded bids from 2015 onwards
 - 7-model ensemble forecasting (ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo)
-- Economist-style tables and charts
+- **Economist-style tables** with summary statistics (Count/Min/Max/Avg/Std)
+- Range expansion: "from 2020 to 2024" auto-expands to all years/quarters/months
 - Macro context and policy analysis
-- Auction demand forecasts
+- Multi-tenor and multi-metric queries
 
 ## Quick Start
 
@@ -42,19 +44,28 @@ ALLOWED_USER_IDS=<ids>  # optional
 
 ## Auction Tab Queries
 
-- Incoming totals:
-	- `/kei tab incoming bid in May 2025`
-	- `/kei tab incoming bid in May 2025 and Jun 2025`
-	- `/kei tab incoming bid from Q2 2025 to Q2 2026`
-	- `/kei tab incoming bid from 2024 to 2025`
+Query incoming and awarded auction bids over any historical or forecast period.
 
-- Awarded totals:
-	- `/kei tab awarded bid from Apr 2026 to Jun 2026`
+**Incoming Bid (Historical & Forecast):**
+- `/kei tab incoming bid in May 2025` – Single month
+- `/kei tab incoming bid from 2024 to 2025` – Year-to-year (expands to all years)
+- `/kei tab incoming bid from Q2 2025 to Q2 2026` – Quarter range
+- `/kei tab incoming bid from oct 2024 to mar 2025` – Month range
 
-- Incoming and Awarded:
-	- `/kei tab incoming and awarded bid from Q2 2026 to Q3 2026`
+**Awarded Bid (Historical 2015–2024):**
+- `/kei tab awarded bid from 2020 to 2024` – Historical awarded totals per year
+- `/kei tab awarded bid from Q1 2020 to Q4 2024` – Historical by quarter
+- `/kei tab awarded bid in Mar 2023` – Single historical month
 
-Tables render in Economist-style monospace with borders. Periods can be months (names or numbers), quarters (Q1–Q4), or years. Data loads forecast-first and falls back to historical where available.
+**Combined (Incoming + Awarded):**
+- `/kei tab incoming and awarded bid from 2022 to 2024` – Compare both over years
+- `/kei tab incoming and awarded bid from Q2 2026 to Q3 2026` – Both over quarters
+
+**Data Sources:**
+- **Forecast (2025–2026):** `20251224_auction_forecast.csv` (incoming only)
+- **Historical (2015–2024):** `auction_train.csv` (incoming + awarded from `incoming_bio_log` and `awarded_bio_log`)
+
+Tables auto-expand ranges (e.g., "from 2015 to 2024" yields all 10 years in rows). Economist-style borders with right-aligned totals in Rp Trillions.
 
 ## Output Format
 
@@ -116,4 +127,10 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-**Current Version:** `v2025.12.28-stable-tables`
+**Current Version:** `v2025.12.28-stable-ranges-awarded`
+
+**Recent Updates (Dec 28, 2025):**
+- ✅ Range expansion: `from X to Y` queries now expand to all intermediate periods (e.g., 2015–2024 → 10 yearly rows)
+- ✅ Awarded bid data: Historical awarded amounts now available for 2015–2024 via `auction_train.csv`
+- ✅ Summary stats: All multi-row tables include Count/Min/Max/Avg/Std
+- ✅ Examples folder: See [examples/](examples/) for real-world prompts and outputs
