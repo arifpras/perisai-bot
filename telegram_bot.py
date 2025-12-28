@@ -204,6 +204,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
     if not rows:
         return "No data found."
     metrics_list = metrics or [metric]
+    import re
     def format_date_display(date_str):
         from datetime import datetime
         try:
@@ -211,6 +212,13 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             return dt.strftime('%d %b %Y')
         except:
             return date_str
+    def normalize_tenor_display(tenor_str):
+        """Normalize tenor labels: '05_year' or '5 year' -> '5Y', '10_year' -> '10Y'"""
+        label = str(tenor_str or '').replace('_', ' ').strip()
+        # Normalize patterns like '5year', '5 year', '5Yyear' to '5Y'
+        label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
+        label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+        return label
     tenors = sorted(set(row['tenor'] for row in rows))
     dates = sorted(set(row['date'] for row in rows if 'date' in row))
     # Single tenor, multi-date, multiple metrics → Date | m1 | m2 ...
@@ -235,7 +243,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         col_headers = []
         for t in tenors:
             for m in metrics_list:
-                col_headers.append(f"{t.replace('_',' ').replace(' year', 'Y')}_{m.capitalize()[:1]}")
+                col_headers.append(f"{normalize_tenor_display(t)}_{m.capitalize()[:1]}")
         header = f"{'Date':<12} | " + " | ".join([f"{h:<8}" for h in col_headers])
         col_width = 12 + 3 + len(col_headers) * 11
         sep = '-' * col_width
@@ -254,7 +262,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, multi-date (single metric)
     if include_date and len(tenors) > 1 and len(dates) > 1:
-        header = f"{'Date':<12} | " + " | ".join([f"{t.replace('_',' '):<8}" for t in tenors])
+        header = f"{'Date':<12} | " + " | ".join([f"{normalize_tenor_display(t):<8}" for t in tenors])
         width = 12 + len(tenors) * 11
         table_rows = []
         for d in dates:
@@ -270,7 +278,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
     # Single tenor, multi-date (single metric)
     elif include_date and len(tenors) == 1 and len(dates) > 1:
         t = tenors[0]
-        header = f"{'Date':<12} | {t.replace('_',' '):<8}"
+        header = f"{'Date':<12} | {normalize_tenor_display(t):<8}"
         width = 23
         table_rows = []
         for d in dates:
@@ -287,7 +295,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         table_rows = []
         for t in tenors:
             val = next((r.get(metric) for r in rows if r['tenor'] == t), None)
-            table_rows.append(f"{t.replace('_',' '):<8} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{t.replace('_',' '):<8} | -")
+            table_rows.append(f"{normalize_tenor_display(t):<8} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{normalize_tenor_display(t):<8} | -")
         if economist_style:
             border = '─' * 20
             return f"```\n┌{border}┐\n│ {header} │\n├{border}┤\n│ " + " │\n│ ".join(table_rows) + f" │\n└{border}┘\n```"
@@ -298,7 +306,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         if include_date:
             formatted_date = format_date_display(row['date'])
             lines.append(
-                f"🔹 {row['series']} | {row['tenor'].replace('_', ' ')} | {formatted_date}\n"
+                f"🔹 {row['series']} | {normalize_tenor_display(row['tenor'])} | {formatted_date}\n"
                 f"   Price: {row['price']:.2f} | Yield: {row.get('yield', 0):.2f}%"
             )
         else:
