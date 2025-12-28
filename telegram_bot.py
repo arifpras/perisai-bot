@@ -1057,8 +1057,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "<b>PerisAI</b>\n"
         "<i>Pengelolaan Pembiayaan & Risiko Berbasis AI</i>\n"
-        f"v. {datetime.now().year} (c) arifpras\n\n"
-        "───────────────────\n\n"
+        f"v. {datetime.now().year} (c) arifpras\n"
+        "────────────────────\n\n"
         "<b>Commands</b>\n"
         "/kei — Quant analyst (💹 data, tables, forecasts)\n"
         "/kin — Macro strategist (🌍 context, insights, plots)\n"
@@ -1420,7 +1420,16 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         # Compute summary statistics per tenor and metric
                         import statistics
+                        import re
                         summary_lines = []
+                        
+                        def normalize_tenor_display(tenor_str):
+                            """Normalize tenor labels: '05_year' or '5 year' -> '5Y', '10_year' -> '10Y'"""
+                            label = str(tenor_str or '').replace('_', ' ').strip()
+                            # Normalize patterns like '5year', '5 year', '5Yyear' to '5Y'
+                            label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
+                            label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+                            return label
                         
                         # If multiple metrics detected, use multi-variable table
                         if len(metrics_list) > 1:
@@ -1436,10 +1445,11 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                         avg = statistics.mean(vals)
                                         min_val = min(vals)
                                         max_val = max(vals)
-                                        t_short = t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y')
-                                        summary_lines.append(f"{t_short} {m}: min {min_val:.2f}{unit}, max {max_val:.2f}{unit}, avg {avg:.2f}{unit}")
+                                        std_val = statistics.stdev(vals) if len(vals) > 1 else 0
+                                        t_short = normalize_tenor_display(t)
+                                        summary_lines.append(f"{t_short} {m}: min {min_val:.2f}{unit}, max {max_val:.2f}{unit}, avg {avg:.2f}{unit}, std {std_val:.2f}{unit}")
                             
-                            tenor_display = ", ".join(t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y') for t in tenors_to_use) if tenors_to_use else "all tenors"
+                            tenor_display = ", ".join(normalize_tenor_display(t) for t in tenors_to_use) if tenors_to_use else "all tenors"
                             metrics_display = " & ".join([m.capitalize() for m in metrics_list])
                             header = f"📊 {metrics_display} | {tenor_display} | {intent.start_date} to {intent.end_date}\n\n"
                         else:
@@ -1455,10 +1465,11 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     avg = statistics.mean(vals)
                                     min_val = min(vals)
                                     max_val = max(vals)
-                                    t_short = t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y')
-                                    summary_lines.append(f"{t_short}: min {min_val:.2f}{unit}, max {max_val:.2f}{unit}, avg {avg:.2f}{unit}")
+                                    std_val = statistics.stdev(vals) if len(vals) > 1 else 0
+                                    t_short = normalize_tenor_display(t)
+                                    summary_lines.append(f"{t_short}: min {min_val:.2f}{unit}, max {max_val:.2f}{unit}, avg {avg:.2f}{unit}, std {std_val:.2f}{unit}")
                             
-                            tenor_display = ", ".join(t.replace('_', ' ').replace('05 ', '5Y').replace('10 ', '10Y') for t in tenors_to_use) if tenors_to_use else "all tenors"
+                            tenor_display = ", ".join(normalize_tenor_display(t) for t in tenors_to_use) if tenors_to_use else "all tenors"
                             header = f"📊 {metric.capitalize()} | {tenor_display} | {intent.start_date} to {intent.end_date}\n"
                         
                         # Build final message with header, stats, table, and signature
