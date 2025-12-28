@@ -318,8 +318,21 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             table_rows.append(f"{format_date_display(d):<12} | {val:.2f}" if val is not None else f"{format_date_display(d):<12} | -")
         if economist_style:
             border = '─' * width
-            rows_with_borders = "\n".join([f"│ {row:<{width}}│" for row in table_rows])
-            return f"```\n┌{border}┐\n│ {header:<{width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
+            rows_with_borders = "\n".join([f"│{row:<{width}}│" for row in table_rows])
+            # If summary statistics are provided, append a summary section at the bottom
+            if summary_stats and metric in summary_stats and t in summary_stats[metric]:
+                stats = summary_stats[metric][t]
+                def _fmt_stat(name):
+                    v = stats.get(name, '-')
+                    if isinstance(v, float):
+                        return f"{v:.2f}"
+                    return f"{int(v)}" if isinstance(v, int) else str(v)
+                summary_rows = []
+                for stat_name in ['count', 'min', 'max', 'avg', 'std']:
+                    summary_rows.append(f"{stat_name.capitalize():<12} | {_fmt_stat(stat_name):>8}")
+                summary_with_borders = "\n".join([f"│{row:<{width}}│" for row in summary_rows])
+                return f"```\n┌{border}┐\n│{header:<{width}}│\n├{border}┤\n{rows_with_borders}\n├{border}┤\n{summary_with_borders}\n└{border}┘\n```"
+            return f"```\n┌{border}┐\n│{header:<{width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Multi-tenor, single date
     elif not include_date and len(tenors) > 1:
@@ -1185,14 +1198,13 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     examples_text = (
         "<b>📚 Query Examples</b>\n\n"
         "<b>💹 /kei (Quant Analyst):</b>\n"
-        "/kei yield 10 year 2025-12-27\n"
-        "/kei forecast yield 10 year 2026-01-15\n"
-        "/kei forecast next 10 observations\n"
+        "/kei yield 10 year 2025-12-12\n"
+        "/kei forecast yield 10 year 2026-12-15\n"
+        "/kei forecast next 5 observations\n"
         "/kei auction demand 2026\n"
-        "/kei tab yield 5 and 10 year Feb 2025 ← table\n"
-        "/kei tab price and yield 5 year this week ← multi-var\n\n"
+        "/kei tab yield 5 and 10 year Feb 2025\n\n"
         "<b>🌍 /kin (Macro Strategist):</b>\n"
-        "/kin plot 5 and 10 year Jan 2025 ← Economist style\n"
+        "/kin plot 5 and 10 year Jan 2025\n"
         "/kin what is fiscal policy\n"
         "/kin explain impact of BI rate cuts\n"
         "/kin what is monetary policy\n\n"
