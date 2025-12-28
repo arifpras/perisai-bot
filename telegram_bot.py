@@ -408,8 +408,10 @@ def format_models_economist_table(models: dict) -> str:
         "arima", "ets", "random_walk", "monte_carlo", "ma5", "var", "prophet", "average"
     ]
     header = f"{'MODEL':<12} | Forecast"
-    width = 27  # Width of the table content
-    border = '─' * width
+    content_width = 27  # Width of header/row content (12 + 3 + 8 + 4)
+    padding = 10  # Additional right padding for visual balance
+    total_width = content_width + padding  # Total width for borders
+    border = '─' * total_width
     
     table_rows = []
     for m in order:
@@ -425,8 +427,8 @@ def format_models_economist_table(models: dict) -> str:
         table_rows.append("(no model outputs)")
     
     # Add right border for complete box format
-    rows_with_borders = "\n".join([f"│ {row:<{width + 10}}│" for row in table_rows])
-    return f"┌{border}┐\n│ {header:<{width + 10}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘"
+    rows_with_borders = "\n".join([f"│ {row:<{total_width}}│" for row in table_rows])
+    return f"┌{border}┐\n│ {header:<{total_width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘"
 
 
 def summarize_intent_result(intent, rows_list: List[dict]) -> str:
