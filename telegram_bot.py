@@ -274,7 +274,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
                 row_vals.append(f"{val:.2f}{'%' if metric=='yield' else ''}" if val is not None else "-")
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
-            border = '─' * width
+            border = '─' * (width + 1)  # +1 to account for leading space in row format
             rows_with_borders = "\n".join([f"│ {row:<{width}}│" for row in table_rows])
             return f"```\n┌{border}┐\n│ {header:<{width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
