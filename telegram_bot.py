@@ -407,7 +407,7 @@ def format_models_economist_table(models: dict) -> str:
     order = [
         "arima", "ets", "random_walk", "monte_carlo", "ma5", "var", "prophet", "average"
     ]
-    header = "Model         | Forecast"
+    header = f"{'MODEL':<12} | Forecast"
     width = 27  # Width of the table content
     border = '─' * width
     
