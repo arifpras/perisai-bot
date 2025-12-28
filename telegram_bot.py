@@ -492,13 +492,38 @@ def parse_auction_table_query(q: str) -> Optional[Dict]:
         return None
 
     periods: List[Dict] = []
-    # from X to Y
+    # from X to Y: expand range
     m_from = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q)
     if m_from:
         p1 = parse_one_period(m_from.group(1))
         p2 = parse_one_period(m_from.group(2))
         if p1 and p2:
-            periods = [p1, p2]
+            # Expand range based on type
+            if p1['type'] == 'year' and p2['type'] == 'year':
+                y1, y2 = p1['year'], p2['year']
+                periods = [{'type': 'year', 'year': y} for y in range(y1, y2 + 1)]
+            elif p1['type'] == 'quarter' and p2['type'] == 'quarter':
+                # Expand quarters across years if needed
+                periods = []
+                (y1, q1), (y2, q2) = (p1['year'], p1['quarter']), (p2['year'], p2['quarter'])
+                for y in range(y1, y2 + 1):
+                    q_start = q1 if y == y1 else 1
+                    q_end = q2 if y == y2 else 4
+                    for q in range(q_start, q_end + 1):
+                        periods.append({'type': 'quarter', 'quarter': q, 'year': y})
+            elif p1['type'] == 'month' and p2['type'] == 'month':
+                # Expand months across years if needed
+                from dateutil.relativedelta import relativedelta
+                start_date = date(p1['year'], p1['month'], 1)
+                end_date = date(p2['year'], p2['month'], 1)
+                periods = []
+                current = start_date
+                while current <= end_date:
+                    periods.append({'type': 'month', 'month': current.month, 'year': current.year})
+                    current += relativedelta(months=1)
+            else:
+                # Type mismatch; just use endpoints
+                periods = [p1, p2]
             return {'metrics': metrics, 'periods': periods}
     # in X and Y
     m_and = re.search(r'in\s+(.+?)\s+and\s+(.+)$', q)
