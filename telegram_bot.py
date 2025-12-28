@@ -408,19 +408,24 @@ def format_models_economist_table(models: dict) -> str:
         "arima", "ets", "random_walk", "monte_carlo", "ma5", "var", "prophet", "average"
     ]
     header = "Model         | Forecast"
-    sep = "---------------------------"
-    lines = [header, sep]
+    width = 27  # Width of the table content
+    border = '─' * width
+    
+    table_rows = []
     for m in order:
         val = models.get(m)
         if val is None:
             continue
         if isinstance(val, float):
-            lines.append(f"{m.upper():<12} | {val:.4f}")
+            table_rows.append(f"{m.upper():<12} | {val:.4f}")
         else:
-            lines.append(f"{m.upper():<12} | {val}")
-    if len(lines) == 2:
-        lines.append("(no model outputs)")
-    return "\n".join(lines)
+            table_rows.append(f"{m.upper():<12} | {val}")
+    
+    if not table_rows:
+        table_rows.append("(no model outputs)")
+    
+    rows_with_borders = "\n".join([f"│ {row}" for row in table_rows])
+    return f"┌{border}\n│ {header}\n├{border}\n{rows_with_borders}\n└{border}"
 
 
 def summarize_intent_result(intent, rows_list: List[dict]) -> str:
