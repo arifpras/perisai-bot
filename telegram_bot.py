@@ -757,6 +757,23 @@ def parse_bond_table_query(q: str) -> Optional[Dict]:
                 'end_date': period_res[1],
             }
     
+    # Fallback: allow single period without explicit "in" (e.g., "/kei tab yield 5 year feb 2025")
+    single_match = (
+        re.search(r'(q[1-4]\s+\d{4})', q) or
+        re.search(r'(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+\d{4}', q) or
+        re.search(r'\b(\d{4})\b', q)
+    )
+    if single_match:
+        period_spec = single_match.group(0).strip()
+        period_res = parse_period_spec(period_spec)
+        if period_res:
+            return {
+                'metrics': metrics,
+                'tenors': tenors,
+                'start_date': period_res[0],
+                'end_date': period_res[1],
+            }
+    
     return None
 
 
@@ -885,7 +902,7 @@ def format_bond_metrics_table(db, start_date: date, end_date: date, metrics: Lis
     params = [start_date.isoformat(), end_date.isoformat()]
     placeholders = ','.join(['?'] * len(tenors))
     query = f"""
-        SELECT obs_date, tenor, {', '.join(metrics)}
+        SELECT obs_date, {', '.join(metrics)}, tenor
         FROM ts
         WHERE obs_date BETWEEN ? AND ? AND tenor IN ({placeholders})
         ORDER BY obs_date, tenor
@@ -904,6 +921,8 @@ def format_bond_metrics_table(db, start_date: date, end_date: date, metrics: Lis
     # Convert to DataFrame for easier manipulation
     df = pd.DataFrame(rows, columns=['obs_date'] + metrics + ['tenor'])
     df['obs_date'] = pd.to_datetime(df['obs_date'])
+    for m in metrics:
+        df[m] = pd.to_numeric(df[m], errors='coerce')
     
     # Sort by date
     df = df.sort_values('obs_date').reset_index(drop=True)
@@ -994,32 +1013,60 @@ def format_bond_metrics_table(db, start_date: date, end_date: date, metrics: Lis
 ```"""
     
     elif len(tenors) == 1 and len(metrics) > 1:
-        # Single tenor, multiple metrics
-        tenor_display = tenors[0].replace('_', ' ')
+        # Single tenor, multiple metrics with summary stats
+        date_width = 12
+        col_width = 10
         metric_caps = [m.capitalize() for m in metrics]
-        header_parts = ['Date'] + metric_caps
-        col_width = 12
-        header = " | ".join([f"{h:^{col_width}}" for h in header_parts])
-        total_width = col_width + 3 + len(metrics) * (col_width + 3) - 3
+        header = f"{'Date':<{date_width}} | " + " | ".join([f"{h:>{col_width}}" for h in metric_caps])
+        total_width = date_width + 3 + len(metrics) * (col_width + 3) - 3
         border = '─' * (total_width + 1)
-        
+
         rows_list = []
         for _, row in df.iterrows():
             date_str = row['obs_date'].strftime('%d %b %Y')
-            values = [date_str]
+            vals = []
             for metric in metrics:
                 val = row[metric]
-                val_str = f"{val:.4f}" if val is not None else "N/A"
-                values.append(val_str)
-            row_str = " | ".join([f"{values[0]:<{col_width}}"] + [f"{v:>{col_width}}" for v in values[1:]])
+                if pd.notnull(val):
+                    vals.append(f"{val:>{col_width}.2f}")
+                else:
+                    vals.append(f"{'-':>{col_width}}")
+            row_str = f"{date_str:<{date_width}} | " + " | ".join(vals)
             rows_list.append(row_str)
-        
-        rows_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list])
+
+        # Summary statistics across the period per metric
+        summary_rows = []
+        stats_labels = ['Count', 'Min', 'Max', 'Avg', 'Std']
+        for label in stats_labels:
+            vals = []
+            for metric in metrics:
+                series = df[metric].dropna()
+                if label == 'Count':
+                    val_str = f"{len(series):>{col_width}d}" if len(series) > 0 else f"{'-':>{col_width}}"
+                elif series.empty:
+                    val_str = f"{'-':>{col_width}}"
+                else:
+                    if label == 'Min':
+                        val = series.min()
+                    elif label == 'Max':
+                        val = series.max()
+                    elif label == 'Avg':
+                        val = series.mean()
+                    else:  # Std
+                        val = series.std()
+                    val_str = f"{val:>{col_width}.2f}" if pd.notnull(val) else f"{'-':>{col_width}}"
+                vals.append(val_str)
+            summary_rows.append(f"{label:<{date_width}} | " + " | ".join(vals))
+
+        data_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list])
+        summary_text = "\n".join([f"│ {r:<{total_width}}│" for r in summary_rows])
         return f"""```
 ┌{border}┐
 │ {header:<{total_width}}│
 ├{border}┤
-{rows_text}
+{data_text}
+├{border}┤
+{summary_text}
 └{border}┘
 ```"""
     
@@ -2033,7 +2080,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "<b>PerisAI</b>\n"
         "<i>Pengelolaan Pembiayaan & Risiko Berbasis AI</i>\n"
-        f"v. {datetime.now().year} (c) arifpras\n"
+        f"(c) Arif P. Sulistiono. {datetime.now().year}.\n"
         "────────────────────\n\n"
         "<b>Commands</b>\n"
         "/kei — Quant analyst (💹 data, tables, forecasts)\n"
@@ -2042,7 +2089,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/check — Quick point lookup\n\n"
         "<b>Query Examples</b>\n"
         "• /kei yield 10 year 2025-12-12\n"
-        "• /kei forecast next 10 observations\n"
+        "• /kei forecast next 5 observations\n"
         "• /kei auction demand 2026\n"
         "• /kei tab yield 5 and 10 year in feb 2025\n"
         "• /kei tab price 5 year from oct 2024 to mar 2025\n"
