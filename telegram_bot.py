@@ -196,7 +196,7 @@ def get_auction_db(csv_path: str = "20251224_auction_forecast.csv"):
     return _db_cache[cache_key]
 
 
-def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=None, economist_style=False):
+def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=None, economist_style=False, summary_stats=None):
     """Format data rows for Telegram message (monospace style).
     - Supports single or multiple metrics (e.g., ['yield','price']).
     - economist_style: Apply Economist table formatting with borders and professional styling.
@@ -232,11 +232,11 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             row_vals = []
             for m in metrics_list:
                 val = next((r.get(m) for r in rows if r['tenor'] == tenors[0] and r['date'] == d), None)
-                suffix = '%' if m == 'yield' else ''
-                row_vals.append(f"{val:.2f}{suffix}" if val is not None else "-")
+                row_vals.append(f"{val:.2f}" if val is not None else "-")
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
-            width = 12 + 3 + len(metrics_list) * 11
+            # Width: Date (12) + " | " (3) + each metric (8) + separators between metrics (3 * (n-1))
+            width = 12 + 3 + len(metrics_list) * 8 + (len(metrics_list) - 1) * 3
             border = '─' * width
             rows_with_borders = "\n".join([f"│ {row:<{width}}│" for row in table_rows])
             return f"```\n┌{border}┐\n│ {header:<{width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
@@ -256,8 +256,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             for t in tenors:
                 for m in metrics_list:
                     val = next((r.get(m) for r in rows if r['tenor'] == t and r['date'] == d), None)
-                    suffix = '%' if m == 'yield' else ''
-                    row_vals.append(f"{val:.2f}{suffix}" if val is not None else "-")
+                    row_vals.append(f"{val:.2f}" if val is not None else "-")
             table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
         if economist_style:
             border = '─' * col_width
@@ -273,12 +272,43 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
             row_vals = []
             for t in tenors:
                 val = next((r.get(metric) for r in rows if r['tenor'] == t and r['date'] == d), None)
-                row_vals.append(f"{val:.2f}{'%' if metric=='yield' else ''}" if val is not None else "-")
-            table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:<8}" for v in row_vals]))
+                row_vals.append(f"{val:.2f}" if val is not None else "-")
+            table_rows.append(f"{format_date_display(d):<12} | " + " | ".join([f"{v:>8}" for v in row_vals]))
         if economist_style:
             border = '─' * (width + 1)  # +1 to account for leading space in row format
             rows_with_borders = "\n".join([f"│ {row:<{width}}│" for row in table_rows])
-            return f"```\n┌{border}┐\n│ {header:<{width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
+            
+            # Add summary rows if available
+            if summary_stats and metric in summary_stats:
+                summary_rows = []
+                for stat_name in ['count', 'min', 'max', 'avg', 'std']:
+                    stat_vals = []
+                    for t in tenors:
+                        if t in summary_stats[metric]:
+                            val = summary_stats[metric][t].get(stat_name, '-')
+                            if isinstance(val, float):
+                                # Format float values with consistent 2 decimal places
+                                if stat_name == 'count':
+                                    formatted_val = f"{int(val)}"
+                                elif stat_name == 'std':
+                                    # Std values typically smaller, use tighter formatting
+                                    formatted_val = f"{val:.2f}"
+                                else:
+                                    formatted_val = f"{val:.2f}"
+                            else:
+                                formatted_val = str(val)
+                            stat_vals.append(formatted_val)
+                        else:
+                            stat_vals.append('-')
+                    # Right-align all values in 8-char columns, but std with 7-char for tighter display
+                    if stat_name == 'std':
+                        summary_rows.append(f"{stat_name.capitalize():<12} | " + " | ".join([f"{v:>7}" for v in stat_vals]))
+                    else:
+                        summary_rows.append(f"{stat_name.capitalize():<12} | " + " | ".join([f"{v:>8}" for v in stat_vals]))
+                summary_with_borders = "\n".join([f"│ {row:<{width}}│" for row in summary_rows])
+                return f"```\n┌{border}┐\n│ {header:<{width}}│\n├{border}┤\n{rows_with_borders}\n├{border}┤\n{summary_with_borders}\n└{border}┘\n```"
+            else:
+                return f"```\n┌{border}┐\n│ {header:<{width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘\n```"
         return f"```\n{header}\n{sep}\n" + "\n".join(table_rows) + "\n```"
     # Single tenor, multi-date (single metric)
     elif include_date and len(tenors) == 1 and len(dates) > 1:
@@ -288,7 +318,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         table_rows = []
         for d in dates:
             val = next((r.get(metric) for r in rows if r['tenor'] == t and r['date'] == d), None)
-            table_rows.append(f"{format_date_display(d):<12} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{format_date_display(d):<12} | -")
+            table_rows.append(f"{format_date_display(d):<12} | {val:.2f}" if val is not None else f"{format_date_display(d):<12} | -")
         if economist_style:
             border = '─' * width
             rows_with_borders = "\n".join([f"│ {row:<{width}}│" for row in table_rows])
@@ -301,7 +331,7 @@ def format_rows_for_telegram(rows, include_date=False, metric='yield', metrics=N
         table_rows = []
         for t in tenors:
             val = next((r.get(metric) for r in rows if r['tenor'] == t), None)
-            table_rows.append(f"{normalize_tenor_display(t):<8} | {val:.2f}{'%' if metric=='yield' else ''}" if val is not None else f"{normalize_tenor_display(t):<8} | -")
+            table_rows.append(f"{normalize_tenor_display(t):<8} | {val:.2f}" if val is not None else f"{normalize_tenor_display(t):<8} | -")
         if economist_style:
             border = '─' * 20
             rows_with_borders = "\n".join([f"│ {row:<20}│" for row in table_rows])
@@ -334,7 +364,6 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
     if metric not in ('yield', 'price'):
         return None
     import statistics
-    unit = '%' if metric == 'yield' else ''
     tenors = sorted(set(str(r.get('tenor') or 'all') for r in rows))
 
     # Period label
@@ -361,6 +390,12 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
             continue
         per_tenor.setdefault(tenor, []).append(val)
 
+    # Build economist-style summary table
+    table_header = f"{'Tenor':^5} | {'Obs':^4} | {'Min':^6} | {'Max':^6} | {'Avg':^6} | {'Std':^5}"
+    width = 5 + 3 + 4 + 3 + 6 + 3 + 6 + 3 + 6 + 3 + 5  # 47 chars
+    border = '─' * width  # Exact width without +1
+    
+    table_rows = []
     for tenor, vals in sorted(per_tenor.items()):
         if not vals:
             continue
@@ -368,10 +403,20 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
         min_v = min(vals)
         max_v = max(vals)
         std_v = statistics.stdev(vals) if len(vals) > 1 else 0
-        lines.append(
-            f"{tenor}: avg {avg_v:.2f}{unit}, min {min_v:.2f}{unit}, max {max_v:.2f}{unit} "
-            f"(n={len(vals)}), std {std_v:.2f}"
+        
+        min_str = f"{min_v:.2f}"
+        max_str = f"{max_v:.2f}"
+        avg_str = f"{avg_v:.2f}"
+        std_str = f"{std_v:.2f}"
+        
+        table_rows.append(
+            f"{tenor:^5} | {len(vals):^4} | {min_str:^6} | {max_str:^6} | {avg_str:^6} | {std_str:^5}"
         )
+    
+    # Format with borders (no leading space so borders match exact width)
+    rows_with_borders = "\n".join([f"│{row:<{width}}│" for row in table_rows])
+    summary_table = f"┌{border}┐\n│{table_header:<{width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘"
+    lines.append(summary_table)
 
     # Curve spread for two tenors (yield only)
     if metric == 'yield' and len(per_tenor) == 2:
@@ -409,27 +454,48 @@ def format_models_economist_table(models: dict) -> str:
     order = [
         "arima", "ets", "random_walk", "monte_carlo", "ma5", "var", "prophet", "average"
     ]
-    header = f"{'MODEL':<12} | Forecast"
-    content_width = 27  # Width of header/row content (12 + 3 + 8 + 4)
-    padding = 10  # Additional right padding for visual balance
-    total_width = content_width + padding  # Total width for content only
-    border = '─' * (total_width + 1)  # +1 to account for leading space in content rows
+    # Model name display mapping
+    model_display = {
+        "arima": "ARIMA",
+        "ets": "ETS",
+        "random_walk": "Random Walk",
+        "monte_carlo": "Monte Carlo",
+        "ma5": "Mov. Avg. 5d",
+        "var": "VAR",
+        "prophet": "Prophet",
+        "average": "Average"
+    }
+    # Model column: 13 chars, separator: 3 chars, Forecast column: 13 chars
+    header = f"{'Model':<13} | {'Forecast':<13}"
+    total_width = 13 + 3 + 13  # 29 chars
+    border = '─' * (total_width + 1)  # +1 to account for leading space in row format
     
     table_rows = []
     for m in order:
         val = models.get(m)
         if val is None:
             continue
+        # Add divider before Average
+        if m == "average" and table_rows:
+            table_rows.append("DIVIDER")  # Placeholder for divider
+        display_name = model_display.get(m, m.upper())
         if isinstance(val, float):
-            table_rows.append(f"{m.upper():<12} | {val:.4f}")
+            table_rows.append(f"{display_name:<13} | {val:<13.4f}")
         else:
-            table_rows.append(f"{m.upper():<12} | {val}")
+            table_rows.append(f"{display_name:<13} | {str(val):<13}")
     
     if not table_rows:
         table_rows.append("(no model outputs)")
     
     # Add right border for complete box format
-    rows_with_borders = "\n".join([f"│ {row:<{total_width}}│" for row in table_rows])
+    # Special handling for divider row
+    formatted_rows = []
+    for row in table_rows:
+        if row == "DIVIDER":
+            formatted_rows.append(f"├{border}┤")
+        else:
+            formatted_rows.append(f"│ {row:<{total_width}}│")
+    rows_with_borders = "\n".join(formatted_rows)
     return f"┌{border}┐\n│ {header:<{total_width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘"
 
 
@@ -501,11 +567,20 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     last_obs_count=5,
                     series=series if series else None,
                 )
-                # Format last 5 observations
-                lines = ["Latest 5 observations:"]
-                for d, v in res.get("last_obs", []):
-                    lines.append(f"- {d}: {v:.4f}")
-                lines.append("")
+                # Format last 5 observations as table
+                last_obs_data = res.get("last_obs", [])
+                if last_obs_data:
+                    header = f"{'Date':<13} | {metric.capitalize():<13}"
+                    width = 13 + 3 + 13  # 29 chars (same as forecast table)
+                    border = '─' * (width + 1)  # +1 to account for leading space in row format
+                    obs_rows = []
+                    for d, v in last_obs_data:
+                        obs_rows.append(f"{str(d):<13} | {v:<13.4f}")
+                    obs_with_borders = "\n".join([f"│ {row:<{width}}│" for row in obs_rows])
+                    obs_table = f"┌{border}┐\n│ {header:<{width}}│\n├{border}┤\n{obs_with_borders}\n└{border}┘"
+                    lines = [f"Latest {len(last_obs_data)} observations:", f"```\n{obs_table}\n```", ""]
+                else:
+                    lines = [""]
                 # Format forecasts per T+ horizon using Economist-style tables
                 lines.append(f"Forecasts ({metric}):")
                 for item in res.get("forecasts", []):
@@ -1456,7 +1531,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                         max_val = max(vals)
                                         std_val = statistics.stdev(vals) if len(vals) > 1 else 0
                                         t_short = normalize_tenor_display(t)
-                                        summary_lines.append(f"{t_short} {m}: min {min_val:.2f}{unit}, max {max_val:.2f}{unit}, avg {avg:.2f}{unit}, std {std_val:.2f}{unit}")
+                                        summary_lines.append(f"{t_short} {m}: min {min_val:.2f}, max {max_val:.2f}, avg {avg:.2f}, std {std_val:.2f}")
                             
                             tenor_display = ", ".join(normalize_tenor_display(t) for t in tenors_to_use) if tenors_to_use else "all tenors"
                             metrics_display = " & ".join([m.capitalize() for m in metrics_list])
@@ -1476,7 +1551,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     max_val = max(vals)
                                     std_val = statistics.stdev(vals) if len(vals) > 1 else 0
                                     t_short = normalize_tenor_display(t)
-                                    summary_lines.append(f"{t_short}: min {min_val:.2f}{unit}, max {max_val:.2f}{unit}, avg {avg:.2f}{unit}, std {std_val:.2f}{unit}")
+                                    summary_lines.append(f"{t_short}: min {min_val:.2f}, max {max_val:.2f}, avg {avg:.2f}, std {std_val:.2f}")
                             
                             tenor_display = ", ".join(normalize_tenor_display(t) for t in tenors_to_use) if tenors_to_use else "all tenors"
                             header = f"📊 {metric.capitalize()} | {tenor_display} | {intent.start_date} to {intent.end_date}\n"
@@ -2208,15 +2283,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
                         return label
                     
-                    # Per-metric, per-tenor summaries (plain text with bullet points)
+                    # Calculate per-tenor summaries for later use
                     import statistics
                     tenors = sorted(set(r.get('tenor') for r in rows_list))
+                    summary_stats = {}  # {metric: {tenor: {count, min, max, avg, std}}}
                     for m in metrics_requested:
                         metric_values = [r.get(m) for r in rows_list if r.get(m) is not None]
                         if not metric_values:
                             continue
-                        stat_label = m.capitalize()
-                        unit = '%' if m == 'yield' else ''
                         per_tenor = {}
                         for row in rows_list:
                             tenor = row.get('tenor') or 'all'
@@ -2224,34 +2298,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             if val is None:
                                 continue
                             per_tenor.setdefault(tenor, []).append(val)
-                        response_text += f"\nSummary by tenor ({stat_label})\n"
-                        for tenor, vals in sorted(per_tenor.items()):
-                            if not vals:
-                                continue
-                            t_min = min(vals)
-                            t_max = max(vals)
-                            t_avg = statistics.mean(vals)
-                            t_std = statistics.stdev(vals) if len(vals) > 1 else 0
-                            tenor_display = _format_tenor_display(tenor)
-                            response_text += (
-                                f"• {tenor_display}: n={len(vals)} "
-                                f"min={t_min:.2f}{unit} max={t_max:.2f}{unit} "
-                                f"avg={t_avg:.2f}{unit} std={t_std:.2f}\n"
-                            )
+                        
+                        summary_stats[m] = {}
+                        for tenor, vals in per_tenor.items():
+                            if vals:
+                                summary_stats[m][tenor] = {
+                                    'count': len(vals),
+                                    'min': min(vals),
+                                    'max': max(vals),
+                                    'avg': statistics.mean(vals),
+                                    'std': statistics.stdev(vals) if len(vals) > 1 else 0
+                                }
                     
-                    # Add blank line after summary before tables
+                    # Add blank line before tables
                     response_text += "\n"
                     
                     # Show all rows (or split into messages if too many)
                     if len(metrics_requested) == 1:
-                        formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0], economist_style=True)
+                        formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0], economist_style=True, summary_stats=summary_stats)
                     else:
                         if len(tenors) == 1:
-                            formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0], metrics=metrics_requested, economist_style=True)
+                            formatted_rows = format_rows_for_telegram(rows_list, include_date=True, metric=metrics_requested[0], metrics=metrics_requested, economist_style=True, summary_stats=summary_stats)
                         else:
                             tables = []
                             for m in metrics_requested:
-                                tables.append(f"{m.capitalize()}\n" + format_rows_for_telegram(rows_list, include_date=True, metric=m, economist_style=True))
+                                tables.append(f"{m.capitalize()}\n" + format_rows_for_telegram(rows_list, include_date=True, metric=m, economist_style=True, summary_stats=summary_stats))
                             formatted_rows = "\n\n".join(tables)
                     
                     if len(formatted_rows) > 3500:  # Telegram message limit is 4096, leave buffer
@@ -2496,6 +2567,7 @@ async def activity_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         query_stats = monitor.query_stats(hours=24)
         top_users = monitor.top_users(hours=24, limit=3)
         errors = monitor.error_summary(hours=24, limit=3)
+        persona_usage = monitor.persona_usage(hours=24)
         
         # Format response
         msg = "<b>📊 PerisAI Bot Activity (Last 24h)</b>\n\n"
@@ -2512,6 +2584,15 @@ async def activity_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg += "<b>Query Types</b>\n"
             for qtype, stats in list(query_stats.items())[:5]:
                 msg += f"  {qtype}: {stats['count']} ({stats['success_rate']:.0f}%)\n"
+            msg += "\n"
+        
+        # Persona usage
+        if persona_usage:
+            msg += "<b>Persona Usage</b>\n"
+            total_persona_queries = sum(p['count'] for p in persona_usage.values())
+            for persona, stats in sorted(persona_usage.items(), key=lambda x: x[1]['count'], reverse=True):
+                pct = (stats['count'] / total_persona_queries * 100) if total_persona_queries > 0 else 0
+                msg += f"  /{persona}: {stats['count']} queries ({pct:.0f}%, {stats['success_rate']:.0f}% success)\n"
             msg += "\n"
         
         # Top users
