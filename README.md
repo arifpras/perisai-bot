@@ -57,25 +57,42 @@ Optional:
 | `/examples` | Query examples | `/examples` |
 | `/start` | Welcome | `/start` |
 
-## Table Format ✨ (NEW!)
+## Table Format ✨
 
 Add `tab` or `table` to `/kei` queries for clean, professional output:
 
 ```
 /kei tab yield 5 and 10 year Feb 2025
 
-┌──────────────────────────────┐
-│ Date        | 5-Year | 10-Year│
-├──────────────────────────────┤
-│ 01 Feb 2025 | 5.45%  | 5.62% │
-│ 02 Feb 2025 | 5.46%  | 5.63% │
-└──────────────────────────────┘
+┌───────────────────────┐
+│ Date         |    05Y |    10Y │
+├───────────────────────┤
+│ 2025-02-01   |   5.45 |   5.62 │
+│ 2025-02-02   |   5.46 |   5.63 │
+└───────────────────────┘
+
+Summary Statistics:
+┌───────────────────────┐
+│              |    05Y |    10Y │
+├───────────────────────┤
+│ Count        |     20 |     20 │
+│ Min          |   5.42 |   5.58 │
+│ Max          |   5.52 |   5.72 │
+│ Avg          |   5.47 |   5.65 │
+│ Std          |   0.03 |   0.04 │
+└───────────────────────┘
 ```
+
+**Table Features:**
+- **Right-aligned numeric columns**: All tenor columns (05Y, 10Y, etc.) right-aligned for professional presentation
+- **Bottom summary statistics**: Count/Min/Max/Avg/Std displayed below data tables
+- **Exact-width borders**: Precise box-drawing characters for perfect alignment
+- **Center-aligned summaries**: Range summaries center-aligned for clarity
 
 **Table query types:**
 - Single tenor, multi-date: `/kei tab yield 5 year Feb 2025`
 - Multi-tenor, multi-date: `/kei tab yield 5 and 10 year Feb 2025`
-- **Multi-variable** (NEW): `/kei tab yield and price 5 and 10 year Feb 2025`
+- Multi-variable: `/kei tab yield and price 5 and 10 year Feb 2025`
 
 ## Query Routing 🔀
 
@@ -221,18 +238,30 @@ T+3 (2025-12-17): average=6.1637
 
 ## Historical Table Formatting (Economist Style)
 
-For historical and multi-tenor queries, the bot returns results as clear, aligned tables in Telegram chat, similar to professional financial publications:
+For historical and multi-tenor queries, the bot returns results as clear, aligned tables in Telegram chat:
 
 ```
-Date         | 5 Year   | 10 Year  
------------------------------------
-2025-01-01   | 6.72%    | 7.10%    
-2025-01-02   | 6.73%    | 7.11%    
-...          | ...      | ...      
-2025-01-31   | 7.02%    | 7.40%    
+Date         |     05Y |     10Y  
+───────────────────────────────
+2025-01-01   |    6.72 |    7.10
+2025-01-02   |    6.73 |    7.11
+...          |     ... |     ...
+2025-01-31   |    7.02 |    7.40
+
+Summary Statistics:
+───────────────────────────────
+Count        |      31 |      31
+Min          |    6.70 |    7.08
+Max          |    7.05 |    7.42
+Avg          |    6.88 |    7.26
+Std          |    0.11 |    0.10
 ```
 
-This format is compatible with Telegram and makes data easy to read and share.
+**Features:**
+- Right-aligned numeric columns for professional presentation
+- Bottom summary statistics (Count/Min/Max/Avg/Std)
+- Compatible with Telegram monospace formatting
+- Easy to read and share
 
 ## ARIMA/ETS Date Type Fix
 
@@ -264,3 +293,16 @@ All table and chart outputs are formatted for optimal display in Telegram, using
 
 ## Tests ✅
 - `pytest` (API coverage in `tests/` including `tests/test_app_fastapi.py`)
+
+## Security Policy 🔒
+See [SECURITY.md](SECURITY.md) for:
+- Vulnerability reporting guidelines
+- Supported versions and security updates
+- Disclosure policy and response timeline
+- Deployment best practices
+
+## Version Control 🏷️
+**Current Stable Version**: `v2025.12.28-stable-tables`
+- All table formatting enhancements backed up
+- Rollback available via: `git checkout v2025.12.28-stable-tables`
+- Production-ready with comprehensive testing
