@@ -38,7 +38,7 @@ ALLOWED_USER_IDS=<ids>  # optional
 | `/both` | Combined analysis | `/both compare 5 and 10 year 2024 vs 2025` |
 | `/check` | Quick lookup | `/check 2025-12-27 10 year` |
 
-**Table Format:** Add `tab` to `/kei` queries for formatted tables with summary statistics. See examples in [examples/bond_tables.md](examples/bond_tables.md) and use the in-bot `/examples` command.
+**Table Format:** Add `tab` to `/kei` queries for formatted tables with summary statistics. See examples in [examples/bond_tables.md](examples/bond_tables.md), [examples/auction_tables.md](examples/auction_tables.md), and use the in-bot `/examples` command.
 
 ## Auction Tab Queries
 
@@ -82,7 +82,7 @@ Tables render in Economist-style monospace with borders. Periods can be months (
 
 More in [examples/bond_tables.md](examples/bond_tables.md).
 
-**Charts:** Economist-style aesthetics (gray background, white gridlines, left-aligned typography)
+**Charts:** Economist-style aesthetics (gray background, white gridlines, left-aligned typography). Plot prompts and guidance: [examples/plots.md](examples/plots.md)
 
 ## Forecasting
 
