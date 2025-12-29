@@ -3041,7 +3041,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             **{'yield': round(r[4], 2) if r[4] is not None else None}
                         ) for r in rows
                     ]
-                    # Generate quantitative summary (without signature for now)
+                    # Generate quantitative summary for Kin to analyze
                     kei_summary = format_range_summary_text(
                         rows_list,
                         start_date=bond_plot_req['start_date'],
@@ -3051,14 +3051,23 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     
                     # Have Kin analyze the quantitative summary
-                    kin_prompt = (
-                        f"Original question: {question}\n\n"
-                        f"Quantitative summary:\n{kei_summary}\n\n"
-                        f"Based on this data and the original question, provide your strategic interpretation and analysis."
-                    )
-                    kin_answer = await ask_kin(kin_prompt, dual_mode=False)
-                    if kin_answer and kin_answer.strip():
-                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                    try:
+                        kin_prompt = (
+                            f"Original question: {question}\n\n"
+                            f"Quantitative summary:\n{kei_summary}\n\n"
+                            f"Based on this data and the original question, provide your strategic interpretation and analysis."
+                        )
+                        kin_answer = await ask_kin(kin_prompt, dual_mode=False)
+                        if kin_answer and kin_answer.strip():
+                            await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                        else:
+                            # Fallback: send the summary if Kin fails
+                            logger.warning("Kin returned empty response, sending summary instead")
+                            await update.message.reply_text(kei_summary.replace('~ Kei', '~ Kin'), parse_mode=ParseMode.HTML)
+                    except Exception as kin_error:
+                        logger.error(f"Error calling ask_kin: {kin_error}")
+                        # Fallback: send the summary
+                        await update.message.reply_text(kei_summary.replace('~ Kei', '~ Kin'), parse_mode=ParseMode.HTML)
                 
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "bond_plot", response_time, True, "success", "kin")
@@ -3152,14 +3161,23 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     
                     # Have Kin analyze the quantitative summary
-                    kin_prompt = (
-                        f"Original question: {question}\n\n"
-                        f"Quantitative summary:\n{kei_summary}\n\n"
-                        f"Based on this data and the original question, provide your strategic interpretation and analysis."
-                    )
-                    kin_answer = await ask_kin(kin_prompt, dual_mode=False)
-                    if kin_answer and kin_answer.strip():
-                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                    try:
+                        kin_prompt = (
+                            f"Original question: {question}\n\n"
+                            f"Quantitative summary:\n{kei_summary}\n\n"
+                            f"Based on this data and the original question, provide your strategic interpretation and analysis."
+                        )
+                        kin_answer = await ask_kin(kin_prompt, dual_mode=False)
+                        if kin_answer and kin_answer.strip():
+                            await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                        else:
+                            # Fallback: send the summary if Kin fails
+                            logger.warning("Kin returned empty response, sending summary instead")
+                            await update.message.reply_text(kei_summary.replace('~ Kei', '~ Kin'), parse_mode=ParseMode.HTML)
+                    except Exception as kin_error:
+                        logger.error(f"Error calling ask_kin: {kin_error}")
+                        # Fallback: send the summary
+                        await update.message.reply_text(kei_summary.replace('~ Kei', '~ Kin'), parse_mode=ParseMode.HTML)
                     
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kin")
