@@ -433,7 +433,7 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
     border = '─' * total_width
 
     # Header
-    header = f"{'Period':<{label_width}}{sep}" + sep.join([f"{c:<{col_width}}" for c in cols])
+    header = f"{'Period':<{label_width}}{sep}" + sep.join([f"{c:>{col_width}}" for c in cols])
 
     # Rows
     rows = []
