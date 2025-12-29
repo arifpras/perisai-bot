@@ -1651,16 +1651,34 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         rows_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list_formatted])
         
         metric_display = metric_name.capitalize()
-        # Add title with tenor and period information (use original tenor format like Kin)
-        # Extract period from intent if available
+        
+        # Build descriptive title in Kin's style with statistics and comparison
         start_date = getattr(intent, 'start_date', None)
         end_date = getattr(intent, 'end_date', None)
-        period_str = ""
+        
+        # Extract year range for concise period display
+        period_display = ""
         if start_date and end_date:
-            period_str = f" | {start_date} to {end_date}"
-        # Use original tenor format: "05 year, 10 year" not normalized "05Y, 10Y"
-        tenor_list_display = ", ".join([t.replace("_", " ") for t in tenors])
-        title = f"📊 INDOGB: {metric_display} | {tenor_list_display}{period_str}\n\n"
+            start_year = start_date.year
+            end_year = end_date.year
+            if start_year == end_year:
+                period_display = f"{start_year}"
+            else:
+                period_display = f"{start_year}-{end_year}"
+        
+        # Build comparison string with normalized tenor labels and avg values
+        comparison_parts = []
+        for tenor, tenor_label in zip(tenors, tenor_labels):
+            group_rows = grouped[tenor]
+            metric_values = [r.get(metric_name) for r in group_rows if r.get(metric_name) is not None]
+            if metric_values:
+                avg_val = statistics.mean(metric_values)
+                comparison_parts.append(f"{tenor_label} Avg {metric_display} {avg_val:.1f}%")
+        
+        comparison_str = " vs ".join(comparison_parts)
+        period_suffix = f" over {period_display}" if period_display else ""
+        
+        title = f"🌍 INDOGB: {comparison_str}{period_suffix}\n\n"
         
         table = f"""{title}```
 ┌{border}┐
