@@ -1597,40 +1597,67 @@ def format_models_economist_table(models: dict) -> str:
 
 
 def summarize_intent_result(intent, rows_list: List[dict]) -> str:
-    """Summarize computed query results for display in chat."""
-    parts: List[str] = []
-
-    # If many rows, summarize by tenor with basic stats and sample rows
+    """Summarize computed query results for display in chat using economist-style tables."""
+    
+    # If many rows, format as economist-style table with stats by tenor
     if len(rows_list) > 5:
         metric_name = getattr(intent, "metric", "value") or "value"
         grouped: Dict[str, List[dict]] = {}
         for r in rows_list:
             grouped.setdefault(r.get("tenor", "all"), []).append(r)
 
-        for tenor_label, group_rows in grouped.items():
+        # Build economist-style table
+        tenors = sorted(grouped.keys())
+        
+        def normalize_tenor_display(tenor_str):
+            """Normalize tenor labels: '05_year' -> '05Y', '10_year' -> '10Y'"""
+            label = str(tenor_str or '').replace('_', ' ').strip()
+            label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
+            label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+            label = re.sub(r'(?i)^(\d)Y$', r'0\1Y', label)
+            return label
+        
+        tenor_labels = [normalize_tenor_display(t) for t in tenors]
+        
+        # Table dimensions
+        tenor_width = 8
+        col_width = 10
+        header = f"{'Tenor':<{tenor_width}} | " + " | ".join([f"{h:>{col_width}}" for h in ['Count', 'Min', 'Max', 'Avg', 'Std']])
+        total_width = tenor_width + 3 + 5 * (col_width + 3) - 3
+        border = '─' * (total_width + 1)
+        
+        rows_list_formatted = []
+        for tenor, tenor_label in zip(tenors, tenor_labels):
+            group_rows = grouped[tenor]
             metric_values = [r.get(metric_name) for r in group_rows if r.get(metric_name) is not None]
             if metric_values:
+                count = len(metric_values)
                 min_val = min(metric_values)
                 max_val = max(metric_values)
                 avg_val = statistics.mean(metric_values)
                 std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
-                stat_line = (
-                    f"{tenor_label.title()}: min {min_val:.2f}, max {max_val:.2f}, "
-                    f"avg {avg_val:.2f}, std {std_val:.2f} ({len(group_rows)} obs)"
-                )
-                parts.append(stat_line)
+                row_str = f"{tenor_label:<{tenor_width}} | {count:>{col_width}} | {min_val:>{col_width}.2f} | {max_val:>{col_width}.2f} | {avg_val:>{col_width}.2f} | {std_val:>{col_width}.2f}"
+                rows_list_formatted.append(row_str)
             else:
-                parts.append(
-                    f"{tenor_label} ({len(group_rows)} records) — no numeric {metric_name} values found"
-                )
+                row_str = f"{tenor_label:<{tenor_width}} | {'N/A':>{col_width}} | {'N/A':>{col_width}} | {'N/A':>{col_width}} | {'N/A':>{col_width}} | {'N/A':>{col_width}}"
+                rows_list_formatted.append(row_str)
+        
+        rows_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list_formatted])
+        
+        metric_display = metric_name.capitalize()
+        table = f"""```
+┌{border}┐
+│ {header:<{total_width}}│
+├{border}┤
+{rows_text}
+└{border}┘
+```
 
-            parts.append(f"  Data rows (first 5 of {len(group_rows)}):")
-            for r in group_rows[:5]:
-                parts.append(
-                    f"    {r['series']} | {tenor_label} | {r.get('date','')} | "
-                    f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
-                )
+**{metric_display} statistics** ({len(rows_list)} observations)"""
+        return table
     else:
+        # For few rows, show simple list
+        parts = []
         for r in rows_list[:5]:
             tenor_label = r.get("tenor", "").replace("_", " ")
             parts.append(
@@ -1638,9 +1665,7 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
                 f"Price {r.get('price','N/A')} | Yield {r.get('yield','N/A')}"
                 + (f" | Date {r.get('date')}" if 'date' in r else "")
             )
-
-    header = f"Computed rows ({len(rows_list)} total):"
-    return header + "\n" + "\n".join(parts)
+        return "\n".join(parts)
 
 
 async def try_compute_bond_summary(question: str) -> Optional[str]:
