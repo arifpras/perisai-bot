@@ -423,7 +423,7 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
         cols = ['Incoming']
 
     # Compute widths
-    label_width = max(9, max(len(_period_label(p)) for p in periods_data))  # reduced by 5 total (14→9)
+    label_width = max(7, max(len(_period_label(p)) for p in periods_data))  # further reduced (min 7)
     col_width = 13  # reduced by 1 (from original 15 to 13, now total reduction of 2)
     total_width = label_width + 3 + len(cols) * (col_width + 3) - 3
     border = '─' * (total_width + 1)
