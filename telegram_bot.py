@@ -1638,9 +1638,15 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
 
 
 async def try_compute_bond_summary(question: str) -> Optional[str]:
-    """Best-effort: parse question and compute a summary for LLM context."""
+    """Best-effort: parse question and compute a summary for LLM context.
+    Returns None for plot queries to let plot handlers take over."""
     try:
         q_lower = question.lower()
+        
+        # Skip processing for plot queries - let plot handlers deal with them
+        if 'plot' in q_lower:
+            return None
+        
         # Special handling: "forecast ... next N observations/days/points" with tenor-only support
         next_match = re.search(r"next\s+(\d+)\s+(observations?|obs|points|days)", q_lower)
         if next_match and ("forecast" in q_lower or "predict" in q_lower or "estimate" in q_lower):
