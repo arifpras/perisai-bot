@@ -19,6 +19,7 @@ from telegram.error import BadRequest
 from telegram.constants import ParseMode
 import httpx
 import pandas as pd
+import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 try:
@@ -684,6 +685,81 @@ def format_auction_comparison(hist_data: Dict, forecast_data: Dict) -> str:
     lines.append("<blockquote>~ Kei</blockquote>")
     
     return "\n".join(lines)
+
+
+def format_auction_historical_multi_year(start_year: int, end_year: int) -> str:
+    """Format historical auction data from auction_train.csv for multiple years (e.g., 2010-2024).
+    Returns Economist-style table with incoming, awarded bids, and bid-to-cover ratio.
+    """
+    try:
+        df = pd.read_csv('auction_train.csv')
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        df['year'] = df['date'].dt.year
+        
+        # Filter for requested years
+        mask = (df['year'] >= start_year) & (df['year'] <= end_year)
+        df_filtered = df[mask].copy()
+        
+        if df_filtered.empty:
+            return f"❌ No auction data available for {start_year}–{end_year}."
+        
+        # Reverse log transformation: incoming_bio_log and awarded_bio_log are log of billions
+        df_filtered['incoming_bio'] = np.exp(df_filtered['incoming_bio_log'])
+        df_filtered['awarded_bio'] = np.exp(df_filtered['awarded_bio_log'])
+        
+        # Group by year and sum
+        yearly = df_filtered.groupby('year').agg({
+            'incoming_bio': 'sum',
+            'awarded_bio': 'sum'
+        }).reset_index()
+        
+        # Calculate bid-to-cover ratio
+        yearly['bid_to_cover'] = yearly['incoming_bio'] / yearly['awarded_bio']
+        
+        # Convert billions to trillions for display
+        yearly['incoming_tri'] = yearly['incoming_bio'] / 1000.0
+        yearly['awarded_tri'] = yearly['awarded_bio'] / 1000.0
+        
+        # Build Economist-style table (41-char width target)
+        # Columns: Year | Incoming | Awarded | BtC
+        # Width allocation: Year=6, Incoming=11, Awarded=11, BtC=8 (~36 chars + separators)
+        lines = []
+        lines.append("📊 <b>INDOGB Auction: Incoming/Awarded Bids</b>")
+        lines.append(f"<b>Period:</b> {start_year}–{end_year}")
+        lines.append("")
+        lines.append("<pre>")
+        
+        header = f"{'Year':<6}|{'Incoming':<11}|{'Awarded':<11}|{'BtC':>6}"
+        lines.append(header)
+        lines.append("─" * 41)
+        
+        for _, row in yearly.iterrows():
+            year_str = f"{int(row['year'])}"
+            incoming_str = f"Rp {row['incoming_tri']:.1f}T"
+            awarded_str = f"Rp {row['awarded_tri']:.1f}T"
+            btc_str = f"{row['bid_to_cover']:.2f}x"
+            
+            line = f"{year_str:<6}|{incoming_str:<11}|{awarded_str:<11}|{btc_str:>6}"
+            lines.append(line)
+        
+        lines.append("</pre>")
+        lines.append("")
+        
+        # Summary stats
+        total_incoming = yearly['incoming_tri'].sum()
+        total_awarded = yearly['awarded_tri'].sum()
+        avg_btc = yearly['bid_to_cover'].mean()
+        
+        lines.append(f"<b>Period totals:</b> Incoming Rp {total_incoming:.1f}T, Awarded Rp {total_awarded:.1f}T")
+        lines.append(f"<b>Avg bid-to-cover:</b> {avg_btc:.2f}x")
+        lines.append("")
+        lines.append("<blockquote>~ Kei</blockquote>")
+        
+        return "\n".join(lines)
+        
+    except Exception as e:
+        logger.error(f"Error formatting historical auction data: {e}")
+        return f"❌ Error loading auction data: {e}"
 
 
 def parse_bond_table_query(q: str) -> Optional[Dict]:
@@ -1383,62 +1459,39 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
             continue
         per_tenor.setdefault(tenor, []).append(val)
 
-    # Build economist-style summary table (target 41 chars total width including borders)
-    # Widths: 5 + 2 + 3 + 2 + 5 + 2 + 5 + 2 + 5 + 2 + 4 = 37 content → 39 total with borders (plus 2 = 41)
-    tenor_width = 5
-    obs_width = 3
-    min_width = 5
-    max_width = 5
-    avg_width = 5
-    std_width = 4
-    sep = " |"
-    sep_len = len(sep)
-    
-    content_width = (tenor_width + obs_width + min_width + max_width + avg_width + std_width +
-                     (6 * sep_len))
-    total_width = content_width
-    border = '─' * total_width
-    
-    # Build header with proper alignment - numeric columns right-aligned
-    table_header = (
-        f"{'Tenor':<{tenor_width}}{sep}"
-        f"{'Obs':^{obs_width}}{sep}"
-        f"{'Min':>{min_width}}{sep}"
-        f"{'Max':>{max_width}}{sep}"
-        f"{'Avg':>{avg_width}}{sep}"
-        f"{'Std':>{std_width}}"
-    )
-    
-    table_rows = []
+    # Harvard-style narrative summary (<=152 chars, descriptive only)
+    unit = "%" if metric == 'yield' else ""
+    spread_note = ""
+    tenor_stats = []
     for tenor, vals in sorted(per_tenor.items()):
         if not vals:
             continue
+
+        tenor_label = format_tenor_display(tenor)
         avg_v = statistics.mean(vals)
         min_v = min(vals)
         max_v = max(vals)
         std_v = statistics.stdev(vals) if len(vals) > 1 else 0
-        
-        tenor_label = format_tenor_display(tenor)
-        
-        min_str = f"{min_v:.2f}"
-        max_str = f"{max_v:.2f}"
-        avg_str = f"{avg_v:.2f}"
-        std_str = f"{std_v:.2f}"
-        
-        row_content = (
-            f"{tenor_label:<{tenor_width}}{sep}"
-            f"{len(vals):^{obs_width}}{sep}"
-            f"{min_str:>{min_width}}{sep}"
-            f"{max_str:>{max_width}}{sep}"
-            f"{avg_str:>{avg_width}}{sep}"
-            f"{std_str:>{std_width}}"
-        )
-        table_rows.append(row_content)
-    
-    # Format with borders
-    rows_with_borders = "\n".join([f"│{row:<{total_width}}│" for row in table_rows])
-    summary_table = f"┌{border}┐\n│{table_header:<{total_width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘"
-    lines.append(summary_table)
+        obs_count = len(vals)
+        spread = max_v - min_v
+
+        # Qualitative notes
+        vol_note = "a tight range" if std_v < 0.10 else "elevated swings" if std_v > 0.30 else "moderate variation"
+        spread_note = "with a wide band" if spread > 0.50 else "within a contained band"
+
+        tenor_stats.append({
+            "label": tenor_label,
+            "obs": obs_count,
+            "min": min_v,
+            "max": max_v,
+            "avg": avg_v,
+            "std": std_v,
+            "vol_note": vol_note,
+            "spread_note": spread_note,
+        })
+
+    # Compute spread once we have tenor stats if two tenors
+    spread_info = None
 
     # Curve spread for two tenors (yield only)
     if metric == 'yield' and len(per_tenor) == 2:
@@ -1462,12 +1515,27 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
             avg_s = statistics.mean(spreads)
             min_s = min(spreads)
             max_s = max(spreads)
-            lines.append(
-                f"Curve ({ten_pair_display[1]}–{ten_pair_display[0]}): avg {avg_s:.2f}pp, "
-                f"range {min_s:.2f}pp to {max_s:.2f}pp"
-            )
-    lines.append("")
-    lines.append("Data reflect observed values in the period; simple averages, no inference beyond sample.")
+            spread_info = f" Spread {ten_pair_display[1]}-{ten_pair_display[0]} {min_s:.2f}-{max_s:.2f}pp avg {avg_s:.2f}pp."
+
+    # Build compact narrative
+    period_text = period_label or "Selected period"
+    tenor_fragments = []
+    for stat in tenor_stats:
+        frag = (
+            f"{stat['label']} {stat['min']:.2f}-{stat['max']:.2f}{unit} "
+            f"avg {stat['avg']:.2f}{unit} sd{stat['std']:.2f}{unit} ({stat['obs']} obs)"
+        )
+        tenor_fragments.append(frag)
+
+    narrative = f"{period_text}: " + "; ".join(tenor_fragments)
+    if spread_info:
+        narrative += "." + spread_info
+
+    # Enforce 152-char ceiling
+    if len(narrative) > 152:
+        narrative = narrative[:149] + "..."
+
+    lines = [narrative]
     lines.append("")
     lines.append(f"<blockquote>~ {signature_persona}</blockquote>")
     return "\n".join(lines)
@@ -1619,12 +1687,27 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                 return "\n".join(lines)
         intent = parse_intent(question)
         rows_list = []
+        
+        # Handle historical auction queries for multi-year ranges (e.g., "from 2010 to 2024")
+        q_auction = q_lower
+        if ('auction' in q_auction or 'incoming' in q_auction or 'awarded' in q_auction or 'bid' in q_auction):
+            # Check for year range pattern
+            yr_range = re.search(r"from\s+(19\d{2}|20\d{2})\s+to\s+(19\d{2}|20\d{2})", q_auction)
+            if yr_range:
+                y_start = int(yr_range.group(1))
+                y_end = int(yr_range.group(2))
+                if y_start <= y_end and y_end <= 2024:  # Historical data only (forecast is separate)
+                    # This is historical auction data request
+                    return format_auction_historical_multi_year(y_start, y_end)
+        
         # Handle auction forecasts
         if intent.type == 'AUCTION_FORECAST':
             auction_db = get_auction_db()
             rows = auction_db.query_forecast(intent)
             if not rows:
-                return None
+                cov_min, cov_max = auction_db.coverage()
+                cov_text = "" if not cov_min or not cov_max else f" Coverage: {cov_min} to {cov_max}."
+                return f"❌ No auction forecast data available for the requested period.{cov_text}"
             # Choose metric based on forecast_type
             ftype = getattr(intent, 'forecast_type', None) or 'awarded'
             metric_field = {
@@ -2923,6 +3006,14 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if bond_plot_req:
             try:
                 db = get_db()
+                cov_min, cov_max = db.coverage()
+                if cov_min and cov_max:
+                    if bond_plot_req['end_date'] < cov_min or bond_plot_req['start_date'] > cov_max:
+                        await update.message.reply_text(
+                            f"❌ No yield data in requested range. Coverage: {cov_min} to {cov_max}.",
+                            parse_mode=ParseMode.HTML
+                        )
+                        return
                 png = generate_plot(
                     db,
                     bond_plot_req['start_date'],
@@ -3138,8 +3229,83 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
     except Exception as e:
         logger.warning(f"Failed to send typing indicator in /both: {type(e).__name__}. Continuing anyway.")
+
+    # Fast path: try to compute quantitative summary locally (auctions/bonds) before hitting API
+    try:
+        data_summary = await try_compute_bond_summary(question)
+        if data_summary:
+            await update.message.reply_text(data_summary, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "text", response_time, True, "local_summary", "both")
+            return
+    except Exception as e:
+        logger.warning(f"/both local summary fast-path failed: {type(e).__name__}: {e}")
     
     if needs_plot:
+        # Prefer local bond plot handling when parser succeeds, to ensure full-range data and consistent summaries
+        bond_plot_req = parse_bond_plot_query(question.lower())
+        if bond_plot_req:
+            try:
+                db = get_db()
+                cov_min, cov_max = db.coverage()
+                if cov_min and cov_max:
+                    if bond_plot_req['end_date'] < cov_min or bond_plot_req['start_date'] > cov_max:
+                        await update.message.reply_text(
+                            f"❌ No yield data in requested range. Coverage: {cov_min} to {cov_max}.",
+                            parse_mode=ParseMode.HTML
+                        )
+                        return
+                png = generate_plot(
+                    db,
+                    bond_plot_req['start_date'],
+                    bond_plot_req['end_date'],
+                    metric=bond_plot_req['metric'],
+                    tenors=bond_plot_req['tenors']
+                )
+                await update.message.reply_photo(photo=io.BytesIO(png))
+
+                # Query data and generate summary
+                params = [bond_plot_req['start_date'].isoformat(), bond_plot_req['end_date'].isoformat()]
+                placeholders = ','.join(['?'] * len(bond_plot_req['tenors']))
+                where = f'obs_date BETWEEN ? AND ? AND tenor IN ({placeholders})'
+                params.extend(bond_plot_req['tenors'])
+
+                rows = db.con.execute(
+                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
+                    params
+                ).fetchall()
+                rows_list = [
+                    dict(
+                        series=r[0], tenor=r[1], date=r[2].isoformat(),
+                        price=round(r[3], 2) if r[3] is not None else None,
+                        **{'yield': round(r[4], 2) if r[4] is not None else None}
+                    ) for r in rows
+                ]
+
+                kei_summary = format_range_summary_text(
+                    rows_list,
+                    start_date=bond_plot_req['start_date'],
+                    end_date=bond_plot_req['end_date'],
+                    metric=bond_plot_req['metric'],
+                    signature_persona='Kei'
+                )
+
+                kin_prompt = (
+                    f"Original question: {question}\n\n"
+                    f"Kei's quantitative analysis:\n{kei_summary}\n\n"
+                    f"Based on this analysis and the original question, provide your strategic interpretation and conclusion."
+                )
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                if kin_answer and kin_answer.strip():
+                    await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "plot", response_time, True, "local_bond_plot", "both")
+                return
+            except Exception as e:
+                logger.error(f"Error generating local bond plot: {e}")
+                # If local path fails, continue to API
+
         try:
             import httpx
             import base64
@@ -3181,6 +3347,14 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 if bond_plot_req:
                     # Use bond plot parser result
+                    cov_min, cov_max = db.coverage()
+                    if cov_min and cov_max:
+                        if bond_plot_req['end_date'] < cov_min or bond_plot_req['start_date'] > cov_max:
+                            await update.message.reply_text(
+                                f"❌ No yield data in requested range. Coverage: {cov_min} to {cov_max}.",
+                                parse_mode=ParseMode.HTML
+                            )
+                            return
                     png = generate_plot(
                         db,
                         bond_plot_req['start_date'],
@@ -3381,15 +3555,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("Usage: \\kei <question>")
                 return
             try:
-                await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+                result = await ask_kei(question)
+                if result:
+                    await update.message.reply_text(result, parse_mode=ParseMode.HTML)
+                else:
+                    await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
             except Exception as e:
-                logger.warning(f"Failed to send typing indicator: {type(e).__name__}. Continuing anyway.")
-            answer = await ask_kei(question)
-            if not answer or not answer.strip():
-                await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
-                return
-            formatted_response = f"{html_module.escape(answer)}"
-            await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML)
+                logger.error(f"Error handling \\kei: {e}")
+                await update.message.reply_text("⚠️ Error processing query.")
             return
 
         if lowered.startswith("\\kin"):

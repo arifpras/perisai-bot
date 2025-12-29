@@ -216,7 +216,24 @@ def parse_intent(text: str) -> Intent:
                 forecast_type=forecast_type,
             )
         
-        # Try year
+        # Try explicit year range: "from 2010 to 2024"
+        yr_range = re.search(r"from\s+(19\d{2}|20\d{2})\s+to\s+(19\d{2}|20\d{2})", text_lower)
+        if yr_range:
+            y_start = int(yr_range.group(1))
+            y_end = int(yr_range.group(2))
+            if y_start <= y_end:
+                return Intent(
+                    type="AUCTION_FORECAST",
+                    metric="auction",
+                    series=None,
+                    tenor=None,
+                    tenors=None,
+                    start_date=date(y_start, 1, 1),
+                    end_date=date(y_end, 12, 31),
+                    forecast_type=forecast_type,
+                )
+
+        # Try single year fallback
         ym = YEAR_RE.findall(text)
         if ym:
             years = sorted(set(int(y) for y in ym))
@@ -446,6 +463,16 @@ class BondDB:
         """
         return self.con.execute(q, params).fetchone()
 
+    def coverage(self):
+        """Return (min_date, max_date) coverage of ts_raw, or (None, None) if empty."""
+        try:
+            row = self.con.execute("SELECT MIN(obs_date), MAX(obs_date) FROM ts_raw").fetchone()
+            if not row:
+                return (None, None)
+            return row[0], row[1]
+        except Exception:
+            return (None, None)
+
 
 # -----------------------------
 # Auction Forecast DB
@@ -510,6 +537,16 @@ class AuctionDB:
                    'incoming_billions', 'awarded_billions', 'bid_to_cover', 'number_series',
                    'yield01_ibpa', 'yield05_ibpa', 'yield10_ibpa']
         return [dict(zip(columns, row)) for row in result]
+
+    def coverage(self):
+        """Return (min_date, max_date) coverage of auction_forecast, or (None, None) if empty."""
+        try:
+            row = self.con.execute("SELECT MIN(forecast_date), MAX(forecast_date) FROM auction_forecast").fetchone()
+            if not row:
+                return (None, None)
+            return row[0], row[1]
+        except Exception:
+            return (None, None)
 
 # --- Unified Yield Forecast API ---
 from yield_forecast_models import (
