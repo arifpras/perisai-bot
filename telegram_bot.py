@@ -3531,6 +3531,33 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not question:
         await update.message.reply_text("Usage: /both <question>")
         return
+
+    def clean_kin_output(text: str) -> str:
+        """Remove leading persona titles to avoid duplicate headers in /both responses."""
+        if not isinstance(text, str):
+            return text
+
+        def is_title_line(line: str) -> bool:
+            stripped = line.strip()
+            if not stripped:
+                return False
+            upper = stripped.upper()
+            if "INDOGB" in upper:
+                return True
+            if "KEI & KIN" in upper or "KEI X KIN" in upper:
+                return True
+            if stripped.startswith("<b>") and ("KEI" in upper or "KIN" in upper):
+                return True
+            return False
+
+        lines = text.splitlines()
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and is_title_line(lines[0]):
+            lines.pop(0)
+            while lines and not lines[0].strip():
+                lines.pop(0)
+        return "\n".join(lines).strip()
     
     # Detect if user wants a plot (route through FastAPI /chat endpoint)
     needs_plot = any(keyword in question.lower() for keyword in ["plot"])
@@ -3600,7 +3627,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
-                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                        kin_cleaned = clean_kin_output(kin_answer)
+                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                     
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "text", response_time, True, "auction_quarter_range_both", "both")
@@ -3671,7 +3699,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
-                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                        kin_cleaned = clean_kin_output(kin_answer)
+                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                     
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "text", response_time, True, "auction_month_range_both", "both")
@@ -3725,7 +3754,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
-                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                        kin_cleaned = clean_kin_output(kin_answer)
+                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                     
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "text", response_time, True, "auction_table_both", "both")
@@ -3760,7 +3790,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                 if kin_answer and kin_answer.strip():
-                    await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                    kin_cleaned = clean_kin_output(kin_answer)
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "forecast", response_time, True, "forecast_both", "both")
                 return
@@ -3775,7 +3806,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                 if kin_answer and kin_answer.strip():
-                    await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                    kin_cleaned = clean_kin_output(kin_answer)
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "text", response_time, True, "comparison_both", "both")
                 return
@@ -3849,7 +3881,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
-                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                        kin_cleaned = clean_kin_output(kin_answer)
+                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                 except Exception as kin_err:
                     logger.warning(f"Kin analysis failed in /both plot: {type(kin_err).__name__}: {kin_err}")
                     # Continue - we already sent the Kei summary, so don't fall through to API
@@ -3954,7 +3987,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
-                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                        kin_cleaned = clean_kin_output(kin_answer)
+                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                     
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, "local_fallback_bond_plot", "both")
