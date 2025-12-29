@@ -3400,9 +3400,81 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # For /both, we need to chain Kei → Kin, so handle auction tables specially
     q_lower = question.lower()
     
-    # Check for historical auction queries with year ranges (e.g., "from 2010 to 2024")
+    # Check for historical auction queries with year or month ranges (e.g., "from 2010 to 2024" or "from dec 2010 to feb 2011")
     is_auction_query = ('auction' in q_lower or 'incoming' in q_lower or 'awarded' in q_lower or 'bid' in q_lower)
     if is_auction_query:
+        # Try month-to-month range first (e.g., "from dec 2010 to feb 2011")
+        months_map = {
+            'jan':1,'january':1, 'feb':2,'february':2, 'mar':3,'march':3,
+            'apr':4,'april':4, 'may':5, 'jun':6,'june':6,
+            'jul':7,'july':7, 'aug':8,'august':8,
+            'sep':9,'sept':9,'september':9, 'oct':10,'october':10,
+            'nov':11,'november':11, 'dec':12,'december':12,
+        }
+        month_range = re.search(r"from\s+(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(19\d{2}|20\d{2})\s+to\s+(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(19\d{2}|20\d{2})", q_lower)
+        if month_range:
+            m1_str, y1_str, m2_str, y2_str = month_range.groups()
+            m1 = months_map.get(m1_str[:3], 1)
+            y1 = int(y1_str)
+            m2 = months_map.get(m2_str[:3], 12)
+            y2 = int(y2_str)
+            if y2 <= 2024:  # Historical data only
+                try:
+                    from dateutil.relativedelta import relativedelta
+                    start_date = date(y1, m1, 1)
+                    end_date = date(y2, m2, 1)
+                    periods = []
+                    current = start_date
+                    while current <= end_date:
+                        periods.append({'type': 'month', 'month': current.month, 'year': current.year})
+                        current += relativedelta(months=1)
+                    
+                    periods_data = []
+                    skipped_periods = []
+                    month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    
+                    for p in periods:
+                        pdata = load_auction_period(p)
+                        if not pdata:
+                            skipped_periods.append(f"{month_names[p['month']]} {p['year']}")
+                            continue
+                        periods_data.append(pdata)
+                    
+                    if not periods_data:
+                        await update.message.reply_text(
+                            f"❌ No auction data found for {m1_str} {y1} to {m2_str} {y2}.",
+                            parse_mode=ParseMode.HTML
+                        )
+                        response_time = time.time() - start_time
+                        metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
+                        return
+                    
+                    # Generate Kei's table
+                    metrics_list = ['incoming', 'awarded']
+                    kei_table = format_auction_metrics_table(periods_data, metrics_list)
+                    await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                    
+                    # Have Kin analyze the table
+                    kin_prompt = (
+                        f"Original question: {question}\n\n"
+                        f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                        f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                    )
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                    if kin_answer and kin_answer.strip():
+                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                    
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, True, "auction_month_range_both", "both")
+                    return
+                except Exception as e:
+                    logger.error(f"Error in month-range auction /both: {e}", exc_info=True)
+                    await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
+                    return
+        
+        # Try year-to-year range (e.g., "from 2010 to 2024")
         yr_range = re.search(r"from\s+(19\d{2}|20\d{2})\s+to\s+(19\d{2}|20\d{2})", q_lower)
         if yr_range:
             y_start = int(yr_range.group(1))
