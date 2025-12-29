@@ -3164,9 +3164,22 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         ) for r in rows
                     ]
                     
-                    # Call chained analysis
-                    result = await ask_kei_then_kin(question)
-                    kin_answer = result.get("kin", "")
+                    # Generate Kei's quantitative summary with actual data
+                    kei_summary = format_range_summary_text(
+                        rows_list,
+                        start_date=bond_plot_req['start_date'],
+                        end_date=bond_plot_req['end_date'],
+                        metric=bond_plot_req['metric'],
+                        signature_persona='Kei'
+                    )
+                    
+                    # Have Kin analyze Kei's summary
+                    kin_prompt = (
+                        f"Original question: {question}\n\n"
+                        f"Kei's quantitative analysis:\n{kei_summary}\n\n"
+                        f"Based on this analysis and the original question, provide your strategic interpretation and conclusion."
+                    )
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
                         await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
                     
