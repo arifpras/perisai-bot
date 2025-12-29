@@ -2893,15 +2893,19 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_photo(photo=io.BytesIO(png))
                 
                 # Generate Kin's analysis summary for the plot
-                rows = db.query(
-                    f"SELECT obs_date, series, tenor, price, yield FROM ts "
-                    f"WHERE obs_date BETWEEN ? AND ? AND tenor IN ({','.join(['?'] * len(bond_plot_req['tenors']))})",
-                    [bond_plot_req['start_date'].isoformat(), bond_plot_req['end_date'].isoformat()] + bond_plot_req['tenors']
-                )
+                params = [bond_plot_req['start_date'].isoformat(), bond_plot_req['end_date'].isoformat()]
+                placeholders = ','.join(['?'] * len(bond_plot_req['tenors']))
+                where = f'obs_date BETWEEN ? AND ? AND tenor IN ({placeholders})'
+                params.extend(bond_plot_req['tenors'])
+                
+                rows = db.con.execute(
+                    f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
+                    params
+                ).fetchall()
                 if rows:
                     rows_list = [
                         dict(
-                            series=r[1], tenor=r[2], date=r[0],
+                            series=r[0], tenor=r[1], date=r[2].isoformat(),
                             price=round(r[3], 2) if r[3] is not None else None,
                             **{'yield': round(r[4], 2) if r[4] is not None else None}
                         ) for r in rows
