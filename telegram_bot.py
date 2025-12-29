@@ -1384,10 +1384,12 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
         per_tenor.setdefault(tenor, []).append(val)
 
     # Build economist-style summary table (target 41 chars total width including borders)
-    tenor_width = 4
+    # Widths must accommodate headers: "Tenor" (5), "Obs" (3), "Min" (3), "Max" (3), "Avg" (3), "Std" (3)
+    # Layout: 5 + sep + 3 + sep + 6 + sep + 6 + sep + 5 + sep + 4 = 39 chars content → 41 total with borders
+    tenor_width = 5
     obs_width = 3
-    min_width = 5
-    max_width = 5
+    min_width = 6
+    max_width = 6
     avg_width = 5
     std_width = 4
     sep = " |"
@@ -1398,7 +1400,7 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
     total_width = content_width
     border = '─' * total_width
     
-    # Build header with right-aligned numeric columns
+    # Build header with proper alignment - numeric columns right-aligned
     table_header = (
         f"{'Tenor':<{tenor_width}}{sep}"
         f"{'Obs':^{obs_width}}{sep}"
