@@ -1619,15 +1619,15 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         
         tenor_labels = [normalize_tenor_display(t) for t in tenors]
         
-        # Table dimensions - max width 41 chars (37 content + 4 borders)
+        # Table dimensions - max width 41 chars (41 content + 0 extra for borders calc)
         tenor_width = 5
         cnt_width = 4
-        min_width = 3
+        min_width = 4
         max_width = 4
-        avg_width = 3
-        std_width = 3
-        # total_width = 5 + 3 + 4 + 3 + 3 + 3 + 4 + 3 + 5*3 = 37
-        total_width = 37
+        avg_width = 4
+        std_width = 5  # Wider to accommodate .2f format
+        # Calculate: 5 + 3 + 4 + 3 + 4 + 3 + 4 + 3 + 4 + 3 + 5 = 41
+        total_width = tenor_width + 3 + cnt_width + 3 + min_width + 3 + max_width + 3 + avg_width + 3 + std_width
         border = '─' * (total_width + 1)
         
         header = f"{'Tenor':<{tenor_width}} | {'Cnt':>{cnt_width}} | {'Min':>{min_width}} | {'Max':>{max_width}} | {'Avg':>{avg_width}} | {'Std':>{std_width}}"
@@ -1651,7 +1651,17 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         rows_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list_formatted])
         
         metric_display = metric_name.capitalize()
-        table = f"""```
+        # Add title with tenor and period information
+        # Extract period from intent if available
+        start_date = getattr(intent, 'start_date', None)
+        end_date = getattr(intent, 'end_date', None)
+        period_str = ""
+        if start_date and end_date:
+            period_str = f" | {start_date} to {end_date}"
+        tenor_list_display = ", ".join(tenor_labels)
+        title = f"📊 INDOGB: {metric_display} | {tenor_list_display}{period_str}\n\n"
+        
+        table = f"""{title}```
 ┌{border}┐
 │ {header:<{total_width}}│
 ├{border}┤
