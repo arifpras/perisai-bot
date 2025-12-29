@@ -1,4 +1,6 @@
 """Shared Economist-style chart helpers for PerisAI plots."""
+import matplotlib
+from matplotlib import rcParams
 from datetime import date
 from typing import Optional
 
@@ -27,6 +29,9 @@ ECONOMIST_PALETTE = [
 
 def apply_economist_style(fig, ax, *, tick_labelsize: int = 12, grid_linewidth: float = 1.8) -> None:
     """Apply The Economist styling to a matplotlib figure/axes."""
+    # Harden default sizes so later calls without explicit fontsize do not override styling
+    rcParams["axes.titlesize"] = 13
+    rcParams["axes.labelsize"] = max(10, tick_labelsize)
     ax.set_facecolor(ECONOMIST_COLORS["bg_gray"])
     fig.patch.set_facecolor("white")
 
@@ -56,7 +61,7 @@ def apply_economist_style(fig, ax, *, tick_labelsize: int = 12, grid_linewidth: 
 
 def add_economist_caption(fig, *, as_of: Optional[date] = None, text: Optional[str] = None, tick_color: Optional[str] = None) -> None:
     """Add unified caption and margins for Economist-style plots."""
-    fig.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.80)
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.15)
     caption_color = tick_color or ECONOMIST_COLORS.get("gray", ECONOMIST_COLORS["grey"])
     as_of_date = as_of or date.today()
     caption = text or f"Source: PerisAI analytics | as of {as_of_date.strftime('%d %b %Y')}"
