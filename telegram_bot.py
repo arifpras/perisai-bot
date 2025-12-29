@@ -1651,14 +1651,15 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         rows_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list_formatted])
         
         metric_display = metric_name.capitalize()
-        # Add title with tenor and period information
+        # Add title with tenor and period information (use original tenor format like Kin)
         # Extract period from intent if available
         start_date = getattr(intent, 'start_date', None)
         end_date = getattr(intent, 'end_date', None)
         period_str = ""
         if start_date and end_date:
             period_str = f" | {start_date} to {end_date}"
-        tenor_list_display = ", ".join(tenor_labels)
+        # Use original tenor format: "05 year, 10 year" not normalized "05Y, 10Y"
+        tenor_list_display = ", ".join([t.replace("_", " ") for t in tenors])
         title = f"📊 INDOGB: {metric_display} | {tenor_list_display}{period_str}\n\n"
         
         table = f"""{title}```
