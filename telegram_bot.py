@@ -1715,6 +1715,17 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     lines = [f"Latest {len(last_obs_data)} observations:", f"```\n{obs_table}\n```", ""]
                 else:
                     lines = [""]
+                # Add title
+                def normalize_tenor_label(t):
+                    label = str(t or '').replace('_', ' ').strip()
+                    label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
+                    label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+                    label = re.sub(r'(?i)^(\d)Y$', r'0\1Y', label)
+                    return label
+                tenor_label = normalize_tenor_label(tenor)
+                title = f"📊 INDOGB: Forecast {metric.capitalize()} | {tenor_label} | Next {days} obs\n"
+                lines.insert(0, title)
+                
                 # Format forecasts per T+ horizon using Economist-style tables
                 lines.append(f"Forecasts ({metric}):")
                 for item in res.get("forecasts", []):
@@ -1727,6 +1738,10 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     lines.append(header)
                     # Wrap table in code fences to avoid Markdown entity parsing issues
                     lines.append(f"```\n{table}\n```")
+                
+                # Add Kei signature
+                lines.append("")
+                lines.append("<blockquote>~ Kei</blockquote>")
                 return "\n".join(lines)
         intent = parse_intent(question)
         rows_list = []
@@ -2619,7 +2634,11 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             tenor_display = ", ".join(t.replace('_', ' ') for t in bond_tab_req['tenors'])
             metrics_display = " & ".join([m.capitalize() for m in bond_tab_req['metrics']])
             header = f"📊 INDOGB: {metrics_display} | {tenor_display} | {bond_tab_req['start_date']} to {bond_tab_req['end_date']}\n\n"
-            await update.message.reply_text(header + table_text, parse_mode=ParseMode.MARKDOWN)
+            # Add Kei signature
+            full_response = header + table_text + "\n\n<blockquote>~ Kei</blockquote>"
+            # Convert markdown code fences to HTML for proper rendering
+            rendered = convert_markdown_code_fences_to_html(full_response)
+            await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "bond_tab", response_time, True, "success", "kei")
         except Exception as e:
@@ -2662,6 +2681,21 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         table_text = format_auction_metrics_table(periods, tab_req['metrics'])
         
+        # Build title
+        metrics_display = " & ".join([m.capitalize() for m in tab_req['metrics']])
+        period_labels = []
+        for p in tab_req['periods'][:3]:  # Show first 3 periods in title
+            if p['type'] == 'quarter':
+                period_labels.append(f"Q{p['quarter']} {p['year']}")
+            elif p['type'] == 'month':
+                period_labels.append(f"{month_names[p.get('month')]} {p['year']}")
+            else:
+                period_labels.append(f"{p['year']}")
+        if len(tab_req['periods']) > 3:
+            period_labels.append(f"(+{len(tab_req['periods']) - 3} more)")
+        period_range = " to ".join([period_labels[0], period_labels[-1]]) if len(period_labels) > 1 else period_labels[0]
+        title = f"📊 Auction: {metrics_display} | {period_range}\n\n"
+        
         # Add note about skipped periods if any
         if skipped_periods:
             skipped_msg = f"\n\n⚠️ <i>Note: {len(skipped_periods)} period(s) skipped (no data): {', '.join(skipped_periods[:5])}</i>"
@@ -2670,11 +2704,13 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             skipped_msg = ""
         
+        # Add Kei signature
+        full_response = title + table_text + skipped_msg + "\n\n<blockquote>~ Kei</blockquote>"
+        # Convert markdown code fences to HTML for proper rendering
+        rendered = convert_markdown_code_fences_to_html(full_response)
+        
         try:
-            # Send table in Markdown to render code fence/borders
-            await update.message.reply_text(table_text, parse_mode=ParseMode.MARKDOWN)
-            if skipped_msg:
-                await update.message.reply_text(skipped_msg, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "auction_tab", response_time, True, "success", "kei")
         except Exception as e:
@@ -3096,14 +3132,15 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Get the formatted forecast tables directly
                 tables_summary = await try_compute_bond_summary(question)
                 if tables_summary:
-                    # Send tables only (no separate analysis message)
+                    # Send tables with HTML parse mode (contains signature)
                     try:
+                        rendered = convert_markdown_code_fences_to_html(tables_summary)
                         await update.message.reply_text(
-                            tables_summary,
-                            parse_mode=ParseMode.MARKDOWN
+                            rendered,
+                            parse_mode=ParseMode.HTML
                         )
                     except BadRequest:
-                        # Fallback: send without Markdown parsing
+                        # Fallback: send without parsing
                         await update.message.reply_text(tables_summary)
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "forecast", response_time, True, "forecast_next", "kei")

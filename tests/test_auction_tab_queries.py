@@ -56,8 +56,9 @@ def test_kei_tab_incoming_from_year_to_year():
     text, mode = last
     assert "Period" in text and "Incoming" in text
     assert "2024" in text and "2025" in text
+    assert "~ Kei" in text or "Kei</blockquote>" in text
     from telegram.constants import ParseMode
-    assert mode == ParseMode.MARKDOWN
+    assert mode == ParseMode.HTML
 
 
 def test_kei_tab_awarded_months_2026():
@@ -69,9 +70,10 @@ def test_kei_tab_awarded_months_2026():
     assert last is not None
     text, mode = last
     assert "Period" in text and "Awarded" in text
+    assert "~ Kei" in text or "Kei</blockquote>" in text
     # Month names presence depends on label formatting
     from telegram.constants import ParseMode
-    assert mode == ParseMode.MARKDOWN
+    assert mode == ParseMode.HTML
 
 
 def test_kei_tab_incoming_and_awarded_quarters_2026():
@@ -83,8 +85,9 @@ def test_kei_tab_incoming_and_awarded_quarters_2026():
     assert last is not None
     text, mode = last
     assert "Period" in text and "Incoming" in text and "Awarded" in text
+    assert "~ Kei" in text or "Kei</blockquote>" in text
     from telegram.constants import ParseMode
-    assert mode == ParseMode.MARKDOWN
+    assert mode == ParseMode.HTML
 
 
 def test_kei_tab_incoming_single_month_2025():
@@ -98,4 +101,5 @@ def test_kei_tab_incoming_single_month_2025():
     from telegram.constants import ParseMode
     assert "Period" in text and "Incoming" in text
     assert "May 2025" in text
-    assert mode == ParseMode.MARKDOWN
+    assert "~ Kei" in text or "Kei</blockquote>" in text
+    assert mode == ParseMode.HTML
