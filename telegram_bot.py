@@ -3264,6 +3264,34 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Usage: /kin <question>")
         return
 
+    def clean_kin_output(text: str) -> str:
+        """Remove leading INDOGB/Kei headers to avoid duplicate titles in Kin replies."""
+        if not isinstance(text, str):
+            return text
+        def is_title_line(line: str) -> bool:
+            s = line.strip()
+            if not s:
+                return False
+            # Keep Kin's own headline marked with globe
+            if s.startswith("🌍") or s.startswith("<b>🌍"):
+                return False
+            up = s.upper()
+            if "INDOGB" in up:
+                return True
+            if "KEI & KIN" in up or "KEI X KIN" in up:
+                return True
+            if s.startswith("<b>") and ("KEI" in up or "KIN" in up):
+                return True
+            return False
+        lines = text.splitlines()
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and is_title_line(lines[0]):
+            lines.pop(0)
+            while lines and not lines[0].strip():
+                lines.pop(0)
+        return "\n".join(lines).strip()
+
     lower_q = question.lower()
     needs_plot = any(keyword in lower_q for keyword in ["plot"])
 
@@ -3331,15 +3359,16 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         kin_answer = await ask_kin(kin_prompt, dual_mode=False)
                         if kin_answer and kin_answer.strip():
-                            await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                            kin_cleaned = clean_kin_output(kin_answer)
+                            await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                         else:
                             # Fallback: send the summary if Kin fails
                             logger.warning("Kin returned empty response, sending summary instead")
-                            await update.message.reply_text(kei_summary.replace('~ Kei', '~ Kin'), parse_mode=ParseMode.HTML)
+                            await update.message.reply_text(clean_kin_output(kei_summary.replace('~ Kei', '~ Kin')), parse_mode=ParseMode.HTML)
                     except Exception as kin_error:
                         logger.error(f"Error calling ask_kin: {kin_error}")
                         # Fallback: send the summary
-                        await update.message.reply_text(kei_summary.replace('~ Kei', '~ Kin'), parse_mode=ParseMode.HTML)
+                        await update.message.reply_text(clean_kin_output(kei_summary.replace('~ Kei', '~ Kin')), parse_mode=ParseMode.HTML)
                 
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "bond_plot", response_time, True, "success", "kin")
@@ -3441,11 +3470,12 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         kin_answer = await ask_kin(kin_prompt, dual_mode=False)
                         if kin_answer and kin_answer.strip():
-                            await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                            kin_cleaned = clean_kin_output(kin_answer)
+                            await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                         else:
                             # Fallback: send the summary if Kin fails
                             logger.warning("Kin returned empty response, sending summary instead")
-                            await update.message.reply_text(kei_summary.replace('~ Kei', '~ Kin'), parse_mode=ParseMode.HTML)
+                            await update.message.reply_text(clean_kin_output(kei_summary.replace('~ Kei', '~ Kin')), parse_mode=ParseMode.HTML)
                     except Exception as kin_error:
                         logger.error(f"Error calling ask_kin: {kin_error}")
                         # Fallback: send the summary
