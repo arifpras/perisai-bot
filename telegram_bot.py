@@ -423,8 +423,8 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
         cols = ['Incoming']
 
     # Compute widths
-    label_width = max(14, max(len(_period_label(p)) for p in periods_data))
-    col_width = 14  # reduced by 1
+    label_width = max(9, max(len(_period_label(p)) for p in periods_data))  # reduced by 5 total (14→9)
+    col_width = 13  # reduced by 1 (from original 15 to 13, now total reduction of 2)
     total_width = label_width + 3 + len(cols) * (col_width + 3) - 3
     border = '─' * (total_width + 1)
 
@@ -2868,6 +2868,33 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     tenors=bond_plot_req['tenors']
                 )
                 await update.message.reply_photo(photo=io.BytesIO(png))
+                
+                # Generate Kin's analysis summary for the plot
+                rows = db.query(
+                    f"SELECT obs_date, series, tenor, price, yield FROM ts "
+                    f"WHERE obs_date BETWEEN ? AND ? AND tenor IN ({','.join(['?'] * len(bond_plot_req['tenors']))})",
+                    [bond_plot_req['start_date'].isoformat(), bond_plot_req['end_date'].isoformat()] + bond_plot_req['tenors']
+                )
+                if rows:
+                    rows_list = [
+                        dict(
+                            series=r[1], tenor=r[2], date=r[0],
+                            price=round(r[3], 2) if r[3] is not None else None,
+                            **{'yield': round(r[4], 2) if r[4] is not None else None}
+                        ) for r in rows
+                    ]
+                    summary_text = format_range_summary_text(
+                        rows_list,
+                        start_date=bond_plot_req['start_date'],
+                        end_date=bond_plot_req['end_date'],
+                        metric=bond_plot_req['metric'],
+                        signature_persona='Kin'
+                    )
+                    if summary_text:
+                        summary_html = convert_markdown_code_fences_to_html(summary_text)
+                        summary_html = html_quote_signature(summary_html)
+                        await update.message.reply_text(summary_html, parse_mode=ParseMode.HTML)
+                
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "bond_plot", response_time, True, "success", "kin")
             except Exception as e:
@@ -3081,8 +3108,51 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error calling /chat endpoint: {e}")
             # Fallback: generate plot locally using database
             try:
-                intent = parse_intent(question)
+                # Try bond plot query parser first (handles "from oct 2024 to feb 2025" format)
+                bond_plot_req = parse_bond_plot_query(question.lower())
                 db = get_db()
+                
+                if bond_plot_req:
+                    # Use bond plot parser result
+                    png = generate_plot(
+                        db,
+                        bond_plot_req['start_date'],
+                        bond_plot_req['end_date'],
+                        metric=bond_plot_req['metric'],
+                        tenors=bond_plot_req['tenors']
+                    )
+                    await update.message.reply_photo(photo=io.BytesIO(png))
+                    
+                    # Query data and generate summary
+                    params = [bond_plot_req['start_date'].isoformat(), bond_plot_req['end_date'].isoformat()]
+                    placeholders = ','.join(['?'] * len(bond_plot_req['tenors']))
+                    where = f'obs_date BETWEEN ? AND ? AND tenor IN ({placeholders})'
+                    params.extend(bond_plot_req['tenors'])
+                    
+                    rows = db.con.execute(
+                        f'SELECT series, tenor, obs_date, price, "yield" FROM ts WHERE {where} ORDER BY obs_date ASC, series',
+                        params
+                    ).fetchall()
+                    rows_list = [
+                        dict(
+                            series=r[0], tenor=r[1], date=r[2].isoformat(),
+                            price=round(r[3], 2) if r[3] is not None else None,
+                            **{'yield': round(r[4], 2) if r[4] is not None else None}
+                        ) for r in rows
+                    ]
+                    
+                    # Call chained analysis
+                    result = await ask_kei_then_kin(question)
+                    kin_answer = result.get("kin", "")
+                    if kin_answer and kin_answer.strip():
+                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                    
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "plot", response_time, True, "local_fallback_bond_plot", "both")
+                    return
+                
+                # Fall back to parse_intent for other formats
+                intent = parse_intent(question)
                 if intent.type in ("RANGE", "AGG_RANGE"):
                     tenors_to_use = intent.tenors if intent.tenors else ([intent.tenor] if intent.tenor else None)
                     png = generate_plot(
@@ -3687,7 +3757,6 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
         ax.set_ylabel(y_label)
         fig.autofmt_xdate()
     
-    plt.tight_layout()
     add_economist_caption(fig)
     
     plt.savefig(buf, format='png', dpi=150, facecolor='white')
