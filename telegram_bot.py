@@ -3041,17 +3041,24 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             **{'yield': round(r[4], 2) if r[4] is not None else None}
                         ) for r in rows
                     ]
-                    summary_text = format_range_summary_text(
+                    # Generate quantitative summary (without signature for now)
+                    kei_summary = format_range_summary_text(
                         rows_list,
                         start_date=bond_plot_req['start_date'],
                         end_date=bond_plot_req['end_date'],
                         metric=bond_plot_req['metric'],
-                        signature_persona='Kin'
+                        signature_persona='Kei'  # Use Kei for data summary
                     )
-                    if summary_text:
-                        summary_html = convert_markdown_code_fences_to_html(summary_text)
-                        summary_html = html_quote_signature(summary_html)
-                        await update.message.reply_text(summary_html, parse_mode=ParseMode.HTML)
+                    
+                    # Have Kin analyze the quantitative summary
+                    kin_prompt = (
+                        f"Original question: {question}\n\n"
+                        f"Quantitative summary:\n{kei_summary}\n\n"
+                        f"Based on this data and the original question, provide your strategic interpretation and analysis."
+                    )
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=False)
+                    if kin_answer and kin_answer.strip():
+                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
                 
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "bond_plot", response_time, True, "success", "kin")
@@ -3135,17 +3142,25 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             **{'yield': round(r[4], 2) if r[4] is not None else None}
                         ) for r in rows
                     ]
-                    summary_text = format_range_summary_text(
+                    # Generate quantitative summary
+                    kei_summary = format_range_summary_text(
                         rows_list,
                         start_date=intent.start_date,
                         end_date=intent.end_date,
                         metric=intent.metric if getattr(intent, 'metric', None) else 'yield',
-                        signature_persona='Kin'
+                        signature_persona='Kei'
                     )
-                    if summary_text:
-                        summary_html = convert_markdown_code_fences_to_html(summary_text)
-                        summary_html = html_quote_signature(summary_html)
-                        await update.message.reply_text(summary_html, parse_mode=ParseMode.HTML)
+                    
+                    # Have Kin analyze the quantitative summary
+                    kin_prompt = (
+                        f"Original question: {question}\n\n"
+                        f"Quantitative summary:\n{kei_summary}\n\n"
+                        f"Based on this data and the original question, provide your strategic interpretation and analysis."
+                    )
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=False)
+                    if kin_answer and kin_answer.strip():
+                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                    
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "plot", response_time, True, persona="kin")
                     return
