@@ -2347,24 +2347,43 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         periods = []
+        skipped_periods = []
+        month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         for p in tab_req['periods']:
             pdata = load_auction_period(p)
             if not pdata:
+                # Skip missing periods and collect labels
                 label = (
                     f"Q{p['quarter']} {p['year']}" if p['type'] == 'quarter' else (
-                        f"{p.get('month')} {p['year']}" if p['type'] == 'month' else f"{p['year']}"
+                        f"{month_names[p.get('month')]} {p['year']}" if p['type'] == 'month' else f"{p['year']}"
                     )
                 )
-                await update.message.reply_text(
-                    f"❌ No auction data found for {label}.",
-                    parse_mode=ParseMode.HTML
-                )
-                return
+                skipped_periods.append(label)
+                continue  # Skip instead of returning error
             periods.append(pdata)
+        
+        if not periods:
+            await update.message.reply_text(
+                f"❌ No auction data found for any of the requested periods.",
+                parse_mode=ParseMode.HTML
+            )
+            return
+        
         table_text = format_auction_metrics_table(periods, tab_req['metrics'])
+        
+        # Add note about skipped periods if any
+        if skipped_periods:
+            skipped_msg = f"\n\n⚠️ <i>Note: {len(skipped_periods)} period(s) skipped (no data): {', '.join(skipped_periods[:5])}</i>"
+            if len(skipped_periods) > 5:
+                skipped_msg += f" <i>(+{len(skipped_periods) - 5} more)</i>"
+        else:
+            skipped_msg = ""
+        
         try:
             # Send table in Markdown to render code fence/borders
             await update.message.reply_text(table_text, parse_mode=ParseMode.MARKDOWN)
+            if skipped_msg:
+                await update.message.reply_text(skipped_msg, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "auction_tab", response_time, True, "success", "kei")
         except Exception as e:
