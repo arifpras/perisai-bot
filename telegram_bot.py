@@ -3595,13 +3595,34 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     return
     
     # For non-auction queries, use the general fast path
+    # Check if this is a forecast query that needs Kin analysis
+    next_match = re.search(r"next\s+(\d+)\s+(observations?|obs|points|days)", q_lower)
+    is_forecast_query = next_match and any(kw in q_lower for kw in ["forecast", "predict", "estimate"])
+    
     try:
         data_summary = await try_compute_bond_summary(question)
         if data_summary:
-            await update.message.reply_text(data_summary, parse_mode=ParseMode.HTML)
-            response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "text", response_time, True, "local_summary", "both")
-            return
+            # For forecast queries in /both, send Kei tables then chain to Kin
+            if is_forecast_query:
+                await update.message.reply_text(data_summary, parse_mode=ParseMode.MARKDOWN)
+                # Have Kin analyze the forecast
+                kin_prompt = (
+                    f"Original question: {question}\n\n"
+                    f"Kei's quantitative forecast:\n{data_summary}\n\n"
+                    f"Based on this forecast data and the original question, provide your strategic interpretation and economic analysis."
+                )
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                if kin_answer and kin_answer.strip():
+                    await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "forecast", response_time, True, "forecast_both", "both")
+                return
+            else:
+                # For other queries (non-forecast), send summary directly
+                await update.message.reply_text(data_summary, parse_mode=ParseMode.HTML)
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, True, "local_summary", "both")
+                return
     except Exception as e:
         logger.warning(f"/both local summary fast-path failed: {type(e).__name__}: {e}")
     
