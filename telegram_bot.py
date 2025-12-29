@@ -1768,9 +1768,6 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                     # Wrap table in code fences to avoid Markdown entity parsing issues
                     lines.append(f"```\n{table}\n```")
                 
-                # Add Kei signature
-                lines.append("")
-                lines.append("<blockquote>~ Kei</blockquote>")
                 return "\n".join(lines)
         intent = parse_intent(question)
         rows_list = []
@@ -3541,6 +3538,9 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stripped = line.strip()
             if not stripped:
                 return False
+            # Keep Kin's own headline (starts with the globe icon) even if it contains INDOGB
+            if stripped.startswith("🌍") or stripped.startswith("<b>🌍"):
+                return False
             upper = stripped.upper()
             if "INDOGB" in upper:
                 return True
@@ -3558,6 +3558,16 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             while lines and not lines[0].strip():
                 lines.pop(0)
         return "\n".join(lines).strip()
+
+    def strip_signatures(text: str) -> str:
+        """Remove persona signatures (~ Kei/Kin/Kin x Kei) in plain or blockquote form."""
+        if not isinstance(text, str):
+            return text
+        # remove blockquote signatures
+        text = re.sub(r"\n*<blockquote>~\s+(Kei|Kin|Kei x Kin|Kei & Kin)</blockquote>\s*", "", text, flags=re.IGNORECASE)
+        # remove plain signatures at line ends
+        text = re.sub(r"\n*~\s+(Kei|Kin|Kei x Kin|Kei & Kin)\s*", "", text, flags=re.IGNORECASE)
+        return text.strip()
     
     # Detect if user wants a plot (route through FastAPI /chat endpoint)
     needs_plot = any(keyword in question.lower() for keyword in ["plot"])
@@ -3781,7 +3791,9 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # For forecast queries in /both, send Kei tables then chain to Kin
             if is_forecast_query:
-                await update.message.reply_text(data_summary, parse_mode=ParseMode.MARKDOWN)
+                kei_body = strip_signatures(data_summary)
+                kei_rendered = convert_markdown_code_fences_to_html(kei_body)
+                await update.message.reply_text(kei_rendered, parse_mode=ParseMode.HTML)
                 # Have Kin analyze the forecast
                 kin_prompt = (
                     f"Original question: {question}\n\n"
@@ -3797,7 +3809,9 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             elif is_comparison_query:
                 # For comparison queries, send Kei table then chain to Kin
-                await update.message.reply_text(data_summary, parse_mode=ParseMode.MARKDOWN)
+                kei_body = strip_signatures(data_summary)
+                kei_rendered = convert_markdown_code_fences_to_html(kei_body)
+                await update.message.reply_text(kei_rendered, parse_mode=ParseMode.HTML)
                 # Have Kin analyze the comparison
                 kin_prompt = (
                     f"Original question: {question}\n\n"
