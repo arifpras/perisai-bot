@@ -687,9 +687,14 @@ def format_auction_comparison(hist_data: Dict, forecast_data: Dict) -> str:
     return "\n".join(lines)
 
 
-def format_auction_historical_multi_year(start_year: int, end_year: int) -> str:
+def format_auction_historical_multi_year(start_year: int, end_year: int, dual_mode: bool = False) -> str:
     """Format historical auction data from auction_train.csv for multiple years (e.g., 2010-2024).
     Returns Economist-style table with incoming, awarded bids, and bid-to-cover ratio.
+    
+    Args:
+        start_year: Starting year
+        end_year: Ending year
+        dual_mode: If True, use "Kei x Kin" signature (for /both command)
     """
     try:
         df = pd.read_csv('auction_train.csv')
@@ -703,9 +708,9 @@ def format_auction_historical_multi_year(start_year: int, end_year: int) -> str:
         if df_filtered.empty:
             return f"❌ No auction data available for {start_year}–{end_year}."
         
-        # Reverse log transformation: incoming_bio_log and awarded_bio_log are log of billions
-        df_filtered['incoming_bio'] = np.exp(df_filtered['incoming_bio_log'])
-        df_filtered['awarded_bio'] = np.exp(df_filtered['awarded_bio_log'])
+        # Reverse log10 transformation: incoming_bio_log and awarded_bio_log are LOG10 of billions
+        df_filtered['incoming_bio'] = 10 ** df_filtered['incoming_bio_log']
+        df_filtered['awarded_bio'] = 10 ** df_filtered['awarded_bio_log']
         
         # Group by year and sum
         yearly = df_filtered.groupby('year').agg({
@@ -753,7 +758,8 @@ def format_auction_historical_multi_year(start_year: int, end_year: int) -> str:
         lines.append(f"<b>Period totals:</b> Incoming Rp {total_incoming:.1f}T, Awarded Rp {total_awarded:.1f}T")
         lines.append(f"<b>Avg bid-to-cover:</b> {avg_btc:.2f}x")
         lines.append("")
-        lines.append("<blockquote>~ Kei</blockquote>")
+        signature = "Kei x Kin" if dual_mode else "Kei"
+        lines.append(f"<blockquote>~ {signature}</blockquote>")
         
         return "\n".join(lines)
         
@@ -1703,7 +1709,23 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                 y_start = int(yr_range.group(1))
                 y_end = int(yr_range.group(2))
                 if y_start <= y_end and y_end <= 2024:  # Historical data only (forecast is separate)
-                    # This is historical auction data request
+                    # Use the same data source as /kei tab: load_auction_period via AuctionDB
+                    # This ensures consistency across all commands
+                    try:
+                        periods = [{'type': 'year', 'year': y} for y in range(y_start, y_end + 1)]
+                        periods_data = []
+                        for p in periods:
+                            pdata = load_auction_period(p)
+                            if pdata:
+                                periods_data.append(pdata)
+                        
+                        if periods_data:
+                            # Use format_auction_metrics_table which uses AuctionDB (correct data)
+                            metrics_list = ['incoming', 'awarded']
+                            return format_auction_metrics_table(periods_data, metrics_list)
+                    except Exception as e:
+                        logger.warning(f"Error loading auction periods in try_compute_bond_summary: {e}")
+                    # Fallback to old method if AuctionDB fails
                     return format_auction_historical_multi_year(y_start, y_end)
         
         # Handle auction forecasts
@@ -3270,6 +3292,67 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning(f"Failed to send typing indicator in /both: {type(e).__name__}. Continuing anyway.")
 
     # Fast path: try to compute quantitative summary locally (auctions/bonds) before hitting API
+    # For /both, we need to chain Kei → Kin, so handle auction tables specially
+    q_lower = question.lower()
+    
+    # Check for historical auction queries with year ranges (e.g., "from 2010 to 2024")
+    is_auction_query = ('auction' in q_lower or 'incoming' in q_lower or 'awarded' in q_lower or 'bid' in q_lower)
+    if is_auction_query:
+        yr_range = re.search(r"from\s+(19\d{2}|20\d{2})\s+to\s+(19\d{2}|20\d{2})", q_lower)
+        if yr_range:
+            y_start = int(yr_range.group(1))
+            y_end = int(yr_range.group(2))
+            if y_start <= y_end and y_end <= 2024:
+                try:
+                    # Use the same data source as /kei tab: load_auction_period via AuctionDB
+                    # This ensures consistency between /kei tab and /both commands
+                    periods = [{'type': 'year', 'year': y} for y in range(y_start, y_end + 1)]
+                    periods_data = []
+                    skipped_periods = []
+                    
+                    for p in periods:
+                        pdata = load_auction_period(p)
+                        if not pdata:
+                            skipped_periods.append(f"{int(p['year'])}")
+                            continue
+                        periods_data.append(pdata)
+                    
+                    if not periods_data:
+                        await update.message.reply_text(
+                            f"❌ No auction data found for {y_start}–{y_end}.",
+                            parse_mode=ParseMode.HTML
+                        )
+                        response_time = time.time() - start_time
+                        metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
+                        return
+                    
+                    # Generate Kei's table using the same format as /kei tab
+                    metrics_list = ['incoming', 'awarded']
+                    kei_table = format_auction_metrics_table(periods_data, metrics_list)
+                    await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                    
+                    # Have Kin analyze the table
+                    kin_prompt = (
+                        f"Original question: {question}\n\n"
+                        f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                        f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                    )
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                    if kin_answer and kin_answer.strip():
+                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                    
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, True, "auction_table_both", "both")
+                    return
+                except Exception as e:
+                    logger.error(f"Error in auction table /both: {e}", exc_info=True)
+                    # Don't fall through - send error to user instead of trying API fallback
+                    await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
+                    return
+    
+    # For non-auction queries, use the general fast path
     try:
         data_summary = await try_compute_bond_summary(question)
         if data_summary:
@@ -3329,14 +3412,22 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     signature_persona='Kei'
                 )
 
-                kin_prompt = (
-                    f"Original question: {question}\n\n"
-                    f"Kei's quantitative analysis:\n{kei_summary}\n\n"
-                    f"Based on this analysis and the original question, provide your strategic interpretation and conclusion."
-                )
-                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
-                if kin_answer and kin_answer.strip():
-                    await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                # Send Kei's summary
+                await update.message.reply_text(kei_summary, parse_mode=ParseMode.HTML)
+
+                # Attempt to get Kin's analysis, but don't fail if Perplexity is unavailable
+                try:
+                    kin_prompt = (
+                        f"Original question: {question}\n\n"
+                        f"Kei's quantitative analysis:\n{kei_summary}\n\n"
+                        f"Based on this analysis and the original question, provide your strategic interpretation and conclusion."
+                    )
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                    if kin_answer and kin_answer.strip():
+                        await update.message.reply_text(kin_answer, parse_mode=ParseMode.HTML)
+                except Exception as kin_err:
+                    logger.warning(f"Kin analysis failed in /both plot: {type(kin_err).__name__}: {kin_err}")
+                    # Continue - we already sent the Kei summary, so don't fall through to API
 
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "plot", response_time, True, "local_bond_plot", "both")

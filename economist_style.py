@@ -61,7 +61,7 @@ def apply_economist_style(fig, ax, *, tick_labelsize: int = 12, grid_linewidth: 
 
 def add_economist_caption(fig, *, as_of: Optional[date] = None, text: Optional[str] = None, tick_color: Optional[str] = None) -> None:
     """Add unified caption and margins for Economist-style plots."""
-    fig.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.10)
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.90, bottom=0.15)
     caption_color = tick_color or ECONOMIST_COLORS.get("gray", ECONOMIST_COLORS["grey"])
     as_of_date = as_of or date.today()
     caption = text or f"Source: PerisAI analytics | as of {as_of_date.strftime('%d %b %Y')}"
