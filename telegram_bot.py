@@ -2236,7 +2236,12 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
-            "Bond context: FR95-FR104 are Indonesian government bond series (Fixing Rate bonds issued by Indonesia's government), NOT French government bonds. Dataset covers Indonesian government bonds only.\n\n"
+            "CRITICAL BOND DATASET CONTEXT:\n"
+            "- This dataset contains INDONESIAN DOMESTIC GOVERNMENT BONDS (INDOGB) ONLY.\n"
+            "- FR95-FR104 are Fixing Rate bonds issued by Indonesia's Ministry of Finance, NOT French government bonds.\n"
+            "- When writing headlines, use 'INDOGB' or 'Indonesia Gov Bonds' - NEVER 'US Treasuries', 'US Bonds', or 'French bonds'.\n"
+            "- All yield and price data refer to Indonesian sovereign debt in IDR (Indonesian Rupiah).\n"
+            "- If you mention comparative context (e.g., US yields), explicitly distinguish: 'While US 10Y yields..., Indonesian bonds...'\n\n"
             "Bond data is provided - use it as the ONLY factual basis: cite specific values, dates, tenors, or ranges from the data. Translate quantitative results into economic meaning. Do not redo analysis already supplied; interpret and contextualize it."
         )
     else:
