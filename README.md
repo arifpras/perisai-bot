@@ -6,7 +6,7 @@ Indonesian government bond analysis via Telegram. Dual AI personas: **Kei** (qua
 
 - **Bond data:** Historical yields & prices (2015–2025), forecasts (2025–2026)
 - **Auction data:** Incoming & awarded bids (2015 onwards, historical + forecast)
-- **Economist-style tables:** Right-aligned numbers, summary stats (Count/Min/Max/Avg/Std)
+- **Economist-style tables:** Right-aligned numbers, summary stats (Count/Min/Max/Avg/Std), two-decimal precision for Min/Max/Avg
 - **Range expansion:** "from 2020 to 2024" auto-expands to all years/quarters/months
 - **Multi-tenor queries:** Compare 5Y, 10Y, 15Y, 20Y, 30Y bonds side-by-side
 - **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo
@@ -42,7 +42,7 @@ ALLOWED_USER_IDS=<ids>  # optional
 | `/check` | Quick lookup | `/check 2025-12-27 10 year` |
 | `/examples` | Full query reference | In-bot command for all examples |
 
-**Format:** Add `tab` for Economist-style tables, `plot` for charts. See [examples/](examples/) for outputs.
+**Format:** Add `tab` for Economist-style tables, `plot` for charts. Outputs use INDOGB titles; Kin shows a single 🌍 headline. See [examples/](examples/) for outputs.
 
 ## Bond Table Queries
 
@@ -62,7 +62,7 @@ Query yields and prices over any historical or forecast period with multi-tenor 
 - Periods: month names/numbers (jan, feb, 1, 2), quarters (q1–q4), years (2023)
 - Ranges: "from X to Y" auto-expands (e.g., q3 2023 to q2 2024 → all 4 quarters)
 
-Tables render with Economist-style borders, right-aligned numbers, and summary statistics (Count/Min/Max/Avg/Std). See [examples/bond_tables.md](examples/bond_tables.md).
+Tables render with Economist-style borders, right-aligned numbers, and summary statistics (Count/Min/Max/Avg/Std). Min/Max/Avg display two decimals for clarity. See [examples/bond_tables.md](examples/bond_tables.md).
 
 ## Auction Queries
 
@@ -157,10 +157,11 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-**Current Version:** `v2025.12.28-stable-ranges-awarded`
+**Current Version:** `v2025.12.29-formatting-cleanup`
 
-**Recent Updates (Dec 28, 2025):**
-- ✅ Range expansion: `from X to Y` queries now expand to all intermediate periods (e.g., 2015–2024 → 10 yearly rows)
-- ✅ Awarded bid data: Historical awarded amounts now available for 2015–2024 via `auction_train.csv`
-- ✅ Summary stats: All multi-row tables include Count/Min/Max/Avg/Std
-- ✅ Examples folder: See [examples/](examples/) for real-world prompts and outputs
+**Recent Updates (Dec 29, 2025):**
+- ✅ Title cleanup: Removed duplicate INDOGB headers; Kin shows a single 🌍 headline
+- ✅ Signature cleanup: Removed duplicate persona signatures in combined responses
+- ✅ Table precision: Min/Max/Avg now use two-decimal formatting
+- ✅ Comparison footer removed: Dropped redundant "Yield statistics" footer under comparison tables
+- ✅ Range expansion & awarded bids retained from prior release

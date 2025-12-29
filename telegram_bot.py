@@ -2495,7 +2495,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>PerisAI</b> — Bond & Auction Analysis\n"
         f"© Arif P. Sulistiono {datetime.now().year}\n\n"
         "<b>Commands</b>\n"
-        "💹 /kei — Quantitative analysis (data, tables, forecasts)\n"
+        "💹 /kei — Quantitative analysis (tables, forecasts)\n"
         "🌍 /kin — Macro context (insights, plots, policy)\n"
         "⚡ /both — Combined (quant → strategic view)\n"
         "📌 /check — Quick lookup\n"
@@ -2504,7 +2504,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /kei tab yield 5 and 10 year from q3 2023 to q2 2024\n"
         "• /kei tab incoming bid from 2020 to 2024\n"
         "• /kin plot yield 5 year from oct 2024 to mar 2025\n"
-        "• /both compare 5 and 10 year 2024 vs 2025\n\n"
+        "• /both compare yield 5 and 10 year 2024 vs 2025\n\n"
+        "<b>Output</b>\n"
+        "• Economist-style tables (right-aligned)\n"
+        "• INDOGB titles; Kin shows a single 🌍 headline\n"
+        "• Min/Max/Avg use two-decimal precision\n\n"
         "<i>Indonesian government bonds · Historical & forecast data</i>"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
@@ -2523,13 +2527,13 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     examples_text = (
         "<b>📚 Query Examples</b>\n\n"
         
-        "<b>Bond Tables (Economist-style with summary stats)</b>\n"
+        "<b>Bond Tables (Economist-style)</b>\n"
         "• /kei tab yield 5 and 10 year from q3 2023 to q2 2024\n"
         "• /kei tab price 5 year from oct 2024 to mar 2025\n"
         "• /kei tab yield and price 5 year in feb 2025\n"
         "• /kei tab yield 5 and 10 year from 2023 to 2024\n\n"
         
-        "<b>Auction Tables (Range expansion: 'from X to Y')</b>\n"
+        "<b>Auction Tables (Range expansion)</b>\n"
         "• /kei tab incoming bid from 2020 to 2024\n"
         "• /kei tab awarded bid from 2015 to 2024\n"
         "• /kei tab incoming and awarded bid from 2022 to 2024\n"
@@ -2540,13 +2544,8 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /kin plot price 5 year from q3 2023 to q2 2024\n"
         "• /kin plot yield 5 and 10 year from 2023 to 2024\n\n"
         
-        "<b>Economic Analysis</b>\n"
-        "• /kin explain impact of BI rate cuts on bond yields\n"
-        "• /kin what is fiscal policy\n"
-        "• /kin monetary policy framework Indonesia\n\n"
-        
         "<b>Combined Analysis</b>\n"
-        "• /both compare yields 5 and 10 year 2024 vs 2025\n"
+        "• /both compare yield 5 and 10 year 2024 vs 2025\n"
         "• /both auction demand trends 2023 to 2025\n\n"
         
         "<b>Quick Lookup</b>\n"
@@ -2554,11 +2553,11 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /check price 5 year 6 Dec 2024\n\n"
         
         "<b>📊 Output Formats</b>\n"
-        "Tables: Economist-style borders, right-aligned numbers, summary stats (Count/Min/Max/Avg/Std)\n"
-        "Plots: Professional styling, multi-tenor overlays\n\n"
+        "Tables: Economist-style borders, right-aligned numbers (Min/Max/Avg two decimals), summary stats\n"
+        "Plots: Professional styling, multi-tenor overlays; Kin shows a single 🌍 headline\n\n"
         
         "<b>💡 Tips</b>\n"
-        "• Ranges auto-expand: 'from 2020 to 2024' → all 5 years\n"
+        "• Ranges auto-expand: 'from 2020 to 2024' → full coverage\n"
         "• Tenors: 5, 10, 15, 20, 30 year supported\n"
         "• Periods: months (jan, feb), quarters (q1–q4), years (2023)\n"
         "• Data: bonds 2015–2025, auctions 2015–2026"
