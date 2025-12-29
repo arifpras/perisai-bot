@@ -1778,6 +1778,53 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
         # Handle historical auction queries for multi-year ranges (e.g., "from 2010 to 2024")
         q_auction = q_lower
         if ('auction' in q_auction or 'incoming' in q_auction or 'awarded' in q_auction or 'bid' in q_auction):
+            # Check for month-to-month range pattern (e.g., "from dec 2024 to jan 2025")
+            months_map = {
+                'jan':1,'january':1,
+                'feb':2,'february':2,
+                'mar':3,'march':3,
+                'apr':4,'april':4,
+                'may':5,
+                'jun':6,'june':6,
+                'jul':7,'july':7,
+                'aug':8,'august':8,
+                'sep':9,'sept':9,'september':9,
+                'oct':10,'october':10,
+                'nov':11,'november':11,
+                'dec':12,'december':12,
+            }
+            mon_range = re.search(r"from\s+(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(19\d{2}|20\d{2})\s+to\s+(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(19\d{2}|20\d{2})", q_auction)
+            if mon_range:
+                m1_txt, y1_txt, m2_txt, y2_txt = mon_range.groups()
+                try:
+                    m1 = months_map[m1_txt]
+                    y1 = int(y1_txt)
+                    m2 = months_map[m2_txt]
+                    y2 = int(y2_txt)
+                    
+                    # Expand month range across years if needed
+                    from dateutil.relativedelta import relativedelta
+                    start_date = date(y1, m1, 1)
+                    end_date = date(y2, m2, 1)
+                    periods = []
+                    current = start_date
+                    while current <= end_date:
+                        periods.append({'type': 'month', 'month': current.month, 'year': current.year})
+                        current += relativedelta(months=1)
+                    
+                    # Load data for each month
+                    periods_data = []
+                    for p in periods:
+                        pdata = load_auction_period(p)
+                        if pdata:
+                            periods_data.append(pdata)
+                    
+                    if periods_data:
+                        metrics_list = ['incoming', 'awarded']
+                        return format_auction_metrics_table(periods_data, metrics_list)
+                except Exception as e:
+                    logger.warning(f"Error loading month-range auction periods in try_compute_bond_summary: {e}")
+            
             # Check for year range pattern
             yr_range = re.search(r"from\s+(19\d{2}|20\d{2})\s+to\s+(19\d{2}|20\d{2})", q_auction)
             if yr_range:
