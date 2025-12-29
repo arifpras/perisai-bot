@@ -1642,7 +1642,7 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
                 max_val = max(metric_values)
                 avg_val = statistics.mean(metric_values)
                 std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
-                row_str = f"{tenor_label:<{tenor_width}} | {count:>{cnt_width}} | {min_val:>{min_width}.1f} | {max_val:>{max_width}.1f} | {avg_val:>{avg_width}.1f} | {std_val:>{std_width}.2f}"
+                row_str = f"{tenor_label:<{tenor_width}} | {count:>{cnt_width}} | {min_val:>{min_width}.2f} | {max_val:>{max_width}.2f} | {avg_val:>{avg_width}.2f} | {std_val:>{std_width}.2f}"
                 rows_list_formatted.append(row_str)
             else:
                 row_str = f"{tenor_label:<{tenor_width}} | {'N/A':>{cnt_width}} | {'N/A':>{min_width}} | {'N/A':>{max_width}} | {'N/A':>{avg_width}} | {'N/A':>{std_width}}"
