@@ -263,7 +263,10 @@ def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str
                         ax.plot(highlight_row['obs_date'], highlight_row[metric], 'o', markersize=8, color=ECONOMIST_COLORS['blue'], label=f'Highlight: {highlight_date_str}', zorder=5)
                         ax.legend(frameon=False, fontsize=10, loc='best', labelcolor=ECONOMIST_COLORS.get('gray', ECONOMIST_COLORS['grey']))
 
-            ax.set_title(f'{metric.capitalize()} {display_tenor}\n{title_start} to {title_end}', pad=15, loc='left')
+            ax.set_title(
+                f'{metric.capitalize()} {display_tenor}\n{title_start} to {title_end}',
+                fontsize=13, pad=14, loc='left', color=ECONOMIST_COLORS['black']
+            )
             ax.set_xlabel('')
             ax.set_ylabel(f'{metric.capitalize()} (%)', fontsize=9)
 
@@ -290,7 +293,10 @@ def _plot_range_to_png(db: BondDB, start_date: date, end_date: date, metric: str
                 ax.plot(highlight_row['obs_date'], highlight_row[metric], 'o', markersize=8, color=ECONOMIST_COLORS['blue'], label=f'Highlight: {highlight_date_str}')
                 ax.legend(frameon=False, fontsize=10, loc='best', labelcolor=ECONOMIST_COLORS.get('gray', ECONOMIST_COLORS['grey']))
 
-        ax.set_title(f'{metric.capitalize()} {display_tenor}\n{title_start} to {title_end}', pad=15, loc='left')
+        ax.set_title(
+            f'{metric.capitalize()} {display_tenor}\n{title_start} to {title_end}',
+            fontsize=13, pad=14, loc='left', color=ECONOMIST_COLORS['black']
+        )
         ax.set_xlabel('')
         ax.set_ylabel(f'{metric.capitalize()} (%)', fontsize=9)
 
