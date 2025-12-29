@@ -1347,7 +1347,17 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
     if metric not in ('yield', 'price'):
         return None
     import statistics
+    
+    # Helper to convert tenor display (05_year -> 5Y, 10_year -> 10Y)
+    def format_tenor_display(tenor_str):
+        tenor_str = str(tenor_str).lower().strip()
+        if '_year' in tenor_str:
+            num = tenor_str.replace('_year', '').lstrip('0')
+            return f"{num}Y"
+        return tenor_str
+    
     tenors = sorted(set(str(r.get('tenor') or 'all') for r in rows))
+    tenor_display = [format_tenor_display(t) for t in tenors]
 
     # Period label
     period_label = None
@@ -1361,7 +1371,7 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
         period_label = None
     header_period = f"; {period_label}" if period_label else ""
 
-    header = f"📊 INDOGB: {', '.join(tenors)} {metric.capitalize()}s{header_period}; Range, Average, Volatility"
+    header = f"📊 INDOGB: {', '.join(tenor_display)} {metric.capitalize()}s{header_period}; Range, Average, Volatility"
     lines = [header, ""]
 
     # Per-tenor stats
@@ -1373,10 +1383,30 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
             continue
         per_tenor.setdefault(tenor, []).append(val)
 
-    # Build economist-style summary table
-    table_header = f"{'Tenor':^5} | {'Obs':^4} | {'Min':^6} | {'Max':^6} | {'Avg':^6} | {'Std':^5}"
-    width = 5 + 3 + 4 + 3 + 6 + 3 + 6 + 3 + 6 + 3 + 5  # 47 chars
-    border = '─' * width  # Exact width without +1
+    # Build economist-style summary table (target 41 chars total width including borders)
+    tenor_width = 4
+    obs_width = 3
+    min_width = 5
+    max_width = 5
+    avg_width = 5
+    std_width = 4
+    sep = " |"
+    sep_len = len(sep)
+    
+    content_width = (tenor_width + obs_width + min_width + max_width + avg_width + std_width +
+                     (6 * sep_len))
+    total_width = content_width
+    border = '─' * total_width
+    
+    # Build header with right-aligned numeric columns
+    table_header = (
+        f"{'Tenor':<{tenor_width}}{sep}"
+        f"{'Obs':^{obs_width}}{sep}"
+        f"{'Min':>{min_width}}{sep}"
+        f"{'Max':>{max_width}}{sep}"
+        f"{'Avg':>{avg_width}}{sep}"
+        f"{'Std':>{std_width}}"
+    )
     
     table_rows = []
     for tenor, vals in sorted(per_tenor.items()):
@@ -1387,18 +1417,26 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
         max_v = max(vals)
         std_v = statistics.stdev(vals) if len(vals) > 1 else 0
         
+        tenor_label = format_tenor_display(tenor)
+        
         min_str = f"{min_v:.2f}"
         max_str = f"{max_v:.2f}"
         avg_str = f"{avg_v:.2f}"
         std_str = f"{std_v:.2f}"
         
-        table_rows.append(
-            f"{tenor:^5} | {len(vals):^4} | {min_str:^6} | {max_str:^6} | {avg_str:^6} | {std_str:^5}"
+        row_content = (
+            f"{tenor_label:<{tenor_width}}{sep}"
+            f"{len(vals):^{obs_width}}{sep}"
+            f"{min_str:>{min_width}}{sep}"
+            f"{max_str:>{max_width}}{sep}"
+            f"{avg_str:>{avg_width}}{sep}"
+            f"{std_str:>{std_width}}"
         )
+        table_rows.append(row_content)
     
-    # Format with borders (no leading space so borders match exact width)
-    rows_with_borders = "\n".join([f"│{row:<{width}}│" for row in table_rows])
-    summary_table = f"┌{border}┐\n│{table_header:<{width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘"
+    # Format with borders
+    rows_with_borders = "\n".join([f"│{row:<{total_width}}│" for row in table_rows])
+    summary_table = f"┌{border}┐\n│{table_header:<{total_width}}│\n├{border}┤\n{rows_with_borders}\n└{border}┘"
     lines.append(summary_table)
 
     # Curve spread for two tenors (yield only)
@@ -1414,6 +1452,7 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
             by_date.setdefault(d, {})[t] = y
         spreads = []
         ten_pair = sorted(per_tenor.keys())
+        ten_pair_display = [format_tenor_display(t) for t in ten_pair]
         for d, vals in by_date.items():
             if len(vals) == 2:
                 diff = vals[ten_pair[1]] - vals[ten_pair[0]]
@@ -1423,7 +1462,7 @@ def format_range_summary_text(rows, start_date=None, end_date=None, metric='yiel
             min_s = min(spreads)
             max_s = max(spreads)
             lines.append(
-                f"Curve ({ten_pair[1]}–{ten_pair[0]}): avg {avg_s:.2f}pp, "
+                f"Curve ({ten_pair_display[1]}–{ten_pair_display[0]}): avg {avg_s:.2f}pp, "
                 f"range {min_s:.2f}pp to {max_s:.2f}pp"
             )
     lines.append("")
