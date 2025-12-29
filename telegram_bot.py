@@ -422,14 +422,18 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
     if not cols:
         cols = ['Incoming']
 
-    # Compute widths
-    label_width = max(7, max(len(_period_label(p)) for p in periods_data))  # further reduced (min 7)
-    col_width = 13  # reduced by 1 (from original 15 to 13, now total reduction of 2)
-    total_width = label_width + 3 + len(cols) * (col_width + 3) - 3
-    border = '─' * (total_width + 1)
+    # Compute widths to target a compact overall width
+    # Enforce a minimum period label width of 9 and 13-char numeric columns.
+    label_width = max(9, max(len(_period_label(p)) for p in periods_data))
+    col_width = 13
+    sep = " |"  # compact separator (2 chars)
+    sep_len = len(sep)
+    # Header content length = label + N*col + N*sep_len
+    total_width = label_width + len(cols) * col_width + len(cols) * sep_len
+    border = '─' * total_width
 
     # Header
-    header = f"{'Period':<{label_width}} | " + " | ".join([f"{c:<{col_width}}" for c in cols])
+    header = f"{'Period':<{label_width}}{sep}" + sep.join([f"{c:<{col_width}}" for c in cols])
 
     # Rows
     rows = []
@@ -442,12 +446,12 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
             else:
                 val = p.get('total_awarded')
             values.append(f"Rp {val:,.2f}T" if isinstance(val, (int, float)) else '-')
-        rows.append(f"{label:<{label_width}} | " + " | ".join([f"{v:>{col_width}}" for v in values]))
+        rows.append(f"{label:<{label_width}}{sep}" + sep.join([f"{v:>{col_width}}" for v in values]))
 
-    rows_box = "\n".join([f"│ {r:<{total_width}}│" for r in rows])
+    rows_box = "\n".join([f"│{r:<{total_width}}│" for r in rows])
     return f"""```
 ┌{border}┐
-│ {header:<{total_width}}│
+│{header:<{total_width}}│
 ├{border}┤
 {rows_box}
 └{border}┘
