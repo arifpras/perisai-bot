@@ -3771,9 +3771,9 @@ def generate_plot(db, start_date, end_date, metric='yield', tenor=None, tenors=N
                        label=f'📍 {format_date(closest["obs_date"])} (closest)', zorder=5)
                 ax.legend(fontsize=10)
         
-        ax.set_title(f"{title_top}\n{title_bottom}", loc='left')
-        ax.set_xlabel('')
-        ax.set_ylabel(y_label)
+        ax.set_title(f"{title_top}\n{title_bottom}", fontsize=13, pad=14, loc='left', color=ECONOMIST_COLORS['black'])
+        ax.set_xlabel('', fontsize=12)
+        ax.set_ylabel(y_label, fontsize=12)
         fig.autofmt_xdate()
     
     add_economist_caption(fig)
