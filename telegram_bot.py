@@ -1681,14 +1681,12 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         title = f"🌍 INDOGB: {comparison_str}{period_suffix}\n\n"
         
         table = f"""{title}```
-┌{border}┐
-│ {header:<{total_width}}│
-├{border}┤
-{rows_text}
-└{border}┘
-```
-
-**{metric_display} statistics** ({len(rows_list)} observations)"""
+    ┌{border}┐
+    │ {header:<{total_width}}│
+    ├{border}┤
+    {rows_text}
+    └{border}┘
+    ```"""
         return table
     else:
         # For few rows, show simple list
@@ -3786,8 +3784,12 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         data_summary = await try_compute_bond_summary(question)
         if data_summary:
-            # Detect if this is a comparison query (uses summarize_intent_result with stats table)
-            is_comparison_query = "**" in data_summary and "statistics**" in data_summary and "```" in data_summary
+            # Detect comparison summary (economist-style stats table)
+            is_comparison_query = (
+                "```" in data_summary and (
+                    "│ Tenor" in data_summary or "Tenor | Cnt | Min | Max | Avg | Std" in data_summary
+                )
+            )
             
             # For forecast queries in /both, send Kei tables then chain to Kin
             if is_forecast_query:
