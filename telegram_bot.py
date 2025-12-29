@@ -1727,6 +1727,75 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                         logger.warning(f"Error loading auction periods in try_compute_bond_summary: {e}")
                     # Fallback to old method if AuctionDB fails
                     return format_auction_historical_multi_year(y_start, y_end)
+
+            # Single-month historical auction query (e.g., "in Mar 2024" or "March 2024")
+            months_map = {
+                'jan':1,'january':1,
+                'feb':2,'february':2,
+                'mar':3,'march':3,
+                'apr':4,'april':4,
+                'may':5,
+                'jun':6,'june':6,
+                'jul':7,'july':7,
+                'aug':8,'august':8,
+                'sep':9,'sept':9,'september':9,
+                'oct':10,'october':10,
+                'nov':11,'november':11,
+                'dec':12,'december':12,
+            }
+            m_mon_in = re.search(r"\bin\s+(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december|\d{1,2})\s+(19\d{2}|20\d{2})\b", q_auction)
+            m_mon_any = None
+            if not m_mon_in:
+                # also support month-year mention without explicit 'in'
+                m_mon_any = re.search(r"\b(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december|\d{1,2})\s+(19\d{2}|20\d{2})\b", q_auction)
+            m_use = m_mon_in or m_mon_any
+            if m_use:
+                mo_txt, yr_txt = m_use.groups()
+                try:
+                    mo = months_map[mo_txt] if mo_txt in months_map else int(mo_txt)
+                    yr = int(yr_txt)
+                    if yr <= 2024:
+                        try:
+                            p = {'type': 'month', 'month': mo, 'year': yr}
+                            pdata = load_auction_period(p)
+                            if pdata:
+                                metrics_list = ['incoming', 'awarded']
+                                return format_auction_metrics_table([pdata], metrics_list)
+                        except Exception as e:
+                            logger.warning(f"Error loading single-month auction period in try_compute_bond_summary: {e}")
+                        # Fallback to historical month path if AuctionDB fails
+                        try:
+                            pdata = get_historical_auction_month_data(yr, mo)
+                            if pdata:
+                                metrics_list = ['incoming', 'awarded']
+                                return format_auction_metrics_table([pdata], metrics_list)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+            # Single-year historical auction query (e.g., "in 2024" or standalone year)
+            single_year = None
+            in_year = re.search(r"\bin\s+(19\d{2}|20\d{2})\b", q_auction)
+            if in_year:
+                single_year = int(in_year.group(1))
+            else:
+                # Fallback: if a lone year appears and no range/in keyword, pick it if within bounds
+                year_only = re.search(r"\b(19\d{2}|20\d{2})\b", q_auction)
+                if year_only:
+                    single_year = int(year_only.group(1))
+
+            if single_year and single_year <= 2024:
+                try:
+                    p = {'type': 'year', 'year': single_year}
+                    pdata = load_auction_period(p)
+                    if pdata:
+                        metrics_list = ['incoming', 'awarded']
+                        return format_auction_metrics_table([pdata], metrics_list)
+                except Exception as e:
+                    logger.warning(f"Error loading single-year auction period in try_compute_bond_summary: {e}")
+                # Fallback to old method if AuctionDB fails
+                return format_auction_historical_multi_year(single_year, single_year)
         
         # Handle auction forecasts
         if intent.type == 'AUCTION_FORECAST':
@@ -2226,9 +2295,36 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             .get("content", "")
             .strip()
         ) or "(empty response)"
+        
+        # If this is a bond query, prepend an INDOGB dataset header with period/tenor context
+        try:
+            intent = parse_intent(question)
+            is_bond_intent = intent.type in ("POINT", "RANGE", "AGG_RANGE") and intent.metric in ("yield", "price")
+        except Exception:
+            is_bond_intent = False
+
+        header = ""
+        if is_bond_intent:
+            tenors_to_use = intent.tenors if getattr(intent, 'tenors', None) else ([intent.tenor] if getattr(intent, 'tenor', None) else None)
+            tenor_display = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
+            metric_display = intent.metric.capitalize()
+            period_label = None
+            try:
+                if intent.type == "POINT" and intent.point_date:
+                    period_label = str(intent.point_date)
+                elif intent.start_date and intent.end_date:
+                    if intent.start_date.year == intent.end_date.year and intent.start_date.month == intent.end_date.month:
+                        period_label = intent.start_date.strftime('%b %Y')
+                    else:
+                        period_label = f"{intent.start_date} to {intent.end_date}"
+            except Exception:
+                period_label = None
+            header = f"📊 INDOGB: {metric_display} | {tenor_display}" + (f" | {period_label}" if period_label else "") + "\n\n"
 
         # Convert Markdown code fences to HTML <pre> before wrapping signature
         content = convert_markdown_code_fences_to_html(content)
+        if header:
+            content = header + content
         return html_quote_signature(content)
 
     except httpx.HTTPStatusError as e:
@@ -2483,7 +2579,11 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db = get_db()
             table_text = format_bond_metrics_table(db, bond_tab_req['start_date'], bond_tab_req['end_date'], 
                                                    bond_tab_req['metrics'], bond_tab_req['tenors'])
-            await update.message.reply_text(table_text, parse_mode=ParseMode.MARKDOWN)
+            # Prepend dataset/source note to the table for clarity
+            tenor_display = ", ".join(t.replace('_', ' ') for t in bond_tab_req['tenors'])
+            metrics_display = " & ".join([m.capitalize() for m in bond_tab_req['metrics']])
+            header = f"📊 INDOGB: {metrics_display} | {tenor_display} | {bond_tab_req['start_date']} to {bond_tab_req['end_date']}\n\n"
+            await update.message.reply_text(header + table_text, parse_mode=ParseMode.MARKDOWN)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "bond_tab", response_time, True, "success", "kei")
         except Exception as e:
@@ -2820,7 +2920,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             
                             tenor_display = ", ".join(normalize_tenor_display(t) for t in tenors_to_use) if tenors_to_use else "all tenors"
                             metrics_display = " & ".join([m.capitalize() for m in metrics_list])
-                            header = f"📊 {metrics_display} | {tenor_display} | {intent.start_date} to {intent.end_date}\n\n"
+                            header = f"📊 INDOGB: {metrics_display} | {tenor_display} | {intent.start_date} to {intent.end_date}\n\n"
                         else:
                             # Single metric
                             metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
@@ -2864,7 +2964,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     summary_lines.append(f"{t_short}: min {min_val:.2f}, max {max_val:.2f}, avg {avg:.2f}, std {std_val:.2f}")
                             
                             tenor_display = ", ".join(normalize_tenor_display(t) for t in tenors_to_use) if tenors_to_use else "all tenors"
-                            header = f"📊 {metric.capitalize()} | {tenor_display} | {intent.start_date} to {intent.end_date}\n"
+                            header = f"📊 INDOGB: {metric.capitalize()} | {tenor_display} | {intent.start_date} to {intent.end_date}\n"
                         
                         # Build final message with header, table, and signature (drop duplicated top summaries)
                         response_parts = [header, table_output, "\n<blockquote>~ Kei</blockquote>"]
@@ -2924,7 +3024,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         metric = intent.metric if getattr(intent, 'metric', None) else 'yield'
                         table_output = format_rows_for_telegram(rows_list, include_date=False, metric=metric, economist_style=True)
                         tenor_display = ", ".join(normalize_tenor_display(t) for t in tenors_to_use) if tenors_to_use else "all tenors"
-                        header = f"📊 {metric.capitalize()} | {tenor_display} | {d}\n\n"
+                        header = f"📊 INDOGB: {metric.capitalize()} | {tenor_display} | {d}\n\n"
                         
                         full_response = header + table_output + "\n<blockquote>~ Kei</blockquote>"
                         rendered = convert_markdown_code_fences_to_html(full_response)

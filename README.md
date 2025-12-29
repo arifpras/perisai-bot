@@ -82,6 +82,12 @@ Query incoming and awarded auction bids over any historical or forecast period.
 
 Tables auto-expand ranges (e.g., "from 2015 to 2024" yields all 10 yearly rows). Values shown in Rp Trillions. See [examples/auction_tables.md](examples/auction_tables.md).
 
+## Bond Data Sources
+
+- File: `20251215_priceyield.csv` — Indonesian domestic government bonds (INDOGB) price and yield time series for FR-series (e.g., FR95–FR104) across supported tenors (5Y/10Y, etc.).
+- Columns: `date`, `series` (e.g., FR100), `tenor` (e.g., `10_year`), `price`, `yield`.
+- Usage: Loaded by the app via DuckDB; extra columns are ignored. Do not add comment lines to the CSV header.
+
 ## Output Examples
 
 **Bond Table (Economist-style):**
