@@ -1679,8 +1679,11 @@ def format_models_economist_table(models: dict) -> str:
 def summarize_intent_result(intent, rows_list: List[dict]) -> str:
     """Summarize computed query results for display in chat using economist-style tables."""
     
-    # If many rows, format as economist-style table with stats by tenor
-    if len(rows_list) > 5:
+    # For range queries, always format as economist-style table with stats by tenor
+    # (even if few rows - user expects statistics for date ranges)
+    is_range_query = getattr(intent, 'type', None) in ('RANGE', 'AGG_RANGE')
+    
+    if len(rows_list) > 5 or is_range_query:
         metric_name = getattr(intent, "metric", "value") or "value"
         grouped: Dict[str, List[dict]] = {}
         for r in rows_list:
