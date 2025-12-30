@@ -2585,24 +2585,26 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     welcome_text = (
-        "<b>PerisAI</b> — Bond & Auction Analysis\n"
+        "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
         f"© Arif P. Sulistiono {datetime.now().year}\n\n"
-        "<b>Commands</b>\n"
-        "💹 /kei — Quantitative analysis (tables, forecasts)\n"
-        "🌍 /kin — Macro context (insights, plots, policy)\n"
-        "⚡ /both — Combined (quant → strategic view)\n"
-        "📌 /check — Quick lookup\n"
-        "📚 /examples — Full query reference\n\n"
+        "<b>Three Personas</b>\n"
+        "💹 <b>/kei</b> — Quantitative analyst (tables, statistics, forecasts)\n"
+        "🌍 <b>/kin</b> — Macro strategist (insights, plots, market context)\n"
+        "⚡ <b>/both</b> — Dual analysis (quant + strategic view)\n\n"
+        "<b>Data Commands</b>\n"
+        "📌 <b>/check</b> — Quick single-date lookup (with business day info)\n"
+        "📚 <b>/examples</b> — Full query syntax reference\n\n"
         "<b>Quick Examples</b>\n"
         "• /kei tab yield 5 and 10 year from q3 2023 to q2 2024\n"
         "• /kei tab incoming bid from 2020 to 2024\n"
         "• /kin plot yield 5 year from oct 2024 to mar 2025\n"
-        "• /both compare yield 5 and 10 year 2024 vs 2025\n\n"
-        "<b>Output</b>\n"
-        "• Economist-style tables (right-aligned)\n"
-        "• INDOGB titles; Kin shows a single 🌍 headline\n"
-        "• Min/Max/Avg use two-decimal precision\n\n"
-        "<i>Indonesian government bonds · Historical & forecast data</i>"
+        "• /both compare yield 5 and 10 year 2024 vs 2025\n"
+        "• /check 2025-12-08 5 and 10 year\n\n"
+        "<b>Response Format</b>\n"
+        "📊 <b>Tables:</b> Economist-style with Min/Max/Avg statistics\n"
+        "📈 <b>Plots:</b> Multi-tenor curves with HL-CU headline\n"
+        "⏱️ <b>Business days:</b> Automatic detection (weekends, holidays)\n\n"
+        "<i>INDOGB data 2015–2025 · Auctions 2015–2026</i>"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
 
@@ -2618,42 +2620,57 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     examples_text = (
-        "<b>📚 Query Examples</b>\n\n"
+        "<b>📚 Complete Query Examples</b>\n\n"
         
-        "<b>Bond Tables (Economist-style)</b>\n"
+        "<b>1️⃣ Bond Tables (Economist-style, Min/Max/Avg)</b>\n"
         "• /kei tab yield 5 and 10 year from q3 2023 to q2 2024\n"
         "• /kei tab price 5 year from oct 2024 to mar 2025\n"
         "• /kei tab yield and price 5 year in feb 2025\n"
         "• /kei tab yield 5 and 10 year from 2023 to 2024\n\n"
         
-        "<b>Auction Tables (Range expansion)</b>\n"
+        "<b>2️⃣ Auction Tables (Incoming bid, awarded bid)</b>\n"
         "• /kei tab incoming bid from 2020 to 2024\n"
         "• /kei tab awarded bid from 2015 to 2024\n"
         "• /kei tab incoming and awarded bid from 2022 to 2024\n"
         "• /kei tab incoming bid from Q2 2025 to Q3 2026\n\n"
         
-        "<b>Bond Plots (Multi-tenor curves)</b>\n"
+        "<b>3️⃣ Bond Plots (Multi-tenor curves, HL-CU format)</b>\n"
         "• /kin plot yield 5 and 10 year from oct 2024 to mar 2025\n"
         "• /kin plot price 5 year from q3 2023 to q2 2024\n"
         "• /kin plot yield 5 and 10 year from 2023 to 2024\n\n"
         
-        "<b>Combined Analysis</b>\n"
+        "<b>4️⃣ Combined Analysis (Kei table + Kin insight)</b>\n"
         "• /both compare yield 5 and 10 year 2024 vs 2025\n"
         "• /both auction demand trends 2023 to 2025\n\n"
         
-        "<b>Quick Lookup</b>\n"
-        "• /check 2025-12-12 10 year\n"
-        "• /check price 5 year 6 Dec 2024\n\n"
+        "<b>5️⃣ Quick Lookup (Single-date check with business day detection)</b>\n"
+        "• /check 2025-12-08 10 year\n"
+        "• /check price 5 year 6 Dec 2024\n"
+        "• /check yield 5 and 10 year 2025-12-06 ← Shows 'Saturday — markets closed'\n\n"
         
-        "<b>📊 Output Formats</b>\n"
-        "Tables: Economist-style borders, right-aligned numbers (Min/Max/Avg two decimals), summary stats\n"
-        "Plots: Professional styling, multi-tenor overlays; Kin shows a single 🌍 headline\n\n"
+        "<b>📊 Output Formats Explained</b>\n"
+        "<u>Tables:</u> Economist-style borders, right-aligned numbers, summary stats\n"
+        "<u>Plots:</u> Professional styling, multi-tenor overlays, single 🌍 headline\n"
+        "<u>Lookup:</u> Quick results; includes business day status if no data\n\n"
         
-        "<b>💡 Tips</b>\n"
-        "• Ranges auto-expand: 'from 2020 to 2024' → full coverage\n"
-        "• Tenors: 5, 10, 15, 20, 30 year supported\n"
-        "• Periods: months (jan, feb), quarters (q1–q4), years (2023)\n"
-        "• Data: bonds 2015–2025, auctions 2015–2026"
+        "<b>⏱️ Date Formats Supported</b>\n"
+        "• YYYY-MM-DD: 2025-12-08\n"
+        "• Month abbreviations: oct 2024, feb 2025\n"
+        "• Quarters: q1–q4 (q3 2023, q2 2024)\n"
+        "• Year ranges: from 2020 to 2024\n\n"
+        
+        "<b>📈 Tenors Available</b>\n"
+        "5 year, 10 year, 15 year, 20 year, 30 year\n\n"
+        
+        "<b>💡 Tips & Tricks</b>\n"
+        "• /kei: Tables only (no plots), strict data analysis\n"
+        "• /kin: Plots + macro insight, may use web search\n"
+        "• /both: Best for comprehensive view (quant → strategy)\n"
+        "• Date ranges auto-expand to full available data\n"
+        "• Business day check on /check helps identify weekends/holidays\n\n"
+        
+        "<b>📍 Data Coverage</b>\n"
+        "Bonds: 2015–2025 · Auctions: 2015–2026 · Updates daily"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
 
