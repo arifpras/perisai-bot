@@ -1711,7 +1711,7 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         std_width = 3
         # Calculate: 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 1 space = 34
         total_width = tenor_width + 3 + cnt_width + 3 + min_width + 3 + max_width + 3 + avg_width + 3 + std_width + 1
-        border = '─' * (total_width + 1)
+        border = '─' * total_width
         
         # Use 3-char header names to match 3-char data columns, add space before closing pipe
         header = f"{'Tnr':<{tenor_width}} | {'Cnt':>{cnt_width}} | {'Min':>{min_width}} | {'Max':>{max_width}} | {'Avg':>{avg_width}} | {'Std':<{std_width}} "
