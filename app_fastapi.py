@@ -64,14 +64,20 @@ from metrics import metrics
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup hook using FastAPI lifespan events (replaces deprecated on_event)."""
+    import sys
     if TELEGRAM_BOT_TOKEN:
-        print(f"✅ TELEGRAM_BOT_TOKEN is set (length: {len(TELEGRAM_BOT_TOKEN)})")
+        msg = f"✅ TELEGRAM_BOT_TOKEN is set (length: {len(TELEGRAM_BOT_TOKEN)})"
+        print(msg, flush=True)
+        sys.stdout.flush()
         if _telegram_app:
-            print("✅ Telegram bot initialized successfully!")
+            print("✅ Telegram bot initialized successfully!", flush=True)
+            sys.stdout.flush()
         elif _telegram_import_error:
-            print(f"❌ Telegram bot import error: {_telegram_import_error}")
+            print(f"❌ Telegram bot import error: {_telegram_import_error}", flush=True)
+            sys.stdout.flush()
     else:
-        print("⚠️  TELEGRAM_BOT_TOKEN not set - Telegram endpoints will return 503")
+        print("⚠️  TELEGRAM_BOT_TOKEN not set - Telegram endpoints will return 503", flush=True)
+        sys.stdout.flush()
     yield
 
 
