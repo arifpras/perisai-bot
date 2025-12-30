@@ -4680,6 +4680,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kei_table = header + table_text
             
             # Send Kei's table
+            logger.info(f"Bond table /both: Sending table ({len(kei_table)} chars)")
             rendered = convert_markdown_code_fences_to_html(kei_table)
             try:
                 await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
@@ -4692,8 +4693,6 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Final fallback: send without any parse mode
                     logger.warning(f"BadRequest on MARKDOWN as well: {markdown_err}. Sending plain text.")
                     await update.message.reply_text(kei_table)
-            # This avoids BadRequest errors with very large datasets
-            import statistics
             
             # Parse table data to extract statistics for Kin's analysis
             table_summary = f"Bond Yield Data Summary ({bond_tab_req['start_date']} to {bond_tab_req['end_date']}):\n"
@@ -4709,9 +4708,17 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Based on the bond data comparison table shown above and the original question, provide your strategic interpretation and economic analysis. "
                 f"Focus on the key trends, changes between periods, and market implications."
             )
-            kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+            logger.info(f"Bond table /both: Calling ask_kin for interpretation")
+            try:
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                logger.info(f"Bond table /both: Got Kin response ({len(kin_answer) if kin_answer else 0} chars)")
+            except Exception as kin_error:
+                logger.error(f"Bond table /both: ask_kin() failed: {kin_error}", exc_info=True)
+                raise
+            
             if kin_answer and kin_answer.strip():
                 kin_cleaned = clean_kin_output(kin_answer)
+                logger.info(f"Bond table /both: Sending Kin response ({len(kin_cleaned)} chars)")
                 try:
                     await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                 except BadRequest as kin_html_err:
@@ -4723,10 +4730,14 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "bond_tab", response_time, True, "bond_table_both", "both")
+            logger.info(f"Bond table /both: Complete in {response_time:.2f}s")
             return
         except Exception as e:
             logger.error(f"Error in bond table /both: {e}", exc_info=True)
-            await update.message.reply_text(f"❌ Error processing bond table: {type(e).__name__}")
+            try:
+                await update.message.reply_text(f"❌ Error processing bond table: {type(e).__name__}")
+            except Exception as send_err:
+                logger.error(f"Failed to send error message: {send_err}")
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "bond_tab", response_time, False, f"bond_error: {e}", "both")
             return
