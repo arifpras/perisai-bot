@@ -4724,20 +4724,29 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if is_forecast_query:
                 kei_body = strip_signatures(data_summary)
                 if forecast_horizon > 5:
-                    # Unified message for longer horizons
+                    # Unified message for longer horizons - strip all Kei headlines so only Kin's analysis headline appears
+                    # Remove title lines (e.g., "📊 INDOGB: Forecast...")
+                    lines = kei_body.split('\n')
+                    filtered_lines = []
+                    for line in lines:
+                        stripped = line.strip()
+                        # Skip title lines (start with 📊 or contain "INDOGB: Forecast")
+                        if stripped.startswith('📊') or ('INDOGB' in stripped and 'Forecast' in stripped):
+                            continue
+                        filtered_lines.append(line)
+                    kei_data = '\n'.join(filtered_lines).strip()
+                    
                     kin_prompt = (
                         f"Original question: {question}\n\n"
-                        f"Kei's quantitative forecast:\n{kei_body}\n\n"
-                        f"Provide one concise HL-CU-style analysis for the next observations."
+                        f"Kei's quantitative forecast data:\n{kei_data}\n\n"
+                        f"Provide one concise HL-CU-style unified analysis that synthesizes this forecast data with strategic context."
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
-                    combined = kei_body
                     if kin_answer and kin_answer.strip():
                         kin_cleaned = clean_kin_output(kin_answer)
-                        combined = f"{kei_body}\n\n{kin_cleaned}"
-                    combined_with_sig = html_quote_signature(combined + "\n\n~ Kei x Kin")
-                    rendered = convert_markdown_code_fences_to_html(combined_with_sig)
-                    await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+                        combined_with_sig = html_quote_signature(kin_cleaned + "\n\n~ Kei x Kin")
+                        rendered = convert_markdown_code_fences_to_html(combined_with_sig)
+                        await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
                 else:
                     # Short horizon: keep table then Kin analysis as separate messages
                     await update.message.reply_text(kei_body, parse_mode=ParseMode.MARKDOWN)
