@@ -1,6 +1,6 @@
 # PerisAI — Indonesian Bond Analysis
 
-Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative analyst) and **Kin** (macro strategist).
+Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
 ## Features
 
@@ -10,7 +10,7 @@ Indonesian government bond analysis via Telegram with dual AI personas: **Kei** 
 - **Multi-tenor queries:** Compare 5Y, 10Y, 15Y, 20Y, 30Y bonds side-by-side
 - **Professional plots:** Multi-tenor curves with HL-CU format headlines and macro insights
 - **Business day detection:** `/check` automatically identifies weekends and Indonesian holidays
-- **Dual personas:** Kei (quant → tables), Kin (macro → plots + web search), Both (combined)
+- **Personal AI personas:** Kei (quant modeling) and Kin (macro context) with conversational, first-person responses
 - **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo for forecasts
 
 ## Quick Start
@@ -37,11 +37,11 @@ ALLOWED_USER_IDS=<ids>  # optional
 
 ### Main Analysis Personas
 
-| Command | Role | Input | Output |
-|---------|------|-------|--------|
-| `/kei` | Quantitative analyst | Tables: bond/auction data | Economist-style tables with statistics |
-| `/kin` | Macro strategist | Plots: bond trends over time | Charts + HL-CU headline + analysis |
-| `/both` | Dual analysis | Compare/trends queries | Kei table → Kin headline + macro view |
+| Command | Role | Personality | Output |
+|---------|------|-------------|--------|
+| `/kei` | Quantitative partner | Hands-on modeler, enjoys digging into numbers | Economist-style tables with statistics |
+| `/kin` | Macro storyteller | Connects dots, translates signals to stories | Charts + HL-CU headline + strategic insight |
+| `/both` | Dual analysis | Combines both: Kei's data + Kin's narrative | Kei table → Kin Perplexity analysis |
 
 ### Utility Commands
 
@@ -108,6 +108,24 @@ ALLOWED_USER_IDS=<ids>  # optional
 - **Kin (plots):** Professional curves, single 🌍 headline (HL-CU format), 3 paragraphs max
 - **Both (dual):** Kei table first → Kin strategic analysis (via Perplexity API)
 - **Check (lookup):** Quick data + business day status (if Saturday, Sunday, or Indonesian holiday)
+
+## Meet the Personas
+
+**Kei** — _"I'm Kei, a quantitatively minded partner who enjoys turning data into insight."_
+- **Background:** CFA charterholder, MIT-style training
+- **Focus:** Careful modeling—valuation, risk, forecasting, backtesting
+- **Tools:** Time-series methods, no-arbitrage logic, asset-pricing frameworks
+- **Style:** Hands-on with numbers, tests assumptions, walks you through data clearly
+- **Try:** `/kei who are you?` for a personal introduction
+
+**Kin** — _"I'm Kin. I work at the intersection of macroeconomics, policy, and markets."_
+- **Background:** CFA charterholder, Harvard PhD
+- **Focus:** Context and trade-offs—what matters, why it matters, uncertainties
+- **Approach:** Connects dots across data, incentives, policy constraints
+- **Style:** Translates complex signals into concise, usable stories for decision-makers
+- **Try:** `/kin who are you?` for a personal introduction
+
+Both personas respond in **HL-CU format** (Headline-Led Corporate Update) for data queries: single headline + 3 concise paragraphs. For identity questions, they drop the formality and answer personally in first-person.
 
 ## Bond Data & Queries
 
@@ -208,11 +226,27 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-**Current Version:** `v2025.12.30-auction-both-fix`
+**Current Version:** `v2025.12.30-persona-identity-update`
 
 **Updates (Dec 30, 2025):**
 
-**Phase 5: Auction Query Enhancements** (Current)
+**Phase 6: Persona Identity Enhancement** (Current)
+- ✅ **Conversational persona identities:**
+  - Rewrote Kei and Kin profiles to be personal, first-person, engaging
+  - Kei: "I'm Kei, a quantitatively minded partner who enjoys turning data into insight"
+  - Kin: "I'm Kin. I work at the intersection of macroeconomics, policy, and markets"
+  - Max 2 sentences per paragraph for better readability
+- ✅ **Identity responses without emojis:**
+  - `/kei who are you?` and `/kin who are you?` skip headlines and emojis
+  - Personal, conversational tone focused on genuine personality
+  - Applied across all 4 system prompt locations (with/without data, dual/single mode)
+- ✅ **Updated documentation:**
+  - /start: Added "Try asking: 'who are you?' to each persona!"
+  - /examples: Added tip about asking personas "who are you?"
+  - README: New "Meet the Personas" section with backgrounds and personalities
+  - All descriptions now emphasize relatable, human characteristics
+
+**Phase 5: Auction Query Enhancements**
 - ✅ **/both auction queries now fully functional:**
   - Single-year queries: `/both auction demand in 2026` → Kei table + Kin analysis
   - Year ranges: `/both auction demand trends 2023 to 2025` → Multi-year table + Kin insight

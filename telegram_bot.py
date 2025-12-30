@@ -2593,8 +2593,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
         f"© Arif P. Sulistiono {datetime.now().year}\n\n"
         "<b>Three Personas</b>\n"
-        "💹 <b>/kei</b> — Quantitative analyst (tables, statistics, forecasts)\n"
-        "🌍 <b>/kin</b> — Macro strategist (insights, plots, market context)\n"
+        "💹 <b>/kei</b> — Kei: Quantitative partner (tables, stats, hands-on modeling)\n"
+        "🌍 <b>/kin</b> — Kin: Macro storyteller (plots, context, strategic insight)\n"
         "⚡ <b>/both</b> — Dual analysis (Kei table → Kin strategic insight)\n\n"
         "<b>Data Commands</b>\n"
         "📌 <b>/check</b> — Quick single-date lookup (with business day info)\n"
@@ -2611,6 +2611,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📈 <b>Plots:</b> Multi-tenor curves with HL-CU headline\n"
         "⚡ <b>Dual:</b> Kei table + Kin Perplexity analysis (strategic)\n"
         "⏱️ <b>Business days:</b> Automatic detection (weekends, holidays)\n\n"
+        "<b>💡 Try asking: 'who are you?' to each persona!</b>\n\n"
         "<i>INDOGB data 2015–2025 · Auctions 2015–2026</i>"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
@@ -2684,7 +2685,8 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /both: Chains Kei (quant) → Kin (strategy) for dual view\n"
         "• Date ranges auto-expand to full available data\n"
         "• Business day check on /check helps identify weekends/holidays\n"
-        "• /both works for all auction query types (single year, ranges, quarters)\n\n"
+        "• /both works for all auction query types (single year, ranges, quarters)\n"
+        "• Try asking each persona 'who are you?' to learn their personality!\n\n"
         
         "<b>📍 Data Coverage</b>\n"
         "Bonds: 2015–2025 · Auctions: 2015–2026 (forecast) · Updates daily"
