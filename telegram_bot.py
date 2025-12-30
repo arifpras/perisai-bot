@@ -4684,14 +4684,14 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
             except BadRequest as html_err:
-                # If HTML parse fails, try plain text format instead
-                logger.warning(f"BadRequest on bond table HTML: {html_err}. Resending as plain text.")
-            try:
-                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
-            except BadRequest as markdown_err:
-                # Final fallback: send without any parse mode
-                logger.warning(f"BadRequest on MARKDOWN as well: {markdown_err}. Sending plain text.")
-                await update.message.reply_text(kei_table)
+                # If HTML parse fails, try MARKDOWN mode instead
+                logger.warning(f"BadRequest on bond table HTML (likely Unicode box chars): {html_err}. Resending as MARKDOWN.")
+                try:
+                    await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                except BadRequest as markdown_err:
+                    # Final fallback: send without any parse mode
+                    logger.warning(f"BadRequest on MARKDOWN as well: {markdown_err}. Sending plain text.")
+                    await update.message.reply_text(kei_table)
             # This avoids BadRequest errors with very large datasets
             import statistics
             
