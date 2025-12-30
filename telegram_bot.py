@@ -4250,10 +4250,19 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 kei_table = format_auction_metrics_table(periods_data, metrics_list)
                 await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
 
+                # Identify forecast years (today is Dec 30, 2025, so 2026+ are forecasts)
+                from datetime import datetime
+                current_year = datetime.now().year
+                forecast_years = [y for y in [y1, y2] if y > current_year]
+                forecast_note = ""
+                if forecast_years:
+                    historical_years = [y for y in [y1, y2] if y <= current_year]
+                    forecast_note = f"\n\nCRITICAL DATA DISTINCTION:\n- Year(s) {', '.join(map(str, historical_years))} are HISTORICAL (actual data)\n- Year(s) {', '.join(map(str, forecast_years))} are FORECAST/PROJECTIONS (not yet occurred)\n\nWhen analyzing forecast years, use conditional language like 'is expected to', 'is projected to', 'forecast shows' and explicitly note that these are projections, not actuals. Clearly distinguish between historical performance and future expectations in your analysis."
+
                 kin_prompt = (
                     f"Original question: {question}\n\n"
                     f"Kei's quantitative analysis:\n{kei_table}\n\n"
-                    f"Based on this auction comparison and the original question, provide your strategic interpretation and economic analysis."
+                    f"Based on this auction comparison and the original question, provide your strategic interpretation and economic analysis.{forecast_note}"
                 )
                 kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                 if kin_answer and kin_answer.strip():
@@ -4356,10 +4365,21 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
                 
                 # Have Kin analyze the table
+                # Identify forecast quarters (today is Dec 30, 2025, so 2026+ are forecasts)
+                from datetime import datetime
+                current_year = datetime.now().year
+                forecast_periods = [p for p in periods if p['year'] > current_year]
+                forecast_note = ""
+                if forecast_periods:
+                    historical_periods = [p for p in periods if p['year'] <= current_year]
+                    historical_years = sorted(set(p['year'] for p in historical_periods))
+                    forecast_years = sorted(set(p['year'] for p in forecast_periods))
+                    forecast_note = f"\n\nCRITICAL DATA DISTINCTION:\n- Period(s) from year(s) {', '.join(map(str, historical_years))} are HISTORICAL (actual data)\n- Period(s) from year(s) {', '.join(map(str, forecast_years))} are FORECAST/PROJECTIONS (not yet occurred)\n\nWhen analyzing forecast periods, use conditional language like 'is expected to', 'is projected to', 'forecast shows' and explicitly note that these are projections, not actuals. Clearly distinguish between historical performance and future expectations in your analysis."
+                
                 kin_prompt = (
                     f"Original question: {question}\n\n"
                     f"Kei's quantitative analysis:\n{kei_table}\n\n"
-                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis.{forecast_note}"
                 )
                 kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                 if kin_answer and kin_answer.strip():
@@ -4428,10 +4448,21 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
                 
                 # Have Kin analyze the table
+                # Identify forecast months (today is Dec 30, 2025, so 2026+ are forecasts)
+                from datetime import datetime
+                current_year = datetime.now().year
+                forecast_periods = [p for p in periods if p['year'] > current_year]
+                forecast_note = ""
+                if forecast_periods:
+                    historical_periods = [p for p in periods if p['year'] <= current_year]
+                    historical_years = sorted(set(p['year'] for p in historical_periods))
+                    forecast_years = sorted(set(p['year'] for p in forecast_periods))
+                    forecast_note = f"\n\nCRITICAL DATA DISTINCTION:\n- Period(s) from year(s) {', '.join(map(str, historical_years))} are HISTORICAL (actual data)\n- Period(s) from year(s) {', '.join(map(str, forecast_years))} are FORECAST/PROJECTIONS (not yet occurred)\n\nWhen analyzing forecast periods, use conditional language like 'is expected to', 'is projected to', 'forecast shows' and explicitly note that these are projections, not actuals. Clearly distinguish between historical performance and future expectations in your analysis."
+                
                 kin_prompt = (
                     f"Original question: {question}\n\n"
                     f"Kei's quantitative analysis:\n{kei_table}\n\n"
-                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis.{forecast_note}"
                 )
                 kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                 if kin_answer and kin_answer.strip():
