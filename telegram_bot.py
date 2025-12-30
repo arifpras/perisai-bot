@@ -2770,6 +2770,13 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     tenor_label = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
     metric_label = intent.metric if getattr(intent, 'metric', None) else 'yield'
+    
+    # Check if data exists for a non-business day (data quality issue)
+    is_bday, reason = is_business_day(d)
+    warning_msg = ""
+    if not is_bday:
+        warning_msg = f"⚠️  Note: {d.strftime('%A')} is {reason} — data found but markets were closed.\n\n"
+    
     response_lines = [
         f"📌 Quick check - {metric_label} on {d}",
         f"Tenor: {tenor_label}; Records: {len(rows_list)}"
@@ -2782,7 +2789,7 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response_lines.append("Price")
         response_lines.append(format_rows_for_telegram(rows_list, include_date=False, metric='price', economist_style=True))
 
-    await update.message.reply_text("\n\n".join(response_lines), parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(warning_msg + "\n\n".join(response_lines), parse_mode=ParseMode.MARKDOWN)
     metrics.log_query(user_id, username, question, "check", response_time, True, persona="check")
 
 
