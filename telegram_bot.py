@@ -4014,6 +4014,102 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
                     return
         
+        # Try single quarter query (e.g., "in q1 2026")
+        single_quarter = re.search(r"\bin\s+q([1-4])\s+(19\d{2}|20\d{2})\b", q_lower)
+        if single_quarter:
+            q_num = int(single_quarter.group(1))
+            year = int(single_quarter.group(2))
+            try:
+                period = {'type': 'quarter', 'quarter': q_num, 'year': year}
+                pdata = load_auction_period(period)
+                
+                if not pdata:
+                    await update.message.reply_text(
+                        f"❌ No auction data found for Q{q_num} {year}.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
+                    return
+                
+                # Generate Kei's table for single quarter
+                metrics_list = ['incoming', 'awarded']
+                kei_table = format_auction_metrics_table([pdata], metrics_list)
+                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                
+                # Have Kin analyze the table
+                kin_prompt = (
+                    f"Original question: {question}\n\n"
+                    f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                )
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                if kin_answer and kin_answer.strip():
+                    kin_cleaned = clean_kin_output(kin_answer)
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, True, "auction_single_quarter_both", "both")
+                return
+            except Exception as e:
+                logger.error(f"Error in single quarter auction /both: {e}", exc_info=True)
+                await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
+                return
+        
+        # Try single month query (e.g., "in jan 2026")
+        months_map_single = {
+            'jan':1,'january':1, 'feb':2,'february':2, 'mar':3,'march':3,
+            'apr':4,'april':4, 'may':5, 'jun':6,'june':6,
+            'jul':7,'july':7, 'aug':8,'august':8,
+            'sep':9,'sept':9,'september':9, 'oct':10,'october':10,
+            'nov':11,'november':11, 'dec':12,'december':12,
+        }
+        single_month = re.search(r"\bin\s+(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(19\d{2}|20\d{2})\b", q_lower)
+        if single_month:
+            m_str = single_month.group(1)[:3]
+            month = months_map_single.get(m_str, 1)
+            year = int(single_month.group(2))
+            try:
+                period = {'type': 'month', 'month': month, 'year': year}
+                pdata = load_auction_period(period)
+                
+                if not pdata:
+                    await update.message.reply_text(
+                        f"❌ No auction data found for {m_str.capitalize()} {year}.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
+                    return
+                
+                # Generate Kei's table for single month
+                metrics_list = ['incoming', 'awarded']
+                kei_table = format_auction_metrics_table([pdata], metrics_list)
+                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                
+                # Have Kin analyze the table
+                kin_prompt = (
+                    f"Original question: {question}\n\n"
+                    f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                )
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                if kin_answer and kin_answer.strip():
+                    kin_cleaned = clean_kin_output(kin_answer)
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, True, "auction_single_month_both", "both")
+                return
+            except Exception as e:
+                logger.error(f"Error in single month auction /both: {e}", exc_info=True)
+                await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
+                return
+        
         # Try single year query (e.g., "in 2026" or "2026")
         single_year = re.search(r"\bin\s+(19\d{2}|20\d{2})\b", q_lower)
         if not single_year:
