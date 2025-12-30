@@ -131,7 +131,9 @@ Tables auto-expand ranges. Values shown in Rp Trillions. See [examples/auction_t
 
 - File: `20251215_priceyield.csv` — Indonesian domestic government bonds (INDOGB) price and yield time series for FR-series (e.g., FR95–FR104) across supported tenors (5Y/10Y, etc.).
 - Columns: `date`, `series` (e.g., FR100), `tenor` (e.g., `10_year`), `price`, `yield`.
-- Usage: Loaded by the app via DuckDB; extra columns are ignored. Do not add comment lines to the CSV header.
+- **Data coverage:** 2015–2025 (1,536 rows after holiday cleanup)
+- **Data quality:** Jan 1 entries removed (public holiday, markets closed) to prevent ambiguity
+- **Usage:** Loaded by the app via DuckDB; extra columns are ignored. Do not add comment lines to the CSV header.
 
 ## Output Examples
 
@@ -202,12 +204,21 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-**Current Version:** `v2025.12.30-business-day-check`
+**Current Version:** `v2025.12.30-data-cleanup`
 
 **Updates (Dec 30, 2025):**
 
-**Phase 3: User Experience** (Current)
-- ✅ **Business day detection:** `/check` now identifies weekends and Indonesian public holidays (2024-2026)
+**Phase 4: Data Quality & Validation** (Current)
+- ✅ **Holiday data cleanup:** Removed Jan 1 entries from bond CSV (4 NaN rows)
+  - 2024-01-01 and 2025-01-01 entries deleted to match public holiday calendar
+  - Prevents ambiguity between "no data" (market closed) and "data exists on closed day"
+- ✅ **Holiday warning on /check:** Now warns when data is found for non-business days
+  - Shows: "⚠️ Note: Monday is Indonesian public holiday — data found but markets were closed"
+  - Helps identify remaining data quality issues in database
+- ✅ **Expanded holiday coverage:** 2024-2026 holidays updated (Eid, Nyepi, Ascension, etc.)
+
+**Phase 3: User Experience**
+- ✅ **Business day detection:** `/check` identifies weekends and Indonesian public holidays
   - Shows reason for missing data (e.g., "Saturday is Saturday — markets may be closed")
   - Covers Eid, Nyepi, Christmas, New Year, and 30+ other holidays
 - ✅ **Updated /start:** Clearer command structure, mentions business day detection
