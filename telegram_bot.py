@@ -2440,9 +2440,9 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences. Do NOT mention data limitations, missing splits, or what's 'not available' in the dataset—simply analyze what is provided.\n"
-            "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
+            "Sources: If any sources are referenced, add one blank line before the sources line, then write in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: ALWAYS end your response with a blank line followed by: {'<blockquote>~ Kei x Kin</blockquote>' if dual_mode else '<blockquote>~ Kin</blockquote>'}\n"
-            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do NOT add descriptive footers, metadata lines, or summary statistics headers (e.g., 'Yield statistics', 'observations count'). Do NOT duplicate or restate the data table - interpret and analyze it instead. Do NOT add citations in brackets (e.g., [1][2][3]).\n"
+            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do NOT add descriptive footers, metadata lines, or summary statistics headers (e.g., 'Yield statistics', 'observations count'). Do NOT duplicate or restate the data table - interpret and analyze it instead. CRITICAL: Do NOT add numbered citations in brackets (e.g., [1], [2], [3]) within paragraphs or after statements.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
             "CRITICAL BOND DATASET CONTEXT:\n"
@@ -2467,9 +2467,9 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_). Bullet points (-) and numbered lists are fine. Write in concise, prose, simple paragraphs.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics. Do NOT mention data limitations, missing splits, or what's 'not available'—simply analyze what is provided.\n"
-            "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
+            "Sources: If any sources are referenced, add one blank line before the sources line, then write in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: ALWAYS end your response with a blank line followed by: {'<blockquote>~ Kei x Kin</blockquote>' if dual_mode else '<blockquote>~ Kin</blockquote>'}\n"
-            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do NOT add descriptive footers, metadata lines, or summary statistics headers (e.g., 'Yield statistics', 'observations count'). Do NOT duplicate or restate the data table - interpret and analyze it instead. Do NOT add citations in brackets (e.g., [1][2][3]).\n"
+            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do NOT add descriptive footers, metadata lines, or summary statistics headers (e.g., 'Yield statistics', 'observations count'). Do NOT duplicate or restate the data table - interpret and analyze it instead. CRITICAL: Do NOT add numbered citations in brackets (e.g., [1], [2], [3]) within paragraphs or after statements.\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
             "No bond data provided - use web search for authoritative analysis; cite real URLs when available."
@@ -3388,7 +3388,8 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     def clean_kin_output(text: str) -> str:
-        """Remove leading INDOGB/Kei headers to avoid duplicate titles in Kin replies."""
+        """Remove leading INDOGB/Kei headers to avoid duplicate titles in Kin replies.
+        Also ensures blank line before [Sources: ...] line."""
         if not isinstance(text, str):
             return text
         def is_title_line(line: str) -> bool:
@@ -3413,7 +3414,19 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines.pop(0)
             while lines and not lines[0].strip():
                 lines.pop(0)
-        return "\n".join(lines).strip()
+        
+        # Ensure blank line before [Sources: ...] line
+        result_lines = []
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            # Check if this is a Sources line
+            if stripped.startswith('[Sources:') and stripped.endswith(']'):
+                # If previous line is not blank, add blank line
+                if result_lines and result_lines[-1].strip():
+                    result_lines.append('')
+            result_lines.append(line)
+        
+        return "\n".join(result_lines).strip()
 
     lower_q = question.lower()
     needs_plot = any(keyword in lower_q for keyword in ["plot"])
@@ -3715,7 +3728,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     def clean_kin_output(text: str) -> str:
-        """Remove leading persona titles to avoid duplicate headers in /both responses."""
+        """Remove leading persona titles to avoid duplicate headers in /both responses.
+        Also ensures blank line before [Sources: ...] line."""
         if not isinstance(text, str):
             return text
 
@@ -3742,7 +3756,19 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             lines.pop(0)
             while lines and not lines[0].strip():
                 lines.pop(0)
-        return "\n".join(lines).strip()
+        
+        # Ensure blank line before [Sources: ...] line
+        result_lines = []
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            # Check if this is a Sources line
+            if stripped.startswith('[Sources:') and stripped.endswith(']'):
+                # If previous line is not blank, add blank line
+                if result_lines and result_lines[-1].strip():
+                    result_lines.append('')
+            result_lines.append(line)
+        
+        return "\n".join(result_lines).strip()
 
     def strip_signatures(text: str) -> str:
         """Remove persona signatures (~ Kei/Kin/Kin x Kei) in plain or blockquote form."""
