@@ -4686,10 +4686,12 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except BadRequest as html_err:
                 # If HTML parse fails, try plain text format instead
                 logger.warning(f"BadRequest on bond table HTML: {html_err}. Resending as plain text.")
+            try:
                 await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
-            
-            # Have Kin analyze the table
-            # For large tables, create a summary instead of sending entire table to API
+            except BadRequest as markdown_err:
+                # Final fallback: send without any parse mode
+                logger.warning(f"BadRequest on MARKDOWN as well: {markdown_err}. Sending plain text.")
+                await update.message.reply_text(kei_table)
             # This avoids BadRequest errors with very large datasets
             import statistics
             
@@ -4710,7 +4712,14 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kin_answer = await ask_kin(kin_prompt, dual_mode=True)
             if kin_answer and kin_answer.strip():
                 kin_cleaned = clean_kin_output(kin_answer)
-                await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                try:
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                except BadRequest as kin_html_err:
+                    logger.warning(f"BadRequest on Kin response HTML: {kin_html_err}. Resending without parse mode.")
+                    try:
+                        await update.message.reply_text(kin_cleaned)
+                    except BadRequest as kin_plain_err:
+                        logger.error(f"Critical: Cannot send Kin response even in plain text: {kin_plain_err}")
             
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "bond_tab", response_time, True, "bond_table_both", "both")
