@@ -4681,7 +4681,12 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Send Kei's table
             rendered = convert_markdown_code_fences_to_html(kei_table)
-            await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+            try:
+                await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+            except BadRequest as html_err:
+                # If HTML parse fails, try plain text format instead
+                logger.warning(f"BadRequest on bond table HTML: {html_err}. Resending as plain text.")
+                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
             
             # Have Kin analyze the table
             # For large tables, create a summary instead of sending entire table to API
