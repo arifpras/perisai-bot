@@ -2742,7 +2742,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "messages": messages,
         }
 
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
                 "https://api.perplexity.ai/chat/completions",
                 headers=headers,
