@@ -3807,62 +3807,62 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             y1 = int(y1_str)
             m2 = quarters_map[f'q{q2_num}']
             y2 = int(y2_str)
-            if y2 <= 2024:  # Historical data only
-                try:
-                    from dateutil.relativedelta import relativedelta
-                    start_date = date(y1, m1, 1)
-                    end_date = date(y2, m2, 1) + relativedelta(months=3) - timedelta(days=1)
-                    periods = []
-                    current = start_date
-                    while current <= end_date:
-                        periods.append({'type': 'month', 'month': current.month, 'year': current.year})
-                        current += relativedelta(months=1)
-                    
-                    periods_data = []
-                    skipped_periods = []
-                    month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                    
-                    for p in periods:
-                        pdata = load_auction_period(p)
-                        if not pdata:
-                            skipped_periods.append(f"{month_names[p['month']]} {p['year']}")
-                            continue
-                        periods_data.append(pdata)
-                    
-                    if not periods_data:
-                        await update.message.reply_text(
-                            f"❌ No auction data found for Q{q1_num} {y1} to Q{q2_num} {y2}.",
-                            parse_mode=ParseMode.HTML
-                        )
-                        response_time = time.time() - start_time
-                        metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
-                        return
-                    
-                    # Generate Kei's table
-                    metrics_list = ['incoming', 'awarded']
-                    kei_table = format_auction_metrics_table(periods_data, metrics_list)
-                    await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
-                    
-                    # Have Kin analyze the table
-                    kin_prompt = (
-                        f"Original question: {question}\n\n"
-                        f"Kei's quantitative analysis:\n{kei_table}\n\n"
-                        f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+            # load_auction_period handles both historical and forecast data automatically
+            try:
+                from dateutil.relativedelta import relativedelta
+                start_date = date(y1, m1, 1)
+                end_date = date(y2, m2, 1) + relativedelta(months=3) - timedelta(days=1)
+                periods = []
+                current = start_date
+                while current <= end_date:
+                    periods.append({'type': 'month', 'month': current.month, 'year': current.year})
+                    current += relativedelta(months=1)
+                
+                periods_data = []
+                skipped_periods = []
+                month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                
+                for p in periods:
+                    pdata = load_auction_period(p)
+                    if not pdata:
+                        skipped_periods.append(f"{month_names[p['month']]} {p['year']}")
+                        continue
+                    periods_data.append(pdata)
+                
+                if not periods_data:
+                    await update.message.reply_text(
+                        f"❌ No auction data found for Q{q1_num} {y1} to Q{q2_num} {y2}.",
+                        parse_mode=ParseMode.HTML
                     )
-                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
-                    if kin_answer and kin_answer.strip():
-                        kin_cleaned = clean_kin_output(kin_answer)
-                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
-                    
                     response_time = time.time() - start_time
-                    metrics.log_query(user_id, username, question, "text", response_time, True, "auction_quarter_range_both", "both")
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
                     return
-                except Exception as e:
-                    logger.error(f"Error in quarter-range auction /both: {e}", exc_info=True)
-                    await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
-                    response_time = time.time() - start_time
-                    metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
-                    return
+                
+                # Generate Kei's table
+                metrics_list = ['incoming', 'awarded']
+                kei_table = format_auction_metrics_table(periods_data, metrics_list)
+                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                
+                # Have Kin analyze the table
+                kin_prompt = (
+                    f"Original question: {question}\n\n"
+                    f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                )
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                if kin_answer and kin_answer.strip():
+                    kin_cleaned = clean_kin_output(kin_answer)
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, True, "auction_quarter_range_both", "both")
+                return
+            except Exception as e:
+                logger.error(f"Error in quarter-range auction /both: {e}", exc_info=True)
+                await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
+                return
         
         # Try month-to-month range (e.g., "from dec 2010 to feb 2011")
         months_map = {
@@ -3879,69 +3879,73 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             y1 = int(y1_str)
             m2 = months_map.get(m2_str[:3], 12)
             y2 = int(y2_str)
-            if y2 <= 2024:  # Historical data only
-                try:
-                    from dateutil.relativedelta import relativedelta
-                    start_date = date(y1, m1, 1)
-                    end_date = date(y2, m2, 1)
-                    periods = []
-                    current = start_date
-                    while current <= end_date:
-                        periods.append({'type': 'month', 'month': current.month, 'year': current.year})
-                        current += relativedelta(months=1)
-                    
-                    periods_data = []
-                    skipped_periods = []
-                    month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                    
-                    for p in periods:
-                        pdata = load_auction_period(p)
-                        if not pdata:
-                            skipped_periods.append(f"{month_names[p['month']]} {p['year']}")
-                            continue
-                        periods_data.append(pdata)
-                    
-                    if not periods_data:
-                        await update.message.reply_text(
-                            f"❌ No auction data found for {m1_str} {y1} to {m2_str} {y2}.",
-                            parse_mode=ParseMode.HTML
-                        )
-                        response_time = time.time() - start_time
-                        metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
-                        return
-                    
-                    # Generate Kei's table
-                    metrics_list = ['incoming', 'awarded']
-                    kei_table = format_auction_metrics_table(periods_data, metrics_list)
-                    await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
-                    
-                    # Have Kin analyze the table
-                    kin_prompt = (
-                        f"Original question: {question}\n\n"
-                        f"Kei's quantitative analysis:\n{kei_table}\n\n"
-                        f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+            # load_auction_period handles both historical and forecast data automatically
+            try:
+                from dateutil.relativedelta import relativedelta
+                start_date = date(y1, m1, 1)
+                end_date = date(y2, m2, 1)
+                periods = []
+                current = start_date
+                while current <= end_date:
+                    periods.append({'type': 'month', 'month': current.month, 'year': current.year})
+                    current += relativedelta(months=1)
+                
+                periods_data = []
+                skipped_periods = []
+                month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                
+                for p in periods:
+                    pdata = load_auction_period(p)
+                    if not pdata:
+                        skipped_periods.append(f"{month_names[p['month']]} {p['year']}")
+                        continue
+                    periods_data.append(pdata)
+                
+                if not periods_data:
+                    await update.message.reply_text(
+                        f"❌ No auction data found for {m1_str} {y1} to {m2_str} {y2}.",
+                        parse_mode=ParseMode.HTML
                     )
-                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
-                    if kin_answer and kin_answer.strip():
-                        kin_cleaned = clean_kin_output(kin_answer)
-                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
-                    
                     response_time = time.time() - start_time
-                    metrics.log_query(user_id, username, question, "text", response_time, True, "auction_month_range_both", "both")
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
                     return
-                except Exception as e:
-                    logger.error(f"Error in month-range auction /both: {e}", exc_info=True)
-                    await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
-                    response_time = time.time() - start_time
-                    metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
-                    return
+                
+                # Generate Kei's table
+                metrics_list = ['incoming', 'awarded']
+                kei_table = format_auction_metrics_table(periods_data, metrics_list)
+                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                
+                # Have Kin analyze the table
+                kin_prompt = (
+                    f"Original question: {question}\n\n"
+                    f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                )
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                if kin_answer and kin_answer.strip():
+                    kin_cleaned = clean_kin_output(kin_answer)
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, True, "auction_month_range_both", "both")
+                return
+            except Exception as e:
+                logger.error(f"Error in month-range auction /both: {e}", exc_info=True)
+                await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
+                return
         
-        # Try year-to-year range (e.g., "from 2010 to 2024")
+        # Try year-to-year range (e.g., "from 2010 to 2024" or "2010 to 2024")
         yr_range = re.search(r"from\s+(19\d{2}|20\d{2})\s+to\s+(19\d{2}|20\d{2})", q_lower)
+        if not yr_range:
+            # Also try without "from" keyword (e.g., "2023 to 2025")
+            yr_range = re.search(r"\b(19\d{2}|20\d{2})\s+to\s+(19\d{2}|20\d{2})\b", q_lower)
         if yr_range:
             y_start = int(yr_range.group(1))
             y_end = int(yr_range.group(2))
-            if y_start <= y_end and y_end <= 2024:
+            if y_start <= y_end:
+                # load_auction_period handles both historical and forecast data automatically
                 try:
                     # Use the same data source as /kei tab: load_auction_period via AuctionDB
                     # This ensures consistency between /kei tab and /both commands
