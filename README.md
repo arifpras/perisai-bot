@@ -10,9 +10,9 @@ Indonesian government bond analysis via Telegram with dual AI personas: **Kei** 
 - **Multi-tenor queries:** Compare 5Y, 10Y, 15Y, 20Y, 30Y bonds side-by-side
 - **Professional plots:** Multi-tenor curves with HL-CU format headlines and macro insights
 - **Business day detection:** `/check` automatically identifies weekends and Indonesian holidays
-- **Personal AI personas:** Kei (quant modeling) and Kin (macro context) with conversational, first-person responses
+- **Personal AI personas:** Kei (quantitative partner, hands-on with data) and Kin (macro storyteller, strategic insights) with conversational, first-person responses
 - **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo for forecasts
-- **Enterprise security:** Whitelist-based access control, encrypted transmission, local data processing (see [Security Assurance](docs/SECURITY_ASSURANCE.md))
+- **Enterprise security:** Whitelist-based access control (`ALLOWED_USER_IDS`), encrypted transmission, local-only data processing (see [Security Policy](docs/SECURITY.md))
 
 ## Quick Start
 
@@ -42,9 +42,9 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 
 | Command | Role | Personality | Output |
 |---------|------|-------------|--------|
-| `/kei` | Quantitative partner | Hands-on modeler, enjoys digging into numbers | Economist-style tables with statistics |
-| `/kin` | Macro storyteller | Connects dots, translates signals to stories | Charts + HL-CU headline + strategic insight |
-| `/both` | Dual analysis | Combines both: Kei's data + Kin's narrative | Kei table → Kin Perplexity analysis |
+| `/kei` | Quantitative partner | Hands-on modeler, loves precise numbers and statistics | Economist-style tables with Min/Max/Avg |
+| `/kin` | Macro storyteller | Connects dots, translates data signals to narratives | Charts + headline + strategic insight |
+| `/both` | Dual analysis | Combines both: Kei's rigor + Kin's narrative | Kei table, then Kin Perplexity analysis |
 
 ### Utility Commands
 
