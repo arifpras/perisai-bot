@@ -4397,11 +4397,12 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kei_clean = strip_signature(kei_answer)
             kin_clean = strip_signature(kin_answer)
             
+            # Both Kei and Kin generate their own HL-CU headlines (📊 and 🌍)
+            # Don't add an additional header to avoid triple headlines
             response = (
-                "🎯 <b>Kei & Kin | Data → Insight</b>\n\n"
-                f"{html_module.escape(kei_clean)}\n\n"
+                f"{kei_clean}\n\n"
                 "---\n\n"
-                f"{html_module.escape(kin_clean)}\n\n"
+                f"{kin_clean}\n\n"
                 "<blockquote>~ Kei x Kin</blockquote>"
             )
             
