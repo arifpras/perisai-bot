@@ -85,14 +85,17 @@ ALLOWED_USER_IDS=<ids>  # optional
 /kei tab incoming bid from 2020 to 2024
 /kei tab awarded bid from 2015 to 2024
 /kei tab incoming and awarded bid from 2022 to 2024
+/kei tab incoming bid from Q2 2025 to Q3 2026
 
 # Bond plots (with macro analysis)
 /kin plot yield 5 and 10 year from oct 2024 to mar 2025
 /kin plot price 5 year from q3 2023 to q2 2024
 
-# Combined analysis
+# Dual analysis (Kei table → Kin Perplexity insight)
 /both compare yield 5 and 10 year 2024 vs 2025
-/both auction demand trends 2023 to 2025
+/both auction demand in 2026                    # Single year
+/both auction demand trends 2023 to 2025        # Year range
+/both auction demand from q1 2025 to q4 2025    # Quarter range
 
 # Quick lookup (with business day detection)
 /check 2025-12-08 10 year
@@ -103,6 +106,7 @@ ALLOWED_USER_IDS=<ids>  # optional
 **Response Formats:**
 - **Kei (tables):** Economist-style borders, right-aligned numbers, Count/Min/Max/Avg/Std rows
 - **Kin (plots):** Professional curves, single 🌍 headline (HL-CU format), 3 paragraphs max
+- **Both (dual):** Kei table first → Kin strategic analysis (via Perplexity API)
 - **Check (lookup):** Quick data + business day status (if Saturday, Sunday, or Indonesian holiday)
 
 ## Bond Data & Queries
@@ -204,11 +208,29 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-**Current Version:** `v2025.12.30-data-cleanup`
+**Current Version:** `v2025.12.30-auction-both-fix`
 
 **Updates (Dec 30, 2025):**
 
-**Phase 4: Data Quality & Validation** (Current)
+**Phase 5: Auction Query Enhancements** (Current)
+- ✅ **/both auction queries now fully functional:**
+  - Single-year queries: `/both auction demand in 2026` → Kei table + Kin analysis
+  - Year ranges: `/both auction demand trends 2023 to 2025` → Multi-year table + Kin insight
+  - Quarter ranges: `/both auction demand from q1 2025 to q4 2025` → Full quarterly view
+  - Month ranges: `/both auction demand from jan 2025 to dec 2025` → Monthly breakdown
+- ✅ **Pattern matching improvements:**
+  - Added flexible year-range pattern: accepts "2023 to 2025" (without "from")
+  - Added single-year pattern: accepts "in 2026" or standalone "2026"
+  - Removed artificial 2024 year restrictions (now supports 2025-2026 forecast data)
+- ✅ **Updated /examples and /start:**
+  - Added 6 new auction /both examples (single year + ranges)
+  - Clarified dual-persona behavior (Kei → Kin chain)
+  - Improved date format documentation
+- ✅ **Data consistency:**
+  - `load_auction_period()` automatically handles historical (2015-2024) and forecast (2025-2026)
+  - Same data source for /kei and /both (AuctionDB with CSV fallback)
+
+**Phase 4: Data Quality & Validation**
 - ✅ **Holiday data cleanup:** Removed Jan 1 entries from bond CSV (4 NaN rows)
   - 2024-01-01 and 2025-01-01 entries deleted to match public holiday calendar
   - Prevents ambiguity between "no data" (market closed) and "data exists on closed day"
@@ -216,6 +238,7 @@ docker compose up
   - Shows: "⚠️ Note: Monday is Indonesian public holiday — data found but markets were closed"
   - Helps identify remaining data quality issues in database
 - ✅ **Expanded holiday coverage:** 2024-2026 holidays updated (Eid, Nyepi, Ascension, etc.)
+- ✅ **Single-tenor statistics fix:** Range queries always show Count/Min/Max/Avg/Std (regardless of row count)
 
 **Phase 3: User Experience**
 - ✅ **Business day detection:** `/check` identifies weekends and Indonesian public holidays
