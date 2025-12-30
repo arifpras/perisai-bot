@@ -1702,18 +1702,16 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         
         tenor_labels = [normalize_tenor_display(t) for t in tenors]
         
-        # Table dimensions - max width 33 chars for better mobile display
-        tenor_width = 5
+        # Table dimensions: all columns 3 chars wide for 33-char total content
+        tenor_width = 3
         cnt_width = 3
         min_width = 3
         max_width = 3
         avg_width = 3
         std_width = 3
-        # Calculate: 5 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 = 33
+        # Calculate: 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 = 33
         total_width = tenor_width + 3 + cnt_width + 3 + min_width + 3 + max_width + 3 + avg_width + 3 + std_width
-        # Visual row width = │ (1) + space (1) + content (33) + │ (1) = 36 chars
-        # Border needs 34 dashes: ┌ + 34 dashes + ┐ = 36 chars
-        border = '─' * (total_width + 2)
+        border = '─' * (total_width + 1)
         
         header = f"{'Tenor':<{tenor_width}} | {'Cnt':>{cnt_width}} | {'Min':>{min_width}} | {'Max':>{max_width}} | {'Avg':>{avg_width}} | {'Std':>{std_width}}"
         
