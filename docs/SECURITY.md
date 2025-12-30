@@ -68,6 +68,63 @@ When deploying PerisAI Bot:
 - **Data Storage**: Usage metrics are stored locally in SQLite (`usage_metrics.sqlite`)
 - **API Dependencies**: Security depends on OpenAI, Perplexity, and Telegram API security
 
+## Deployment Recovery Checklist
+
+If you accidentally restart the service on Render or encounter deployment issues:
+
+### Critical Steps
+1. **Verify Repository Connection**
+   - Log into Render dashboard
+   - Check Service Settings → "GitHub Repo" field
+   - Confirm it points to `arifpras/perisai-bot` (not another repo like `perisai-api`)
+   - If wrong, manually trigger a reconnect or redeploy from the correct repo
+
+2. **Regenerate Telegram Bot Token**
+   - Go to [BotFather](https://t.me/botfather) on Telegram
+   - Send `/token` command
+   - Select your bot and choose "Revoke current token"
+   - Copy the new token
+   - Update `TELEGRAM_BOT_TOKEN` in Render Environment Variables
+   - Redeploy the service
+
+3. **Verify Environment Variables**
+   - Check all required variables are set in Render:
+     - `TELEGRAM_BOT_TOKEN` (required for bot to initialize)
+     - `OPENAI_API_KEY` (required for /kei command)
+     - `PERPLEXITY_API_KEY` (required for /kin command)
+     - `ALLOWED_USER_IDS` (comma-separated list for access control)
+   - If any are missing, add them and trigger manual deploy
+
+4. **Test Webhook Connectivity**
+   - Run: `curl https://<your-render-service-url>/telegram/webhook_info`
+   - Should return webhook status (if not 404, Telegram bot initialized)
+   - If 404: Check `TELEGRAM_BOT_TOKEN` is set and service is running
+
+5. **Verify Bot Responds**
+   - Send `/start` command to bot on Telegram
+   - Send `/check` command to verify API key connectivity
+   - Send `/kei who are you?` to test GPT initialization
+   - Check Render logs for error messages if commands fail
+
+6. **Check Data Files Integrity**
+   - Verify CSV files exist locally: `auction_train.csv`, `20251215_priceyield.csv`
+   - Confirm database permissions allow read/write access
+   - If data is missing, restore from backup or redeploy
+
+7. **Review Deployment Logs**
+   - On Render: Go to "Logs" tab and check for:
+     - `✅ TELEGRAM_BOT_TOKEN is set`
+     - `✅ Telegram bot initialized successfully!`
+     - Any Python errors or import failures
+   - If logs don't show initialization messages, service may not be fully deployed
+
+### Prevention Tips
+- Pin your Render service to prevent accidental restarts
+- Document GitHub repo URLs in team notes
+- Keep backup of Telegram tokens in secure location
+- Test webhook after any Render configuration change
+- Monitor deployment logs after each push/redeploy
+
 ## Contact
 
 For security concerns that don't require private disclosure, you may:
