@@ -12,6 +12,7 @@ Indonesian government bond analysis via Telegram with dual AI personas: **Kei** 
 - **Business day detection:** `/check` automatically identifies weekends and Indonesian holidays
 - **Personal AI personas:** Kei (quant modeling) and Kin (macro context) with conversational, first-person responses
 - **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo for forecasts
+- **Enterprise security:** Whitelist-based access control, encrypted transmission, local data processing (see [Security Assurance](docs/SECURITY_ASSURANCE.md))
 
 ## Quick Start
 
@@ -30,8 +31,10 @@ docker compose up
 OPENAI_API_KEY=<key>
 PERPLEXITY_API_KEY=<key>
 TELEGRAM_BOT_TOKEN=<token>
-ALLOWED_USER_IDS=<ids>  # optional
+ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user IDs
 ```
+
+**⚠️ Security Note:** Always set `ALLOWED_USER_IDS` in production to restrict bot access. See [Security Assurance](docs/SECURITY_ASSURANCE.md) for confidential data handling details.
 
 ## Commands
 
@@ -206,6 +209,38 @@ ETS          | 6.1494%
 PROPHET      | 6.1829%
 AVERAGE      | 6.1637%
 ```
+
+## Security & Data Protection
+
+**Confidential Data Handling:**
+- ✅ **Whitelist-based access**: Only authorized Telegram user IDs can use the bot (`ALLOWED_USER_IDS`)
+- ✅ **Local data processing**: Your CSV files never leave your server
+- ✅ **No raw data transmission**: Only aggregated summaries sent to AI APIs (OpenAI, Perplexity)
+- ✅ **Encrypted transit**: TLS 1.2+ for all API communications
+- ✅ **Audit trail**: All queries logged locally in SQLite for compliance reviews
+
+**For enterprises with confidential bond data:**
+- See **[Security Assurance (docs/SECURITY_ASSURANCE.md)](docs/SECURITY_ASSURANCE.md)** for detailed technical analysis
+- Covers: threat model, compliance (GDPR/OJK), data residency, incident response
+- Alternatives: Self-hosted LLM options for 100% data sovereignty
+
+**Quick Security Checklist:**
+```bash
+# 1. Set user whitelist (REQUIRED for production)
+export ALLOWED_USER_IDS="123456789,987654321"
+
+# 2. Rotate API keys every 90 days
+export OPENAI_API_KEY="sk-..."
+export PERPLEXITY_API_KEY="pplx-..."
+
+# 3. Secure file permissions
+chmod 600 .env usage_metrics.sqlite
+
+# 4. Run security scans before deployment
+pip-audit && safety check
+```
+
+See [SECURITY.md](docs/SECURITY.md) for vulnerability reporting.
 
 ## Development
 
