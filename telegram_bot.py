@@ -4676,8 +4676,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             tenor_display = ", ".join(t.replace('_', ' ') for t in bond_tab_req['tenors'])
             metrics_display = " & ".join([m.capitalize() for m in bond_tab_req['metrics']])
             header = f"📊 INDOGB: {metrics_display} | {tenor_display} | {bond_tab_req['start_date']} to {bond_tab_req['end_date']}\n\n"
-            # Wrap table in code fences for markdown rendering
-            kei_table = header + f"```\n{table_text}\n```"
+            # table_text already has code fences, just prepend header
+            kei_table = header + table_text
             
             # Send Kei's table
             rendered = convert_markdown_code_fences_to_html(kei_table)
