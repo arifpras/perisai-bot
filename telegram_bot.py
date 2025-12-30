@@ -2205,11 +2205,20 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         )
     else:
         system_prompt = (
-            "You are Kei, a world-class quant and data scientist.\n"
-            "LANGUAGE: Default to English. If the user explicitly asks in Indonesian, respond entirely in Indonesian.\n"
-            "Explain economic and financial concepts using established frameworks and first principles.\n"
-            "If specific data is unavailable, acknowledge limits but provide a concise, plain-text explanation.\n"
-            "Avoid leaving the response empty."
+            "You are Kei, a CFA charterholder and MIT-trained world-class data scientist specializing in quantitative finance, econometrics, and forecasting.\n"
+            "LANGUAGE: Default to English. If the user explicitly asks in Indonesian, respond entirely in Indonesian.\n\n"
+            "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
+            "Default format: Exactly one title line (📊 TICKER: Key Metric / Event; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
+            "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_).\n"
+            "If the user explicitly requests a different format (e.g., bullet points, detailed list), honor it and override HL-CU.\n\n"
+            "Expertise & Approach:\n"
+            "- Explain economic and financial concepts from first principles using established frameworks (CAPM, no-arbitrage, market microstructure, time-series modeling, risk/return dynamics).\n"
+            "- Lead with numbers, uncertainty ranges, and concise math. Avoid narrative flourish.\n"
+            "- For technical problems: work step-by-step through portfolio analysis, factor models, derivatives pricing logic, backtesting design, and statistical methods.\n"
+            "- Acknowledge data limitations plainly: 'I don't have live market data or real-time internet access. If you need current prices or recent news, provide the data or source.'\n\n"
+            "Signature: ALWAYS end your response with a blank line followed by <blockquote>~ Kei</blockquote>\n"
+            "Prohibitions: No follow-up questions. No speculation or flourish. No brackets [1][2][3]. Do not make up data.\n"
+            "Objective: Clear, rigorous, publication-ready analysis grounded in quantitative methods."
         )
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -2236,8 +2245,9 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             )
             content = resp.choices[0].message.content.strip() if resp.choices else ""
             if content:
-                if not is_data_query and not content.startswith("📰"):
-                    content = f"📰 {content}"
+                if not is_data_query and not content.startswith("�"):
+                    # HL-CU format should start with 📊, but add it if missing
+                    content = f"📊 {content}"
                 # Convert any Markdown code fences to HTML <pre> for HTML parse mode
                 content = convert_markdown_code_fences_to_html(content)
                 return html_quote_signature(content)
@@ -2350,7 +2360,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: ALWAYS end your response with a blank line followed by: {'<blockquote>~ Kei x Kin</blockquote>' if dual_mode else '<blockquote>~ Kin</blockquote>'}\n"
-            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
+            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do NOT add descriptive footers, metadata lines, or summary statistics headers (e.g., 'Yield statistics', 'observations count'). Do NOT duplicate or restate the data table - interpret and analyze it instead. Do NOT add citations in brackets (e.g., [1][2][3]).\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
             "CRITICAL BOND DATASET CONTEXT:\n"
@@ -2376,7 +2386,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Sources: If any sources are referenced, add one line at the end in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: ALWAYS end your response with a blank line followed by: {'<blockquote>~ Kei x Kin</blockquote>' if dual_mode else '<blockquote>~ Kin</blockquote>'}\n"
-            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided.\n"
+            "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do NOT add descriptive footers, metadata lines, or summary statistics headers (e.g., 'Yield statistics', 'observations count'). Do NOT duplicate or restate the data table - interpret and analyze it instead. Do NOT add citations in brackets (e.g., [1][2][3]).\n"
             "Objective: Produce a clear, publication-ready response that delivers the key market signal.\n\n"
 
             "No bond data provided - use web search for authoritative analysis; cite real URLs when available."
@@ -3340,22 +3350,49 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             **{'yield': round(r[4], 2) if r[4] is not None else None}
                         ) for r in rows
                     ]
-                    # Generate quantitative summary for Kin to analyze
-                    kei_summary = format_range_summary_text(
-                        rows_list,
-                        start_date=bond_plot_req['start_date'],
-                        end_date=bond_plot_req['end_date'],
-                        metric=bond_plot_req['metric'],
-                        signature_persona='Kei'  # Use Kei for data summary
+                    # Generate detailed quantitative summary for Kin to analyze
+                    # Build rich data context to ensure Kin analyzes INDONESIAN bond data, not US Treasuries
+                    tenor_stats_text = []
+                    per_tenor = {}
+                    
+                    for row in rows_list:
+                        tenor = row.get('tenor')
+                        val = row.get(bond_plot_req['metric'])
+                        if val is not None:
+                            per_tenor.setdefault(tenor, []).append(val)
+                    
+                    import statistics
+                    for tenor in sorted(per_tenor.keys()):
+                        vals = per_tenor[tenor]
+                        if vals:
+                            tenor_display = tenor.replace('_', ' ').title()
+                            avg = statistics.mean(vals)
+                            min_v = min(vals)
+                            max_v = max(vals)
+                            std = statistics.stdev(vals) if len(vals) > 1 else 0
+                            tenor_stats_text.append(
+                                f"{tenor_display}: range {min_v:.2f}%–{max_v:.2f}%, average {avg:.2f}%, "
+                                f"std dev {std:.2f}%, {len(vals)} observations"
+                            )
+                    
+                    date_range_text = f"{bond_plot_req['start_date'].strftime('%B %d, %Y')} to {bond_plot_req['end_date'].strftime('%B %d, %Y')}"
+                    metric_display = bond_plot_req['metric'].capitalize()
+                    
+                    # Build rich prompt that explicitly contextualizes the data
+                    kin_prompt = (
+                        f"User Question: {question}\n\n"
+                        f"Indonesian Government Bond ({metric_display}) Analysis — {date_range_text}\n"
+                        f"Ticker: INDOGB | Metric: {metric_display}\n\n"
+                        f"Quantitative Observations:\n"
+                        + "\n".join(tenor_stats_text) +
+                        f"\n\n"
+                        f"CRITICAL: This data is from INDONESIAN GOVERNMENT BONDS (INDOGB), issued by Indonesia's Ministry of Finance. "
+                        f"The observations above reflect Indonesian domestic bond market dynamics, NOT US Treasuries, French bonds, or other foreign instruments.\n\n"
+                        f"Provide your strategic interpretation of these Indonesian government bond dynamics and market implications for the period analyzed."
                     )
                     
                     # Have Kin analyze the quantitative summary
                     try:
-                        kin_prompt = (
-                            f"Original question: {question}\n\n"
-                            f"Quantitative summary:\n{kei_summary}\n\n"
-                            f"Based on this data and the original question, provide your strategic interpretation and analysis."
-                        )
                         kin_answer = await ask_kin(kin_prompt, dual_mode=False)
                         if kin_answer and kin_answer.strip():
                             kin_cleaned = clean_kin_output(kin_answer)
@@ -3919,10 +3956,43 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 # Attempt to get Kin's analysis, but don't fail if Perplexity is unavailable
                 try:
+                    # Build richer context for Kin to prevent hallucination
+                    tenor_stats_text = []
+                    per_tenor = {}
+                    
+                    for row in rows_list:
+                        tenor = row.get('tenor')
+                        val = row.get(bond_plot_req['metric'])
+                        if val is not None:
+                            per_tenor.setdefault(tenor, []).append(val)
+                    
+                    import statistics
+                    for tenor in sorted(per_tenor.keys()):
+                        vals = per_tenor[tenor]
+                        if vals:
+                            tenor_display = tenor.replace('_', ' ').title()
+                            avg = statistics.mean(vals)
+                            min_v = min(vals)
+                            max_v = max(vals)
+                            std = statistics.stdev(vals) if len(vals) > 1 else 0
+                            tenor_stats_text.append(
+                                f"{tenor_display}: range {min_v:.2f}%–{max_v:.2f}%, average {avg:.2f}%, "
+                                f"std dev {std:.2f}%, {len(vals)} observations"
+                            )
+                    
+                    date_range_text = f"{bond_plot_req['start_date'].strftime('%B %d, %Y')} to {bond_plot_req['end_date'].strftime('%B %d, %Y')}"
+                    metric_display = bond_plot_req['metric'].capitalize()
+                    
                     kin_prompt = (
-                        f"Original question: {question}\n\n"
-                        f"Kei's quantitative analysis:\n{kei_summary}\n\n"
-                        f"Based on this analysis and the original question, provide your strategic interpretation and conclusion."
+                        f"User Question: {question}\n\n"
+                        f"Indonesian Government Bond ({metric_display}) Analysis — {date_range_text}\n"
+                        f"Ticker: INDOGB | Metric: {metric_display}\n\n"
+                        f"Quantitative Observations:\n"
+                        + "\n".join(tenor_stats_text) +
+                        f"\n\n"
+                        f"CRITICAL: This data is from INDONESIAN GOVERNMENT BONDS (INDOGB), issued by Indonesia's Ministry of Finance. "
+                        f"The observations above reflect Indonesian domestic bond market dynamics, NOT US Treasuries, French bonds, or other foreign instruments.\n\n"
+                        f"Provide your strategic interpretation of these Indonesian government bond dynamics and market implications for the period analyzed."
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
@@ -4024,11 +4094,43 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         signature_persona='Kei'
                     )
                     
-                    # Have Kin analyze Kei's summary
+                    # Have Kin analyze Kei's summary with richer context
+                    tenor_stats_text = []
+                    per_tenor = {}
+                    
+                    for row in rows_list:
+                        tenor = row.get('tenor')
+                        val = row.get(bond_plot_req['metric'])
+                        if val is not None:
+                            per_tenor.setdefault(tenor, []).append(val)
+                    
+                    import statistics
+                    for tenor in sorted(per_tenor.keys()):
+                        vals = per_tenor[tenor]
+                        if vals:
+                            tenor_display = tenor.replace('_', ' ').title()
+                            avg = statistics.mean(vals)
+                            min_v = min(vals)
+                            max_v = max(vals)
+                            std = statistics.stdev(vals) if len(vals) > 1 else 0
+                            tenor_stats_text.append(
+                                f"{tenor_display}: range {min_v:.2f}%–{max_v:.2f}%, average {avg:.2f}%, "
+                                f"std dev {std:.2f}%, {len(vals)} observations"
+                            )
+                    
+                    date_range_text = f"{bond_plot_req['start_date'].strftime('%B %d, %Y')} to {bond_plot_req['end_date'].strftime('%B %d, %Y')}"
+                    metric_display = bond_plot_req['metric'].capitalize()
+                    
                     kin_prompt = (
-                        f"Original question: {question}\n\n"
-                        f"Kei's quantitative analysis:\n{kei_summary}\n\n"
-                        f"Based on this analysis and the original question, provide your strategic interpretation and conclusion."
+                        f"User Question: {question}\n\n"
+                        f"Indonesian Government Bond ({metric_display}) Analysis — {date_range_text}\n"
+                        f"Ticker: INDOGB | Metric: {metric_display}\n\n"
+                        f"Quantitative Observations:\n"
+                        + "\n".join(tenor_stats_text) +
+                        f"\n\n"
+                        f"CRITICAL: This data is from INDONESIAN GOVERNMENT BONDS (INDOGB), issued by Indonesia's Ministry of Finance. "
+                        f"The observations above reflect Indonesian domestic bond market dynamics, NOT US Treasuries, French bonds, or other foreign instruments.\n\n"
+                        f"Provide your strategic interpretation of these Indonesian government bond dynamics and market implications for the period analyzed."
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
