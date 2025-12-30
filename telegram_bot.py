@@ -102,6 +102,86 @@ def strip_markdown_emphasis(text: str) -> str:
     return text
 
 
+def is_business_day(d: date) -> tuple[bool, str]:
+    """Check if a date is a business day (weekday, not weekend or major Indonesian holiday).
+    
+    Returns:
+        (is_business_day: bool, reason: str) where reason describes why it's not a business day
+    """
+    # Check weekend (Saturday=5, Sunday=6)
+    if d.weekday() == 5:
+        return False, "Saturday"
+    if d.weekday() == 6:
+        return False, "Sunday"
+    
+    # Major Indonesian public holidays 2024-2026 (when bond markets are closed)
+    # Source: Bank Indonesia official holidays
+    indonesian_holidays = {
+        # 2024
+        date(2024, 1, 1),   # New Year
+        date(2024, 2, 8),   # Isra & Mi'raj
+        date(2024, 2, 10),  # Commemorative holiday for Isra & Mi'raj
+        date(2024, 2, 14),  # Joint leave
+        date(2024, 3, 11),  # Nyepi
+        date(2024, 3, 29),  # Good Friday
+        date(2024, 3, 31),  # Easter
+        date(2024, 4, 10),  # Eid al-Fitr (Joint leave)
+        date(2024, 4, 11),  # Eid al-Fitr (Joint leave)
+        date(2024, 4, 12),  # Eid al-Fitr (Cuti Bersama)
+        date(2024, 4, 15),  # Eid al-Fitr (Cuti Bersama)
+        date(2024, 4, 16),  # Eid al-Fitr (Joint leave)
+        date(2024, 5, 1),   # Labor Day
+        date(2024, 5, 23),  # Ascension Day
+        date(2024, 6, 1),   # Eid al-Adha
+        date(2024, 6, 17),  # Islamic New Year
+        date(2024, 8, 17),  # Independence Day
+        date(2024, 9, 16),  # Mawlid (Joint leave)
+        date(2024, 12, 25), # Christmas
+        date(2024, 12, 26), # Joint leave
+        # 2025
+        date(2025, 1, 1),   # New Year
+        date(2025, 1, 29),  # Isra & Mi'raj
+        date(2025, 3, 1),   # Nyepi
+        date(2025, 4, 18),  # Good Friday
+        date(2025, 4, 20),  # Easter
+        date(2025, 4, 21),  # Eid al-Fitr (Joint leave)
+        date(2025, 4, 22),  # Eid al-Fitr (Joint leave)
+        date(2025, 4, 23),  # Eid al-Fitr (Cuti Bersama)
+        date(2025, 4, 24),  # Eid al-Fitr (Cuti Bersama)
+        date(2025, 4, 25),  # Eid al-Fitr (Cuti Bersama)
+        date(2025, 5, 1),   # Labor Day
+        date(2025, 5, 2),   # Joint leave
+        date(2025, 6, 2),   # Ascension Day
+        date(2025, 6, 7),   # Eid al-Adha
+        date(2025, 6, 23),  # Islamic New Year
+        date(2025, 8, 17),  # Independence Day
+        date(2025, 9, 4),   # Mawlid (Joint leave)
+        date(2025, 12, 25), # Christmas
+        date(2025, 12, 26), # Joint leave
+        # 2026
+        date(2026, 1, 1),   # New Year
+        date(2026, 2, 18),  # Isra & Mi'raj
+        date(2026, 3, 21),  # Nyepi
+        date(2026, 4, 10),  # Good Friday
+        date(2026, 4, 12),  # Easter
+        date(2026, 4, 9),   # Eid al-Fitr (Joint leave)
+        date(2026, 4, 10),  # Eid al-Fitr (Joint leave)
+        date(2026, 4, 13),  # Eid al-Fitr (Cuti Bersama)
+        date(2026, 5, 1),   # Labor Day
+        date(2026, 5, 26),  # Ascension Day
+        date(2026, 5, 27),  # Eid al-Adha
+        date(2026, 6, 12),  # Islamic New Year
+        date(2026, 8, 17),  # Independence Day
+        date(2026, 8, 25),  # Mawlid
+        date(2026, 12, 25), # Christmas
+    }
+    
+    if d in indonesian_holidays:
+        return False, "Indonesian public holiday"
+    
+    return True, ""
+
+
 def html_quote_signature(text: str) -> str:
     """Wrap trailing signature lines in HTML blockquote for Telegram HTML parse mode.
 
@@ -2657,8 +2737,15 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not rows_list:
         tenor_label = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
+        
+        # Check if the date is a business day
+        is_bday, reason = is_business_day(d)
+        error_msg = f"❌ No bonds found for {d} ({tenor_label})."
+        if not is_bday:
+            error_msg += f"\n💡 Note: {d.strftime('%A')} is {reason} — markets may be closed."
+        
         await update.message.reply_text(
-            f"❌ No bonds found for {d} ({tenor_label}).",
+            error_msg,
             parse_mode=ParseMode.MARKDOWN
         )
         metrics.log_query(user_id, username, question, "check", response_time, False, "no_data", "check")
