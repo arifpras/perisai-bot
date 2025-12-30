@@ -1711,7 +1711,9 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         std_width = 3
         # Calculate: 5 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 = 33
         total_width = tenor_width + 3 + cnt_width + 3 + min_width + 3 + max_width + 3 + avg_width + 3 + std_width
-        border = '─' * (total_width + 1)
+        # Visual row width = │ (1) + space (1) + content (33) + │ (1) = 36 chars
+        # Border needs 34 dashes: ┌ + 34 dashes + ┐ = 36 chars
+        border = '─' * (total_width + 2)
         
         header = f"{'Tenor':<{tenor_width}} | {'Cnt':>{cnt_width}} | {'Min':>{min_width}} | {'Max':>{max_width}} | {'Avg':>{avg_width}} | {'Std':>{std_width}}"
         
