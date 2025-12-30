@@ -434,9 +434,10 @@ def load_auction_period(period: Dict) -> Optional[Dict]:
     Returns standardized dict: {'type','year','month?'/'quarter?','monthly':[...],'total_incoming','avg_bid_to_cover'}
     """
     try:
-        auction_db = get_auction_db()
         year = int(period['year'])
         kind = period['type']
+        today = date.today()
+        is_future_year = year > today.year
         months_map = {1: [1,2,3], 2: [4,5,6], 3: [7,8,9], 4: [10,11,12]}
         months = []
         if kind == 'month':
@@ -445,6 +446,20 @@ def load_auction_period(period: Dict) -> Optional[Dict]:
             months = months_map.get(int(period['quarter']), [])
         elif kind == 'year':
             months = list(range(1, 13))
+
+        # Prefer historical data for current/past years; only use forecast when year is future or history missing
+        if not is_future_year:
+            historical = None
+            if kind == 'month':
+                historical = get_historical_auction_month_data(year, int(months[0]))
+            elif kind == 'quarter':
+                historical = get_historical_auction_data(year, int(period['quarter']))
+            elif kind == 'year':
+                historical = get_historical_auction_year_data(year)
+            if historical:
+                return historical
+
+        auction_db = get_auction_db()
 
         forecast_rows = []
         for m in months:
@@ -554,13 +569,16 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
 
 def parse_auction_table_query(q: str) -> Optional[Dict]:
     """Parse 'tab incoming/awarded bid ...' queries into metrics and periods.
+    Also supports 'incoming bid in from ...' patterns without 'tab' keyword.
     Returns {'metrics': [..], 'periods': [period_dict,...]} or None.
     Supported connectors: 'from X to Y', 'in X and Y', single 'in X'.
     Period types: month, quarter, year.
     """
     import re
     q = q.lower()
-    if 'tab' not in q:
+    # Allow queries with or without 'tab' keyword
+    # But require either 'tab' keyword OR 'from' connector for range queries
+    if 'tab' not in q and 'from' not in q:
         return None
     # Metrics
     metrics = []
@@ -606,38 +624,23 @@ def parse_auction_table_query(q: str) -> Optional[Dict]:
         return None
 
     periods: List[Dict] = []
-    # from X to Y: expand range
-    m_from = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q)
-    if m_from:
-        p1 = parse_one_period(m_from.group(1))
-        p2 = parse_one_period(m_from.group(2))
+    # "from X to Y" pattern
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q)
+    if from_match:
+        p1 = parse_one_period(from_match.group(1))
+        p2 = parse_one_period(from_match.group(2))
         if p1 and p2:
-            # Expand range based on type
-            if p1['type'] == 'year' and p2['type'] == 'year':
-                y1, y2 = p1['year'], p2['year']
-                periods = [{'type': 'year', 'year': y} for y in range(y1, y2 + 1)]
-            elif p1['type'] == 'quarter' and p2['type'] == 'quarter':
-                # Expand quarters across years if needed
-                periods = []
-                (y1, q1), (y2, q2) = (p1['year'], p1['quarter']), (p2['year'], p2['quarter'])
-                for y in range(y1, y2 + 1):
-                    q_start = q1 if y == y1 else 1
-                    q_end = q2 if y == y2 else 4
-                    for q in range(q_start, q_end + 1):
-                        periods.append({'type': 'quarter', 'quarter': q, 'year': y})
-            elif p1['type'] == 'month' and p2['type'] == 'month':
-                # Expand months across years if needed
-                from dateutil.relativedelta import relativedelta
-                start_date = date(p1['year'], p1['month'], 1)
-                end_date = date(p2['year'], p2['month'], 1)
-                periods = []
-                current = start_date
-                while current <= end_date:
-                    periods.append({'type': 'month', 'month': current.month, 'year': current.year})
-                    current += relativedelta(months=1)
-            else:
-                # Type mismatch; just use endpoints
-                periods = [p1, p2]
+            periods = [p1, p2]
+            return {'metrics': metrics, 'periods': periods}
+    # "X to Y" pattern (without explicit 'from')
+    to_match = re.search(r'(?:(q[1-4]\s+\d{4})|(\d{4})|((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}))\s+to\s+(?:(q[1-4]\s+\d{4})|(\d{4})|((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}))', q)
+    if to_match:
+        start_spec = next(filter(None, to_match.groups()[0:3]))
+        end_spec = next(filter(None, to_match.groups()[3:6]))
+        p1 = parse_one_period(start_spec)
+        p2 = parse_one_period(end_spec)
+        if p1 and p2:
+            periods = [p1, p2]
             return {'metrics': metrics, 'periods': periods}
     # in X and Y
     m_and = re.search(r'in\s+(.+?)\s+and\s+(.+)$', q)
@@ -870,12 +873,15 @@ def parse_bond_table_query(q: str) -> Optional[Dict]:
     - '/kei tab yield 5 and 10 year from oct 2024 to mar 2025'
     - '/kei tab price 5 and 10 year from q2 2024 to q1 2025'
     - '/kei tab yield and price 5 year in feb 2025'
+    - 'compare yield 5 and 10 year 2024 vs 2025' (for /both)
     
     Returns dict: {'metrics': ['yield'|'price'|both], 'tenors': ['05_year','10_year'], 
                    'start_date': date, 'end_date': date} or None
     """
     q = q.lower()
-    if 'tab' not in q:
+    # Allow parsing without 'tab' keyword if there's a date range pattern or 'compare'
+    has_date_range = bool(re.search(r'from\s+.+?\s+to\s+.+', q)) or bool(re.search(r'\d{4}-\d{2}-\d{2}\s+to\s+\d{4}-\d{2}-\d{2}', q))
+    if 'tab' not in q and 'compare' not in q and not has_date_range:
         return None
     
     # Extract metrics: 'yield', 'price', or 'yield and price'
@@ -916,8 +922,18 @@ def parse_bond_table_query(q: str) -> Optional[Dict]:
     }
     
     def parse_period_spec(spec: str) -> Optional[tuple]:
-        """Parse 'jan 2025', 'q1 2025', or '2025' into (start_date, end_date)."""
+        """Parse 'jan 2025', 'q1 2025', '2025', or '2024-12-01' into (start_date, end_date)."""
         spec = spec.strip().lower()
+        
+        # ISO date pattern: 2024-12-01
+        iso_match = re.match(r'^(\d{4})-(\d{2})-(\d{2})$', spec)
+        if iso_match:
+            year, month, day = map(int, iso_match.groups())
+            try:
+                d = date(year, month, day)
+                return d, d
+            except ValueError:
+                return None
         
         # Quarter pattern: q1 2025
         q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
@@ -963,6 +979,21 @@ def parse_bond_table_query(q: str) -> Optional[Dict]:
                 'start_date': start_res[0],
                 'end_date': end_res[1],
             }
+
+    # "X to Y" pattern (without explicit 'from')
+    to_match = re.search(r'(?:(q[1-4]\s+\d{4})|(\d{4})|((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}))\s+to\s+(?:(q[1-4]\s+\d{4})|(\d{4})|((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}))', q)
+    if to_match:
+        start_spec = next(filter(None, to_match.groups()[0:3]))
+        end_spec = next(filter(None, to_match.groups()[3:6]))
+        start_res = parse_period_spec(start_spec)
+        end_res = parse_period_spec(end_spec)
+        if start_res and end_res:
+            return {
+                'metrics': metrics,
+                'tenors': tenors,
+                'start_date': start_res[0],
+                'end_date': end_res[1],
+            }
     
     # "in X" pattern (single period)
     in_match = re.search(r'in\s+(.+)$', q)
@@ -975,6 +1006,27 @@ def parse_bond_table_query(q: str) -> Optional[Dict]:
                 'tenors': tenors,
                 'start_date': period_res[0],
                 'end_date': period_res[1],
+            }
+    
+    # "X vs Y" pattern (e.g., "2024 vs 2025")
+    # For 'compare' queries, capture each period separately
+    vs_match = re.search(r'(\d{4}|q[1-4]\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4})\s+vs\s+(\d{4}|q[1-4]\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4})', q)
+    if vs_match:
+        start_spec = vs_match.group(1).strip()
+        end_spec = vs_match.group(2).strip()
+        start_res = parse_period_spec(start_spec)
+        end_res = parse_period_spec(end_spec)
+        if start_res and end_res:
+            periods = [
+                {'label': start_spec, 'start_date': start_res[0], 'end_date': start_res[1]},
+                {'label': end_spec, 'start_date': end_res[0], 'end_date': end_res[1]},
+            ]
+            return {
+                'metrics': metrics,
+                'tenors': tenors,
+                'start_date': start_res[0],
+                'end_date': end_res[1],
+                'periods': periods,
             }
     
     # Fallback: allow single period without explicit "in" (e.g., "/kei tab yield 5 year feb 2025")
@@ -1050,6 +1102,16 @@ def parse_bond_plot_query(q: str) -> Optional[Dict]:
     def parse_period_spec(spec: str) -> Optional[tuple]:
         spec = spec.strip().lower()
         
+        # ISO date pattern: 2024-12-01
+        iso_match = re.match(r'^(\d{4})-(\d{2})-(\d{2})$', spec)
+        if iso_match:
+            year, month, day = map(int, iso_match.groups())
+            try:
+                d = date(year, month, day)
+                return d, d
+            except ValueError:
+                return None
+        
         q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
         if q_match:
             q_num = int(q_match.group(1))
@@ -1087,6 +1149,23 @@ def parse_bond_plot_query(q: str) -> Optional[Dict]:
         if start_res and end_res:
             return {
                 'metric': metric,
+                'metrics': metrics,
+                'tenors': tenors,
+                'start_date': start_res[0],
+                'end_date': end_res[1],
+            }
+
+    # "X to Y" pattern (without explicit 'from')
+    to_match = re.search(r'(?:(q[1-4]\s+\d{4})|(\d{4})|((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}))\s+to\s+(?:(q[1-4]\s+\d{4})|(\d{4})|((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}))', q_after_plot)
+    if to_match:
+        start_spec = next(filter(None, to_match.groups()[0:3]))
+        end_spec = next(filter(None, to_match.groups()[3:6]))
+        start_res = parse_period_spec(start_spec)
+        end_res = parse_period_spec(end_spec)
+        if start_res and end_res:
+            return {
+                'metric': metric,
+                'metrics': metrics,
                 'tenors': tenors,
                 'start_date': start_res[0],
                 'end_date': end_res[1],
@@ -1149,25 +1228,53 @@ def format_bond_metrics_table(db, start_date: date, end_date: date, metrics: Lis
     
     # Determine column layout
     if len(tenors) == 1 and len(metrics) == 1:
-        # Single tenor, single metric: Date | Value
+        # Single tenor, single metric: Date | Value with summary stats
         tenor_display = tenors[0].replace('_', ' ')
         metric_cap = metrics[0].capitalize()
-        header = f"{'Date':<12} | {metric_cap:>12}"
-        border = '─' * 28
+        metric_name = metrics[0]
+        date_width = 12
+        col_width = 12
+        header = f"{'Date':<{date_width}} | {metric_cap:>{col_width}}"
+        total_width = date_width + 3 + col_width
+        border = '─' * (total_width + 1)
         
         rows_list = []
         for _, row in df.iterrows():
             date_str = row['obs_date'].strftime('%d %b %Y')
-            val = row[metrics[0]]
-            val_str = f"{val:.4f}" if val is not None else "N/A"
-            rows_list.append(f"{date_str:<12} | {val_str:>12}")
+            val = row[metric_name]
+            val_str = f"{val:>{col_width}.4f}" if pd.notnull(val) else f"{'N/A':>{col_width}}"
+            rows_list.append(f"{date_str:<{date_width}} | {val_str}")
         
-        rows_text = "\n".join([f"│ {r:<{len(border)-3}}│" for r in rows_list])
+        # Summary statistics
+        summary_rows = []
+        stats_labels = ['Count', 'Min', 'Max', 'Avg', 'Std']
+        series = df[metric_name].dropna()
+        for label in stats_labels:
+            if label == 'Count':
+                val_str = f"{len(series):>{col_width}d}" if len(series) > 0 else f"{'N/A':>{col_width}}"
+            elif series.empty:
+                val_str = f"{'N/A':>{col_width}}"
+            else:
+                if label == 'Min':
+                    val = series.min()
+                elif label == 'Max':
+                    val = series.max()
+                elif label == 'Avg':
+                    val = series.mean()
+                else:  # Std
+                    val = series.std()
+                val_str = f"{val:>{col_width}.2f}" if pd.notnull(val) else f"{'N/A':>{col_width}}"
+            summary_rows.append(f"{label:<{date_width}} | {val_str}")
+        
+        data_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list])
+        summary_text = "\n".join([f"│ {r:<{total_width}}│" for r in summary_rows])
         return f"""```
 ┌{border}┐
-│ {header:<{len(border)-3}}│
+│ {header:<{total_width}}│
 ├{border}┤
-{rows_text}
+{data_text}
+├{border}┤
+{summary_text}
 └{border}┘
 ```"""
     
@@ -2113,14 +2220,25 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
 
             # Monthly breakdown and simple MoM
             if monthly_vals:
-                # Compose breakdown line
+                # Compose breakdown line - for full-year queries, show ALL months
                 mon_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
                 breakdown_parts = []
                 for mv in monthly_vals:
                     label = f"{mon_names[mv['month']-1]} {mv['year']}"
                     val_txt = fmt_idr_trillion(mv['value']) if metric_field != 'bid_to_cover' else f"{mv['value']:.2f}x"
                     breakdown_parts.append(f"{label} {val_txt}")
-                lines.append("; ".join(breakdown_parts))
+                
+                # For annual queries (>=10 months), format as table for better readability
+                if len(monthly_vals) >= 10:
+                    lines.append("Monthly breakdown:")
+                    for mv in monthly_vals:
+                        label = f"{mon_names[mv['month']-1]} {mv['year']}"
+                        val_txt = fmt_idr_trillion(mv['value']) if metric_field != 'bid_to_cover' else f"{mv['value']:.2f}x"
+                        btc_txt = f" | BtC {mv['btc']:.2f}x" if mv.get('btc') else ""
+                        lines.append(f"  • {label}: {val_txt}{btc_txt}")
+                else:
+                    # For shorter periods, use semicolon-separated format
+                    lines.append("; ".join(breakdown_parts))
 
                 # MoM change if >=2 months and not bid_to_cover metric
                 if metric_field != 'bid_to_cover' and len(monthly_vals) >= 2:
@@ -2129,8 +2247,8 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
                         cur = monthly_vals[i]['value']
                         if prev and cur:
                             mom = ((cur - prev) / prev) * 100.0
-                            mon_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-                            mlabel = mon_names[monthly_vals[i]['month']-1]
+                            mon_names_short = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                            mlabel = mon_names_short[monthly_vals[i]['month']-1]
                             lines.append(f"MoM {mlabel}: {mom:+.1f}%")
 
             # Bid-to-cover context (average)
@@ -2265,6 +2383,88 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
     return None
 
 
+def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], tenors: List[str]) -> str:
+    """Compare bond metrics across multiple periods (e.g., 2024 vs 2025).
+    Outputs economist-style stats per period/tenor for a single metric.
+    """
+    if not periods or not tenors or not metrics:
+        return "❌ Invalid comparison request."
+    if len(metrics) != 1:
+        return "❌ Comparison supports one metric at a time."
+    metric = metrics[0]
+
+    # Query once for efficiency
+    min_start = min(p['start_date'] for p in periods)
+    max_end = max(p['end_date'] for p in periods)
+    params = [min_start.isoformat(), max_end.isoformat()]
+    placeholders = ','.join(['?'] * len(tenors))
+    query = f"""
+        SELECT obs_date, {metric}, tenor
+        FROM ts
+        WHERE obs_date BETWEEN ? AND ? AND tenor IN ({placeholders})
+        ORDER BY obs_date, tenor
+    """
+    params.extend(tenors)
+    try:
+        rows = db.con.execute(query, params).fetchall()
+    except Exception as e:
+        logger.error(f"Error querying bond data for comparison: {e}")
+        return f"❌ Error querying bond data: {e}"
+
+    if not rows:
+        return "❌ No bond data found for the specified periods and tenors."
+
+    df = pd.DataFrame(rows, columns=['obs_date', metric, 'tenor'])
+    df['obs_date'] = pd.to_datetime(df['obs_date'])
+    df[metric] = pd.to_numeric(df[metric], errors='coerce')
+
+    # Helper widths
+    period_width = 10
+    tenor_width = 4
+    cnt_width = 3
+    min_width = 4
+    max_width = 4
+    avg_width = 4
+    std_width = 4
+    total_width = period_width + 3 + tenor_width + 3 + cnt_width + 3 + min_width + 3 + max_width + 3 + avg_width + 3 + std_width + 1
+    border = '─' * total_width
+    header = f"{ 'Period':>{period_width}} | { 'Tnr':>{tenor_width}} | { 'Cnt':>{cnt_width}} | { 'Min':>{min_width}} | { 'Max':>{max_width}} | { 'Avg':>{avg_width}} | { 'Std':>{std_width}}"
+
+    def norm_tenor(t):
+        label = str(t or '').replace('_', ' ').strip()
+        label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
+        label = label.replace('Yyear', 'Y').replace('yyear', 'Y')
+        label = re.sub(r'(?i)^(\d)Y$', r'0\1Y', label)
+        return label
+
+    rows_out = []
+    for p in periods:
+        label = p.get('label') or f"{p['start_date']} to {p['end_date']}"
+        sub = df[(df['obs_date'] >= pd.to_datetime(p['start_date'])) & (df['obs_date'] <= pd.to_datetime(p['end_date']))]
+        for tenor in tenors:
+            subset = sub[sub['tenor'] == tenor][metric].dropna()
+            if subset.empty:
+                row_str = f"{label:>{period_width}} | {norm_tenor(tenor):>{tenor_width}} | {'0':>{cnt_width}} | {'N/A':>{min_width}} | {'N/A':>{max_width}} | {'N/A':>{avg_width}} | {'N/A':>{std_width}}"
+            else:
+                cnt = len(subset)
+                min_v = subset.min()
+                max_v = subset.max()
+                avg_v = subset.mean()
+                std_v = subset.std() if cnt > 1 else 0
+                row_str = f"{label:>{period_width}} | {norm_tenor(tenor):>{tenor_width}} | {cnt:>{cnt_width}} | {min_v:>{min_width}.2f} | {max_v:>{max_width}.2f} | {avg_v:>{avg_width}.2f} | {std_v:>{std_width}.2f}"
+            rows_out.append(row_str)
+
+    rows_text = "\n".join([f"│{r}│" for r in rows_out])
+    table = f"""```
+┌{border}┐
+│{header}│
+├{border}┤
+{rows_text}
+└{border}┘
+```"""
+    return table
+
+
 async def ask_kei(question: str, dual_mode: bool = False) -> str:
     """Persona /kei — world-class data scientist & econometrician.
     
@@ -2352,8 +2552,13 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
                 is_identity_question = any(kw in question.lower() for kw in identity_keywords)
                 
                 if is_identity_question:
-                    # For identity questions: strip emoji and symbols
-                    content = strip_emoji_from_identity_response(content)
+                    # For identity questions: fixed plain-text bio with Kei signature
+                    return (
+                        "I'm Kei, a quantitatively minded finance partner focused on turning data into clear, testable insight. "
+                        "I work with valuation, risk, forecasting, and backtesting using established asset-pricing and time-series frameworks.\n\n"
+                        "If you share prices, fundamentals, or a dataset, I'll help model what's driving returns, quantify uncertainty, and stress-test the conclusions.\n\n"
+                        "~ Kei"
+                    )
                 elif not is_data_query:
                     # For non-identity, non-data queries: ensure headline emoji
                     if not content.startswith("📊"):
@@ -2450,8 +2655,13 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
         return "⚠️ Persona /kin unavailable: PERPLEXITY_API_KEY not configured."
 
     import httpx
+    from datetime import datetime
 
     data_summary = await try_compute_bond_summary(question)
+    
+    # Get current date for context
+    today = datetime.now().date()
+    today_str = today.strftime("%B %d, %Y")
 
     # Two modes: strict data-only vs. full research with web search
     if data_summary:
@@ -2460,15 +2670,19 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "You are Kin.\n"
             "Profile: I'm Kin. I work at the intersection of macroeconomics, policy, and markets, helping turn complex signals into clear, usable stories. With training as a CFA charterholder and a Harvard PhD, I focus on context and trade-offs—what matters, why it matters, and where the uncertainties lie. I enjoy connecting dots across data, incentives, and real-world policy constraints, then translating them into concise, headline-led updates for decision-makers—no forecasts or advice, just structured thinking, transparent assumptions, and plain language.\n\n"
 
+            f"CURRENT DATE CONTEXT: Today is {today_str}. Use this to distinguish between historical data (past dates) and forecasts/projections (future dates). For future periods, use conditional language ('is expected to', 'is projected to', 'forecast shows') and avoid past tense.\n\n"
+
             "LANGUAGE: Default to English. If the user explicitly asks in Indonesian or requests Indonesian response, respond entirely in Indonesian.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total).\n"
             "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
+            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar: Follow STRICT pantun format: (1) Exactly 4 lines, (2) Rhyme scheme abab (lines 1&3 rhyme, lines 2&4 rhyme), (3) Lines 1-2 present FIGURATIVE/suggestive image, (4) Lines 3-4 state DIRECT meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_). Bullet points (-) and numbered lists are fine. Write in concise, prose, simple paragraphs.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences. Do NOT mention data limitations, missing splits, or what's 'not available' in the dataset—simply analyze what is provided.\n"
+            "ANNUAL/FULL-YEAR ANALYSIS: When the dataset includes 10+ months of data (indicating a full-year or near-full-year query), your analysis MUST cover the entire period comprehensively. Discuss full-year trends, patterns across all quarters, and year-round dynamics - not just Q1 or a subset. Provide holistic insights that span the complete dataset provided.\n"
             "Sources: If any sources are referenced, add one blank line before the sources line, then write in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: ALWAYS end your response with a blank line followed by: {'<blockquote>~ Kei x Kin</blockquote>' if dual_mode else '<blockquote>~ Kin</blockquote>'}\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do NOT add descriptive footers, metadata lines, or summary statistics headers (e.g., 'Yield statistics', 'observations count'). Do NOT duplicate or restate the data table - interpret and analyze it instead. CRITICAL: Do NOT add numbered citations in brackets (e.g., [1], [2], [3]) within paragraphs or after statements.\n"
@@ -2488,14 +2702,18 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "You are Kin.\n"
             "Profile: I'm Kin. I work at the intersection of macroeconomics, policy, and markets, helping turn complex signals into clear, usable stories. With training as a CFA charterholder and a Harvard PhD, I focus on context and trade-offs—what matters, why it matters, and where the uncertainties lie. I enjoy connecting dots across data, incentives, and real-world policy constraints, then translating them into concise, headline-led updates for decision-makers—no forecasts or advice, just structured thinking, transparent assumptions, and plain language.\n\n"
 
+            f"CURRENT DATE CONTEXT: Today is {today_str}. Use this to distinguish between historical data (past dates) and forecasts/projections (future dates). For future periods, use conditional language ('is expected to', 'is projected to', 'forecast shows') and avoid past tense.\n\n"
+
             "LANGUAGE: Default to English. If the user explicitly asks in Indonesian or requests Indonesian response, respond entirely in Indonesian.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total).\n"
             "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
+            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar: Follow STRICT pantun format: (1) Exactly 4 lines, (2) Rhyme scheme abab (lines 1&3 rhyme, lines 2&4 rhyme), (3) Lines 1-2 present FIGURATIVE/suggestive image, (4) Lines 3-4 state DIRECT meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_). Bullet points (-) and numbered lists are fine. Write in concise, prose, simple paragraphs.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics. Do NOT mention data limitations, missing splits, or what's 'not available'—simply analyze what is provided.\n"
+            "ANNUAL/FULL-YEAR ANALYSIS: When the dataset includes 10+ months of data (indicating a full-year or near-full-year query), your analysis MUST cover the entire period comprehensively. Discuss full-year trends, patterns across all quarters, and year-round dynamics - not just Q1 or a subset. Provide holistic insights that span the complete dataset provided.\n"
             "Sources: If any sources are referenced, add one blank line before the sources line, then write in brackets with names only (no links), format: [Sources: Source A; Source B]. If none, omit the line entirely.\n"
             f"Signature: ALWAYS end your response with a blank line followed by: {'<blockquote>~ Kei x Kin</blockquote>' if dual_mode else '<blockquote>~ Kin</blockquote>'}\n"
             "Prohibitions: No follow-up questions. No speculation or narrative flourish. Do not add or infer data not explicitly provided. Do NOT add descriptive footers, metadata lines, or summary statistics headers (e.g., 'Yield statistics', 'observations count'). Do NOT duplicate or restate the data table - interpret and analyze it instead. CRITICAL: Do NOT add numbered citations in brackets (e.g., [1], [2], [3]) within paragraphs or after statements.\n"
@@ -2540,11 +2758,16 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             .strip()
         ) or "(empty response)"
         
-        # Check if this is an identity question - strip emoji if so
+        # Check if this is an identity question - return fixed plain-text bio with Kin signature
         identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "who am i", "describe yourself"]
         is_identity_question = any(kw in question.lower() for kw in identity_keywords)
         if is_identity_question:
-            content = strip_emoji_from_identity_response(content)
+            return (
+                "I'm Kin. I work at the intersection of macroeconomics, policy, and markets, helping turn complex signals into clear, usable stories. "
+                "With training as a CFA charterholder and a Harvard PhD, I focus on context and trade-offs—what matters, why it matters, and where the uncertainties lie.\n\n"
+                "I enjoy connecting dots across data, incentives, and real-world policy constraints, then translating them into concise, headline-led updates for decision-makers—no forecasts or advice, just structured thinking, transparent assumptions, and plain language.\n\n"
+                "~ Kin"
+            )
         
         # If this is a bond query, prepend an INDOGB dataset header with period/tenor context
         try:
@@ -2871,17 +3094,23 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         try:
             db = get_db()
-            table_text = format_bond_metrics_table(db, bond_tab_req['start_date'], bond_tab_req['end_date'], 
-                                                   bond_tab_req['metrics'], bond_tab_req['tenors'])
-            # Prepend dataset/source note to the table for clarity
-            tenor_display = ", ".join(t.replace('_', ' ') for t in bond_tab_req['tenors'])
-            metrics_display = " & ".join([m.capitalize() for m in bond_tab_req['metrics']])
-            header = f"📊 INDOGB: {metrics_display} | {tenor_display} | {bond_tab_req['start_date']} to {bond_tab_req['end_date']}\n\n"
-            # Add Kei signature
-            full_response = header + table_text + "\n\n<blockquote>~ Kei</blockquote>"
-            # Convert markdown code fences to HTML for proper rendering
-            rendered = convert_markdown_code_fences_to_html(full_response)
-            await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+            # If this was a compare/vs query with explicit periods, render per-period stats
+            if bond_tab_req.get('periods'):
+                table_text = format_bond_compare_periods(db, bond_tab_req['periods'], bond_tab_req['metrics'], bond_tab_req['tenors'])
+                full_response = table_text + "\n\n<blockquote>~ Kei</blockquote>"
+                rendered = convert_markdown_code_fences_to_html(full_response)
+                await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+            else:
+                table_text = format_bond_metrics_table(db, bond_tab_req['start_date'], bond_tab_req['end_date'], 
+                                                       bond_tab_req['metrics'], bond_tab_req['tenors'])
+                # Prepend dataset/source note to the table for clarity
+                tenor_display = ", ".join(t.replace('_', ' ') for t in bond_tab_req['tenors'])
+                metrics_display = " & ".join([m.capitalize() for m in bond_tab_req['metrics']])
+                header = f"📊 INDOGB: {metrics_display} | {tenor_display} | {bond_tab_req['start_date']} to {bond_tab_req['end_date']}\n\n"
+                # Add Kei signature
+                full_response = header + table_text + "\n\n<blockquote>~ Kei</blockquote>"
+                rendered = convert_markdown_code_fences_to_html(full_response)
+                await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "bond_tab", response_time, True, "success", "kei")
         except Exception as e:
@@ -3031,6 +3260,150 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "auction_compare", response_time, False, str(e), "kei")
             return
+
+    # Detect auction range queries (month/quarter/year) and answer deterministically (no LLM drift)
+    lower_q = question.lower()
+    if ('auction' in lower_q or 'demand' in lower_q or 'incoming' in lower_q or 'awarded' in lower_q or 'bid' in lower_q):
+        months_map = {
+            'jan':1,'january':1,
+            'feb':2,'february':2,
+            'mar':3,'march':3,
+            'apr':4,'april':4,
+            'may':5,
+            'jun':6,'june':6,
+            'jul':7,'july':7,
+            'aug':8,'august':8,
+            'sep':9,'sept':9,'september':9,
+            'oct':10,'october':10,
+            'nov':11,'november':11,
+            'dec':12,'december':12,
+        }
+        # Month-to-month range
+        mon_range = re.search(r"from\s+(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(19\d{2}|20\d{2})\s+to\s+(jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december)\s+(19\d{2}|20\d{2})", lower_q)
+        if mon_range:
+            m1_txt, y1_txt, m2_txt, y2_txt = mon_range.groups()
+            try:
+                m1 = months_map[m1_txt]
+                y1 = int(y1_txt)
+                m2 = months_map[m2_txt]
+                y2 = int(y2_txt)
+                from dateutil.relativedelta import relativedelta
+                start_date = date(y1, m1, 1)
+                end_date = date(y2, m2, 1)
+                periods = []
+                current = start_date
+                while current <= end_date:
+                    periods.append({'type': 'month', 'month': current.month, 'year': current.year})
+                    current += relativedelta(months=1)
+                periods_data = []
+                missing_labels = []
+                month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                for p in periods:
+                    pdata = load_auction_period(p)
+                    if pdata:
+                        periods_data.append(pdata)
+                    else:
+                        label = (
+                            f"Q{p['quarter']} {p['year']}" if p['type'] == 'quarter' else (
+                                f"{month_names[int(p['month'])]} {p['year']}" if p['type'] == 'month' else f"{p['year']}"
+                            )
+                        )
+                        missing_labels.append(label)
+                if periods_data:
+                    table = format_auction_metrics_table(periods_data, ['incoming', 'awarded'])
+                    note = ""
+                    if missing_labels:
+                        note = "\n\n⚠️ Missing data for: " + ", ".join(missing_labels)
+                    rendered = convert_markdown_code_fences_to_html(table + note + "\n\n<blockquote>~ Kei</blockquote>")
+                    await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "auction_range", response_time, True, "auction_month_range", "kei")
+                    return
+                else:
+                    await update.message.reply_text("❌ No auction data found for the requested month range.")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "auction_range", response_time, False, "no_data_month_range", "kei")
+                    return
+            except Exception:
+                pass
+
+        # Quarter-to-quarter range
+        q_range = re.search(r"from\s+q([1-4])\s+(19\d{2}|20\d{2})\s+to\s+q([1-4])\s+(19\d{2}|20\d{2})", lower_q)
+        if q_range:
+            q1_txt, y1_txt, q2_txt, y2_txt = q_range.groups()
+            try:
+                q_start = int(q1_txt)
+                y_start = int(y1_txt)
+                q_end = int(q2_txt)
+                y_end = int(y2_txt)
+                periods = []
+                year = y_start
+                quarter = q_start
+                while (year < y_end) or (year == y_end and quarter <= q_end):
+                    periods.append({'type': 'quarter', 'quarter': quarter, 'year': year})
+                    quarter += 1
+                    if quarter > 4:
+                        quarter = 1
+                        year += 1
+                periods_data = []
+                missing_labels = []
+                for p in periods:
+                    pdata = load_auction_period(p)
+                    if pdata:
+                        periods_data.append(pdata)
+                    else:
+                        missing_labels.append(f"Q{p['quarter']} {p['year']}")
+                if periods_data:
+                    table = format_auction_metrics_table(periods_data, ['incoming', 'awarded'])
+                    note = ""
+                    if missing_labels:
+                        note = "\n\n⚠️ Missing data for: " + ", ".join(missing_labels)
+                    rendered = convert_markdown_code_fences_to_html(table + note + "\n\n<blockquote>~ Kei</blockquote>")
+                    await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "auction_range", response_time, True, "auction_quarter_range", "kei")
+                    return
+                else:
+                    await update.message.reply_text("❌ No auction data found for the requested quarter range.")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "auction_range", response_time, False, "no_data_quarter_range", "kei")
+                    return
+            except Exception:
+                pass
+
+        # Year-to-year range
+        yr_range = re.search(r"from\s+(19\d{2}|20\d{2})\s+to\s+(19\d{2}|20\d{2})", lower_q)
+        if yr_range:
+            y_start = int(yr_range.group(1))
+            y_end = int(yr_range.group(2))
+            if y_start <= y_end:
+                try:
+                    periods = [{'type': 'year', 'year': y} for y in range(y_start, y_end + 1)]
+                    periods_data = []
+                    missing_labels = []
+                    for p in periods:
+                        pdata = load_auction_period(p)
+                        if pdata:
+                            periods_data.append(pdata)
+                        else:
+                            missing_labels.append(str(p['year']))
+                    if periods_data:
+                        table = format_auction_metrics_table(periods_data, ['incoming', 'awarded'])
+                        note = ""
+                        if missing_labels:
+                            note = "\n\n⚠️ Missing data for: " + ", ".join(missing_labels)
+                        rendered = convert_markdown_code_fences_to_html(table + note + "\n\n<blockquote>~ Kei</blockquote>")
+                        await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+                        response_time = time.time() - start_time
+                        metrics.log_query(user_id, username, question, "auction_range", response_time, True, "auction_year_range", "kei")
+                        return
+                    else:
+                        await update.message.reply_text("❌ No auction data found for the requested year range.")
+                        response_time = time.time() - start_time
+                        metrics.log_query(user_id, username, question, "auction_range", response_time, False, "no_data_year_range", "kei")
+                        return
+                except Exception:
+                    pass
     
     # Detect if user wants a plot/chart — these are handled by /kin
     needs_plot = any(keyword in question.lower() for keyword in ["plot"])
@@ -3571,7 +3944,7 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"1. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries or foreign bonds\n"
                         f"2. Focus your analysis ONLY on the period the user requested in their question\n"
                         f"3. Do NOT mention date ranges not requested by the user\n"
-                        f"4. Provide HL-CU format response (single headline + 3 paragraphs analyzing the requested period)"
+                        f"4. SKIP the headline - the chart itself provides the visual context. Write ONLY 3 paragraphs of analysis WITHOUT a headline or emoji"
                     )
                     
                     # Have Kin analyze the quantitative summary
@@ -3844,6 +4217,97 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Check for historical auction queries with year or month ranges (e.g., "from 2010 to 2024" or "from dec 2010 to feb 2011")
     is_auction_query = ('auction' in q_lower or 'incoming' in q_lower or 'awarded' in q_lower or 'bid' in q_lower)
     if is_auction_query:
+        # Handle direct year-vs-year auction comparisons (e.g., "auction compare 2024 vs 2025")
+        yr_vs_yr = re.search(r"compare\s+(?:auction\s+)?(19\d{2}|20\d{2})\s+vs\s+(19\d{2}|20\d{2})", q_lower)
+        if yr_vs_yr:
+            y1 = int(yr_vs_yr.group(1))
+            y2 = int(yr_vs_yr.group(2))
+            try:
+                periods = [
+                    {'type': 'year', 'year': y1},
+                    {'type': 'year', 'year': y2},
+                ]
+                periods_data = []
+                skipped = []
+                for p in periods:
+                    pdata = load_auction_period(p)
+                    if pdata:
+                        periods_data.append(pdata)
+                    else:
+                        skipped.append(str(p['year']))
+                if not periods_data:
+                    await update.message.reply_text(
+                        f"❌ No auction data found for {y1} or {y2}.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
+                    return
+
+                metrics_list = ['incoming', 'awarded']
+                kei_table = format_auction_metrics_table(periods_data, metrics_list)
+                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+
+                kin_prompt = (
+                    f"Original question: {question}\n\n"
+                    f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                    f"Based on this auction comparison and the original question, provide your strategic interpretation and economic analysis."
+                )
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                if kin_answer and kin_answer.strip():
+                    kin_cleaned = clean_kin_output(kin_answer)
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, True, "auction_year_compare_both", "both")
+                return
+            except Exception as e:
+                logger.error(f"Error in year compare auction /both: {e}", exc_info=True)
+                await update.message.reply_text(f"❌ Error processing auction comparison: {type(e).__name__}")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_compare_error: {e}", "both")
+                return
+
+        # Try forecast quarter (e.g., "forecast q1 2026")
+        forecast_quarter = re.search(r"forecast\s+q([1-4])\s+(19\d{2}|20\d{2})", q_lower)
+        if forecast_quarter:
+            q_num = int(forecast_quarter.group(1))
+            year = int(forecast_quarter.group(2))
+            try:
+                period = {'type': 'quarter', 'quarter': q_num, 'year': year}
+                pdata = load_auction_period(period)
+                if not pdata:
+                    await update.message.reply_text(
+                        f"❌ No auction data found for Q{q_num} {year}.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
+                    return
+                metrics_list = ['incoming', 'awarded']
+                kei_table = format_auction_metrics_table([pdata], metrics_list)
+                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+
+                kin_prompt = (
+                    f"Original question: {question}\n\n"
+                    f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                )
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                if kin_answer and kin_answer.strip():
+                    kin_cleaned = clean_kin_output(kin_answer)
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, True, "auction_forecast_quarter_both", "both")
+                return
+            except Exception as e:
+                logger.error(f"Error in forecast quarter auction /both: {e}", exc_info=True)
+                await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_forecast_quarter_error: {e}", "both")
+                return
+
         # Try quarterly range first (e.g., "from q3 2020 to q2 2022")
         quarters_map = {'q1': 1, 'q2': 4, 'q3': 7, 'q4': 10}
         quarter_range = re.search(r"from\s+q([1-4])\s+(19\d{2}|20\d{2})\s+to\s+q([1-4])\s+(19\d{2}|20\d{2})", q_lower)
@@ -4164,10 +4628,19 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
                 
                 # Have Kin analyze the table
+                # CRITICAL: Clarify that this is FULL-YEAR data, not just quarterly
                 kin_prompt = (
                     f"Original question: {question}\n\n"
-                    f"Kei's quantitative analysis:\n{kei_table}\n\n"
-                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                    f"Kei's quantitative analysis (full-year {year} auction data):\n{kei_table}\n\n"
+                    f"CRITICAL CALCULATION INSTRUCTIONS:\n"
+                    f"1. Bid-to-Cover Ratio = Incoming Bids ÷ Awarded Amount (cite only this formula result)\n"
+                    f"2. Unmet Demand = Incoming - Awarded\n"
+                    f"3. Unmet % = (Incoming - Awarded) ÷ Incoming × 100%\n"
+                    f"4. Award Rate = Awarded ÷ Incoming × 100%\n"
+                    f"5. VERIFY all cited metrics against the table data before including in your analysis\n"
+                    f"6. Analyze the ENTIRE YEAR's performance comprehensively, not just a single quarter or month\n"
+                    f"7. Do NOT cite any metrics (bid-to-cover, ratios, percentages) unless they are directly calculated from the table data shown\n\n"
+                    f"Based on this full-year auction data table and the original question, provide your strategic interpretation and economic analysis."
                 )
                 kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                 if kin_answer and kin_answer.strip():
@@ -4184,7 +4657,46 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
                 return
     
-    # For non-auction queries, use the general fast path
+    # Check for bond table queries (e.g., "compare yield 5 and 10 year 2024 vs 2025")
+    bond_tab_req = parse_bond_table_query(q_lower)
+    if bond_tab_req:
+        try:
+            db = get_db()
+            table_text = format_bond_metrics_table(db, bond_tab_req['start_date'], bond_tab_req['end_date'], 
+                                                   bond_tab_req['metrics'], bond_tab_req['tenors'])
+            # Prepend dataset/source note to the table for clarity
+            tenor_display = ", ".join(t.replace('_', ' ') for t in bond_tab_req['tenors'])
+            metrics_display = " & ".join([m.capitalize() for m in bond_tab_req['metrics']])
+            header = f"📊 INDOGB: {metrics_display} | {tenor_display} | {bond_tab_req['start_date']} to {bond_tab_req['end_date']}\n\n"
+            # Wrap table in code fences for markdown rendering
+            kei_table = header + f"```\n{table_text}\n```"
+            
+            # Send Kei's table
+            rendered = convert_markdown_code_fences_to_html(kei_table)
+            await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+            
+            # Have Kin analyze the table
+            kin_prompt = (
+                f"Original question: {question}\n\n"
+                f"Kei's quantitative analysis:\n{table_text}\n\n"
+                f"Based on this bond yield/price comparison table and the original question, provide your strategic interpretation and economic analysis."
+            )
+            kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+            if kin_answer and kin_answer.strip():
+                kin_cleaned = clean_kin_output(kin_answer)
+                await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+            
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "bond_tab", response_time, True, "bond_table_both", "both")
+            return
+        except Exception as e:
+            logger.error(f"Error in bond table /both: {e}", exc_info=True)
+            await update.message.reply_text(f"❌ Error processing bond table: {type(e).__name__}")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "bond_tab", response_time, False, f"bond_error: {e}", "both")
+            return
+    
+    # For non-auction, non-bond-table queries, use the general fast path
     # Check if this is a forecast query that needs Kin analysis
     next_match = re.search(r"next\s+(\d+)\s+(observations?|obs|points|days)", q_lower)
     is_forecast_query = next_match and any(kw in q_lower for kw in ["forecast", "predict", "estimate"])
@@ -4198,22 +4710,38 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "│ Tenor" in data_summary or "Tenor | Cnt | Min | Max | Avg | Std" in data_summary
                 )
             )
+            forecast_horizon = int(next_match.group(1)) if next_match else 0
             
-            # For forecast queries in /both, send Kei tables then chain to Kin
+            # For forecast queries in /both, choose layout based on horizon
             if is_forecast_query:
                 kei_body = strip_signatures(data_summary)
-                # Send forecast table as MARKDOWN to properly render the economist-style table
-                await update.message.reply_text(kei_body, parse_mode=ParseMode.MARKDOWN)
-                # Have Kin analyze the forecast
-                kin_prompt = (
-                    f"Original question: {question}\n\n"
-                    f"Kei's quantitative forecast:\n{data_summary}\n\n"
-                    f"Based on this forecast data and the original question, provide your strategic interpretation and economic analysis."
-                )
-                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
-                if kin_answer and kin_answer.strip():
-                    kin_cleaned = clean_kin_output(kin_answer)
-                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                if forecast_horizon > 5:
+                    # Unified message for longer horizons
+                    kin_prompt = (
+                        f"Original question: {question}\n\n"
+                        f"Kei's quantitative forecast:\n{kei_body}\n\n"
+                        f"Provide one concise HL-CU-style analysis for the next observations."
+                    )
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                    combined = kei_body
+                    if kin_answer and kin_answer.strip():
+                        kin_cleaned = clean_kin_output(kin_answer)
+                        combined = f"{kei_body}\n\n{kin_cleaned}"
+                    combined_with_sig = html_quote_signature(combined + "\n\n~ Kei x Kin")
+                    rendered = convert_markdown_code_fences_to_html(combined_with_sig)
+                    await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+                else:
+                    # Short horizon: keep table then Kin analysis as separate messages
+                    await update.message.reply_text(kei_body, parse_mode=ParseMode.MARKDOWN)
+                    kin_prompt = (
+                        f"Original question: {question}\n\n"
+                        f"Kei's quantitative forecast:\n{data_summary}\n\n"
+                        f"Provide one concise HL-CU-style analysis for the next observations."
+                    )
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                    if kin_answer and kin_answer.strip():
+                        kin_cleaned = clean_kin_output(kin_answer)
+                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "forecast", response_time, True, "forecast_both", "both")
                 return
