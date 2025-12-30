@@ -1731,7 +1731,8 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
                 row_str = f"{tenor_label:<{tenor_width}} | {'N/A':>{cnt_width}} | {'N/A':>{min_width}} | {'N/A':>{max_width}} | {'N/A':>{avg_width}} | {'N/A':>{std_width}}"
                 rows_list_formatted.append(row_str)
         
-        rows_text = "\n".join([f"│ {r:<{total_width}}│" for r in rows_list_formatted])
+        # Format rows with proper alignment - no padding needed, content is already exact width
+        rows_text = "\n".join([f"│{r}│" for r in rows_list_formatted])
         
         metric_display = metric_name.capitalize()
         
@@ -1765,7 +1766,7 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         
         table = f"""{title}```
 ┌{border}┐
-│ {header:<{total_width}}│
+│{header}│
 ├{border}┤
 {rows_text}
 └{border}┘
