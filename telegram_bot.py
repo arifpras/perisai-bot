@@ -4163,7 +4163,9 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if stripped.startswith("🌍") or stripped.startswith("<b>🌍"):
                 return False
             upper = stripped.upper()
-            if "INDOGB" in upper:
+            # Only remove lines that START with INDOGB: (e.g., "INDOGB: Yield...")
+            # NOT lines that merely CONTAIN INDOGB somewhere in the middle
+            if upper.startswith("INDOGB"):
                 return True
             if "KEI & KIN" in upper or "KEI X KIN" in upper:
                 return True
