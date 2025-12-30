@@ -157,9 +157,17 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-**Current Version:** `v2025.12.29-formatting-cleanup`
+**Current Version:** `v2025.12.30-persona-enhancement`
 
-**Recent Updates (Dec 29, 2025):**
+**Recent Updates (Dec 30, 2025):**
+- ✅ **Persona enhancement:** Kei now responds in HL-CU format for all queries with CFA/MIT credentials emphasized
+- ✅ **Data context enrichment:** /kin plot & /both plot now provide explicit bond statistics (min/max/avg/std) to prevent US Treasury hallucination
+- ✅ **Citation cleanup:** Kin no longer adds citation brackets [1][2][3] to responses
+- ✅ **Metadata cleanup:** Removed "Yield statistics (N observations)" footers from comparison outputs
+- ✅ **Indonesian bond clarity:** Explicit INDOGB data context in prompts prevents macro data confusion
+- ✅ **Format consistency:** Both Kei and Kin use HL-CU (Headline-Led Corporate Update) format with consistent signatures
+
+**Prior Updates (Dec 29, 2025):**
 - ✅ Title cleanup: Removed duplicate INDOGB headers; Kin shows a single 🌍 headline
 - ✅ Signature cleanup: Removed duplicate persona signatures in combined responses
 - ✅ Table precision: Min/Max/Avg now use two-decimal formatting
