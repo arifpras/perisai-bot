@@ -119,6 +119,19 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/debug/env")
+async def debug_env():
+    """Debug endpoint to check environment variables (remove in production)"""
+    telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    return {
+        "telegram_token_set": bool(telegram_token),
+        "telegram_token_length": len(telegram_token) if telegram_token else 0,
+        "telegram_app_initialized": _telegram_app is not None,
+        "telegram_import_error": _telegram_import_error,
+        "all_env_keys": sorted([k for k in os.environ.keys() if not k.startswith("_")])
+    }
+
+
 @app.post("/query", response_model=QueryResponse)
 async def query(req: QueryRequest):
     q = req.q
