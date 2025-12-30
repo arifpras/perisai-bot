@@ -3492,17 +3492,24 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     date_range_text = f"{bond_plot_req['start_date'].strftime('%B %d, %Y')} to {bond_plot_req['end_date'].strftime('%B %d, %Y')}"
                     metric_display = bond_plot_req['metric'].capitalize()
                     
+                    # Extract the period user actually asked for from question
+                    # e.g., "dec 2024" not the full expanded range
+                    period_context = question  # Keep original user question for context
+                    
                     # Build rich prompt that explicitly contextualizes the data
                     kin_prompt = (
-                        f"User Question: {question}\n\n"
-                        f"Indonesian Government Bond ({metric_display}) Analysis — {date_range_text}\n"
-                        f"Ticker: INDOGB | Metric: {metric_display}\n\n"
-                        f"Quantitative Observations:\n"
+                        f"DATA CONTEXT:\n"
+                        f"You are analyzing Indonesian Government Bond ({metric_display}) data for the period: {date_range_text}\n"
+                        f"Data source: INDOGB (Indonesian Ministry of Finance domestic bonds)\n\n"
+                        f"USER REQUEST: {period_context}\n\n"
+                        f"STATISTICS FROM DATABASE:\n"
                         + "\n".join(tenor_stats_text) +
                         f"\n\n"
-                        f"CRITICAL: This data is from INDONESIAN GOVERNMENT BONDS (INDOGB), issued by Indonesia's Ministry of Finance. "
-                        f"The observations above reflect Indonesian domestic bond market dynamics, NOT US Treasuries, French bonds, or other foreign instruments.\n\n"
-                        f"Provide your strategic interpretation of these Indonesian government bond dynamics and market implications for the period analyzed."
+                        f"CRITICAL INSTRUCTIONS:\n"
+                        f"1. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries or foreign bonds\n"
+                        f"2. Focus your analysis ONLY on the period the user requested in their question\n"
+                        f"3. Do NOT mention date ranges not requested by the user\n"
+                        f"4. Provide HL-CU format response (single headline + 3 paragraphs analyzing the requested period)"
                     )
                     
                     # Have Kin analyze the quantitative summary
@@ -4097,16 +4104,22 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     date_range_text = f"{bond_plot_req['start_date'].strftime('%B %d, %Y')} to {bond_plot_req['end_date'].strftime('%B %d, %Y')}"
                     metric_display = bond_plot_req['metric'].capitalize()
                     
+                    # Extract the period user actually asked for from question
+                    period_context = question  # Keep original user question for context
+                    
                     kin_prompt = (
-                        f"User Question: {question}\n\n"
-                        f"Indonesian Government Bond ({metric_display}) Analysis — {date_range_text}\n"
-                        f"Ticker: INDOGB | Metric: {metric_display}\n\n"
-                        f"Quantitative Observations:\n"
+                        f"DATA CONTEXT:\n"
+                        f"You are analyzing Indonesian Government Bond ({metric_display}) data for the period: {date_range_text}\n"
+                        f"Data source: INDOGB (Indonesian Ministry of Finance domestic bonds)\n\n"
+                        f"USER REQUEST: {period_context}\n\n"
+                        f"STATISTICS FROM DATABASE:\n"
                         + "\n".join(tenor_stats_text) +
                         f"\n\n"
-                        f"CRITICAL: This data is from INDONESIAN GOVERNMENT BONDS (INDOGB), issued by Indonesia's Ministry of Finance. "
-                        f"The observations above reflect Indonesian domestic bond market dynamics, NOT US Treasuries, French bonds, or other foreign instruments.\n\n"
-                        f"Provide your strategic interpretation of these Indonesian government bond dynamics and market implications for the period analyzed."
+                        f"CRITICAL INSTRUCTIONS:\n"
+                        f"1. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries or foreign bonds\n"
+                        f"2. Focus your analysis ONLY on the period the user requested in their question\n"
+                        f"3. Do NOT mention date ranges not requested by the user\n"
+                        f"4. Provide HL-CU format response (single headline + 3 paragraphs analyzing the requested period)"
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
@@ -4235,16 +4248,22 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     date_range_text = f"{bond_plot_req['start_date'].strftime('%B %d, %Y')} to {bond_plot_req['end_date'].strftime('%B %d, %Y')}"
                     metric_display = bond_plot_req['metric'].capitalize()
                     
+                    # Extract the period user actually asked for from question
+                    period_context = question  # Keep original user question for context
+                    
                     kin_prompt = (
-                        f"User Question: {question}\n\n"
-                        f"Indonesian Government Bond ({metric_display}) Analysis — {date_range_text}\n"
-                        f"Ticker: INDOGB | Metric: {metric_display}\n\n"
-                        f"Quantitative Observations:\n"
+                        f"DATA CONTEXT:\n"
+                        f"You are analyzing Indonesian Government Bond ({metric_display}) data for the period: {date_range_text}\n"
+                        f"Data source: INDOGB (Indonesian Ministry of Finance domestic bonds)\n\n"
+                        f"USER REQUEST: {period_context}\n\n"
+                        f"STATISTICS FROM DATABASE:\n"
                         + "\n".join(tenor_stats_text) +
                         f"\n\n"
-                        f"CRITICAL: This data is from INDONESIAN GOVERNMENT BONDS (INDOGB), issued by Indonesia's Ministry of Finance. "
-                        f"The observations above reflect Indonesian domestic bond market dynamics, NOT US Treasuries, French bonds, or other foreign instruments.\n\n"
-                        f"Provide your strategic interpretation of these Indonesian government bond dynamics and market implications for the period analyzed."
+                        f"CRITICAL INSTRUCTIONS:\n"
+                        f"1. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries or foreign bonds\n"
+                        f"2. Focus your analysis ONLY on the period the user requested in their question\n"
+                        f"3. Do NOT mention date ranges not requested by the user\n"
+                        f"4. Provide HL-CU format response (single headline + 3 paragraphs analyzing the requested period)"
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
