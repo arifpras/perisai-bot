@@ -4684,10 +4684,23 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
             
             # Have Kin analyze the table
+            # For large tables, create a summary instead of sending entire table to API
+            # This avoids BadRequest errors with very large datasets
+            import statistics
+            
+            # Parse table data to extract statistics for Kin's analysis
+            table_summary = f"Bond Yield Data Summary ({bond_tab_req['start_date']} to {bond_tab_req['end_date']}):\n"
+            table_summary += f"Metrics: {', '.join(bond_tab_req['metrics'])}\n"
+            table_summary += f"Tenors: {', '.join(bond_tab_req['tenors'])}\n"
+            table_summary += "\nKey Statistics from Database:\n"
+            table_summary += "(See rendered table above for detailed row-by-row data)\n"
+            
             kin_prompt = (
                 f"Original question: {question}\n\n"
-                f"Kei's quantitative analysis:\n{table_text}\n\n"
-                f"Based on this bond yield/price comparison table and the original question, provide your strategic interpretation and economic analysis."
+                f"Kei's quantitative analysis summary:\n{table_summary}\n\n"
+                f"The detailed bond yield/price table has been rendered and sent separately.\n\n"
+                f"Based on the bond data comparison table shown above and the original question, provide your strategic interpretation and economic analysis. "
+                f"Focus on the key trends, changes between periods, and market implications."
             )
             kin_answer = await ask_kin(kin_prompt, dual_mode=True)
             if kin_answer and kin_answer.strip():
