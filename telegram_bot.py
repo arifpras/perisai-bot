@@ -1702,19 +1702,19 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         
         tenor_labels = [normalize_tenor_display(t) for t in tenors]
         
-        # Table dimensions: all columns 3 chars wide for 33-char total content
+        # Table dimensions: all columns 3 chars wide for 33-char total content, plus 1 space before closing pipe = 34
         tenor_width = 3
         cnt_width = 3
         min_width = 3
         max_width = 3
         avg_width = 3
         std_width = 3
-        # Calculate: 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 = 33
-        total_width = tenor_width + 3 + cnt_width + 3 + min_width + 3 + max_width + 3 + avg_width + 3 + std_width
+        # Calculate: 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 1 space = 34
+        total_width = tenor_width + 3 + cnt_width + 3 + min_width + 3 + max_width + 3 + avg_width + 3 + std_width + 1
         border = '─' * (total_width + 1)
         
-        # Use 3-char header names to match 3-char data columns
-        header = f"{'Tnr':<{tenor_width}} | {'Cnt':>{cnt_width}} | {'Min':>{min_width}} | {'Max':>{max_width}} | {'Avg':>{avg_width}} | {'Std':>{std_width}}"
+        # Use 3-char header names to match 3-char data columns, add space before closing pipe
+        header = f"{'Tnr':<{tenor_width}} | {'Cnt':>{cnt_width}} | {'Min':>{min_width}} | {'Max':>{max_width}} | {'Avg':>{avg_width}} | {'Std':>{std_width}} "
         
         rows_list_formatted = []
         for tenor, tenor_label in zip(tenors, tenor_labels):
@@ -1726,10 +1726,10 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
                 max_val = max(metric_values)
                 avg_val = statistics.mean(metric_values)
                 std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
-                row_str = f"{tenor_label:<{tenor_width}} | {count:>{cnt_width}} | {min_val:>{min_width}.2f} | {max_val:>{max_width}.2f} | {avg_val:>{avg_width}.2f} | {std_val:>{std_width}.2f}"
+                row_str = f"{tenor_label:<{tenor_width}} | {count:>{cnt_width}} | {min_val:>{min_width}.2f} | {max_val:>{max_width}.2f} | {avg_val:>{avg_width}.2f} | {std_val:>{std_width}.2f} "
                 rows_list_formatted.append(row_str)
             else:
-                row_str = f"{tenor_label:<{tenor_width}} | {'N/A':>{cnt_width}} | {'N/A':>{min_width}} | {'N/A':>{max_width}} | {'N/A':>{avg_width}} | {'N/A':>{std_width}}"
+                row_str = f"{tenor_label:<{tenor_width}} | {'N/A':>{cnt_width}} | {'N/A':>{min_width}} | {'N/A':>{max_width}} | {'N/A':>{avg_width}} | {'N/A':>{std_width}} "
                 rows_list_formatted.append(row_str)
         
         # Format rows with proper alignment - no padding needed, content is already exact width
