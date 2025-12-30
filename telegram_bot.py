@@ -182,6 +182,19 @@ def is_business_day(d: date) -> tuple[bool, str]:
     return True, ""
 
 
+def strip_emoji_from_identity_response(text: str) -> str:
+    """Strip emoji and symbols from identity question responses.
+    
+    Identity questions like 'who are you?' should have plain text answers without emoji.
+    """
+    import re
+    # Remove emoji and special formatting characters, keep only basic punctuation
+    text = re.sub(r'[^\w\s.,!?\'"()\-]', '', text)
+    # Clean up multiple spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
 def html_quote_signature(text: str) -> str:
     """Wrap trailing signature lines in HTML blockquote for Telegram HTML parse mode.
 
@@ -1702,19 +1715,20 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
         
         tenor_labels = [normalize_tenor_display(t) for t in tenors]
         
-        # Table dimensions: all columns 3 chars wide for 33-char total content, plus 1 space before closing pipe = 34
-        tenor_width = 3
+        # Table dimensions: tenor column 4 chars (with leading space), other columns 3 chars
+        # Total: 4 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 1 space = 35
+        tenor_width = 4
         cnt_width = 3
         min_width = 3
         max_width = 3
         avg_width = 3
         std_width = 3
-        # Calculate: 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 3 + 1 space = 34
+        # Calculate total width
         total_width = tenor_width + 3 + cnt_width + 3 + min_width + 3 + max_width + 3 + avg_width + 3 + std_width + 1
         border = '─' * total_width
         
-        # Use 3-char header names to match 3-char data columns, add space before closing pipe
-        header = f"{'Tnr':<{tenor_width}} | {'Cnt':>{cnt_width}} | {'Min':>{min_width}} | {'Max':>{max_width}} | {'Avg':>{avg_width}} | {'Std':<{std_width}} "
+        # Use tenor width of 5 for more spacing - right-align to put space before tenor labels
+        header = f"{'Tnr':>{tenor_width}} | {'Cnt':>{cnt_width}} | {'Min':>{min_width}} | {'Max':>{max_width}} | {'Avg':>{avg_width}} | {'Std':>{std_width}}"
         
         rows_list_formatted = []
         for tenor, tenor_label in zip(tenors, tenor_labels):
@@ -1726,10 +1740,10 @@ def summarize_intent_result(intent, rows_list: List[dict]) -> str:
                 max_val = max(metric_values)
                 avg_val = statistics.mean(metric_values)
                 std_val = statistics.stdev(metric_values) if len(metric_values) > 1 else 0
-                row_str = f"{tenor_label:<{tenor_width}} | {count:>{cnt_width}} | {min_val:>{min_width}.1f} | {max_val:>{max_width}.1f} | {avg_val:>{avg_width}.1f} | {std_val:<{std_width}.1f} "
+                row_str = f"{tenor_label:>{tenor_width}} | {count:>{cnt_width}} | {min_val:>{min_width}.1f} | {max_val:>{max_width}.1f} | {avg_val:>{avg_width}.1f} | {std_val:>{std_width}.1f}"
                 rows_list_formatted.append(row_str)
             else:
-                row_str = f"{tenor_label:<{tenor_width}} | {'N/A':>{cnt_width}} | {'N/A':>{min_width}} | {'N/A':>{max_width}} | {'N/A':>{avg_width}} | {'N/A':<{std_width}} "
+                row_str = f"{tenor_label:>{tenor_width}} | {'N/A':>{cnt_width}} | {'N/A':>{min_width}} | {'N/A':>{max_width}} | {'N/A':>{avg_width}} | {'N/A':>{std_width}}"
                 rows_list_formatted.append(row_str)
         
         # Format rows with proper alignment - no padding needed, content is already exact width
@@ -2277,7 +2291,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "LANGUAGE: Default to English. If the user explicitly asks in Indonesian, respond entirely in Indonesian.\n\n"
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU).\n"
             "Exactly one title line (📊 TICKER: Key Metric / Event; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
-            "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text starting immediately with 'I'm Kei'. Do not add charts, not add symbols, not add decorations. Just plain conversational text.\n"
+            "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kei'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
             "If the user requests a different format (e.g., bullets), honor it and override HL-CU.\n"
             "Body: Emphasize factual reporting; no valuation or advice. Use contrasts (MoM vs YoY, trend vs level). Forward-looking statements must be attributed and conditional.\n"
             "Data-use constraints: Treat the provided dataset as complete even if only sample rows are shown; do not ask for more data or claim insufficient observations. When a tenor is requested, aggregate across all series for that tenor and ignore series differences.\n"
@@ -2296,7 +2310,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "LANGUAGE: Default to English. If the user explicitly asks in Indonesian, respond entirely in Indonesian.\n\n"
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (📊 TICKER: Key Metric / Event; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤152 words total). Plain text only; no markdown, no bullets.\n"
-            "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text starting immediately with 'I'm Kei'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
+            "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kei'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_).\n"
             "If the user explicitly requests a different format (e.g., bullet points, detailed list), honor it and override HL-CU.\n\n"
             "Expertise & Approach:\n"
@@ -2333,9 +2347,17 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             )
             content = resp.choices[0].message.content.strip() if resp.choices else ""
             if content:
-                if not is_data_query and not content.startswith("�"):
-                    # HL-CU format should start with 📊, but add it if missing
-                    content = f"📊 {content}"
+                # Check if this is an identity question
+                identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "who am i", "describe yourself"]
+                is_identity_question = any(kw in question.lower() for kw in identity_keywords)
+                
+                if is_identity_question:
+                    # For identity questions: strip emoji and symbols
+                    content = strip_emoji_from_identity_response(content)
+                elif not is_data_query:
+                    # For non-identity, non-data queries: ensure headline emoji
+                    if not content.startswith("📊"):
+                        content = f"📊 {content}"
                 # Convert any Markdown code fences to HTML <pre> for HTML parse mode
                 content = convert_markdown_code_fences_to_html(content)
                 return html_quote_signature(content)
@@ -2442,7 +2464,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total).\n"
-            "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
+            "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_). Bullet points (-) and numbered lists are fine. Write in concise, prose, simple paragraphs.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
@@ -2470,7 +2492,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total).\n"
-            "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
+            "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_). Bullet points (-) and numbered lists are fine. Write in concise, prose, simple paragraphs.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics. Do NOT mention data limitations, missing splits, or what's 'not available'—simply analyze what is provided.\n"
@@ -2517,6 +2539,12 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             .get("content", "")
             .strip()
         ) or "(empty response)"
+        
+        # Check if this is an identity question - strip emoji if so
+        identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "who am i", "describe yourself"]
+        is_identity_question = any(kw in question.lower() for kw in identity_keywords)
+        if is_identity_question:
+            content = strip_emoji_from_identity_response(content)
         
         # If this is a bond query, prepend an INDOGB dataset header with period/tenor context
         try:
@@ -4174,8 +4202,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # For forecast queries in /both, send Kei tables then chain to Kin
             if is_forecast_query:
                 kei_body = strip_signatures(data_summary)
-                kei_rendered = convert_markdown_code_fences_to_html(kei_body)
-                await update.message.reply_text(kei_rendered, parse_mode=ParseMode.HTML)
+                # Send forecast table as MARKDOWN to properly render the economist-style table
+                await update.message.reply_text(kei_body, parse_mode=ParseMode.MARKDOWN)
                 # Have Kin analyze the forecast
                 kin_prompt = (
                     f"Original question: {question}\n\n"
@@ -4192,8 +4220,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif is_comparison_query:
                 # For comparison queries, send Kei table then chain to Kin
                 kei_body = strip_signatures(data_summary)
-                kei_rendered = convert_markdown_code_fences_to_html(kei_body)
-                await update.message.reply_text(kei_rendered, parse_mode=ParseMode.HTML)
+                # Send comparison table as MARKDOWN to properly render the economist-style table
+                await update.message.reply_text(kei_body, parse_mode=ParseMode.MARKDOWN)
                 # Have Kin analyze the comparison
                 kin_prompt = (
                     f"Original question: {question}\n\n"
