@@ -3995,6 +3995,52 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
                     return
+        
+        # Try single year query (e.g., "in 2026" or "2026")
+        single_year = re.search(r"\bin\s+(19\d{2}|20\d{2})\b", q_lower)
+        if not single_year:
+            # Also try standalone year
+            single_year = re.search(r"\b(19\d{2}|20\d{2})\b", q_lower)
+        if single_year:
+            year = int(single_year.group(1))
+            try:
+                period = {'type': 'year', 'year': year}
+                pdata = load_auction_period(period)
+                
+                if not pdata:
+                    await update.message.reply_text(
+                        f"❌ No auction data found for {year}.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
+                    return
+                
+                # Generate Kei's table for single year
+                metrics_list = ['incoming', 'awarded']
+                kei_table = format_auction_metrics_table([pdata], metrics_list)
+                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                
+                # Have Kin analyze the table
+                kin_prompt = (
+                    f"Original question: {question}\n\n"
+                    f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                )
+                kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                if kin_answer and kin_answer.strip():
+                    kin_cleaned = clean_kin_output(kin_answer)
+                    await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, True, "auction_single_year_both", "both")
+                return
+            except Exception as e:
+                logger.error(f"Error in single year auction /both: {e}", exc_info=True)
+                await update.message.reply_text(f"❌ Error processing auction data: {type(e).__name__}")
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_error: {e}", "both")
+                return
     
     # For non-auction queries, use the general fast path
     # Check if this is a forecast query that needs Kin analysis
