@@ -2479,17 +2479,17 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
     df['obs_date'] = pd.to_datetime(df['obs_date'])
     df[metric] = pd.to_numeric(df[metric], errors='coerce')
 
-    # Helper widths
-    period_width = 10
-    tenor_width = 4
+    # Helper widths (max total 41 chars)
+    period_width = 2
+    tenor_width = 3
     cnt_width = 3
-    min_width = 4
-    max_width = 4
-    avg_width = 4
-    std_width = 4
-    total_width = period_width + 3 + tenor_width + 3 + cnt_width + 3 + min_width + 3 + max_width + 3 + avg_width + 3 + std_width + 1
+    min_width = 3
+    max_width = 3
+    avg_width = 3
+    std_width = 3
+    total_width = period_width + 1 + tenor_width + 1 + cnt_width + 1 + min_width + 1 + max_width + 1 + avg_width + 1 + std_width + 1
     border = '─' * total_width
-    header = f"{ 'Period':>{period_width}} | { 'Tnr':>{tenor_width}} | { 'Cnt':>{cnt_width}} | { 'Min':>{min_width}} | { 'Max':>{max_width}} | { 'Avg':>{avg_width}} | { 'Std':>{std_width}}"
+    header = f"{'Prd':>{period_width}} |{'Tnr':>{tenor_width}} |{'Cnt':>{cnt_width}} |{'Min':>{min_width}} |{'Max':>{max_width}} |{'Avg':>{avg_width}} |{'Std':>{std_width}} "
 
     def norm_tenor(t):
         label = str(t or '').replace('_', ' ').strip()
@@ -2505,14 +2505,14 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
         for tenor in tenors:
             subset = sub[sub['tenor'] == tenor][metric].dropna()
             if subset.empty:
-                row_str = f"{label:>{period_width}} | {norm_tenor(tenor):>{tenor_width}} | {'0':>{cnt_width}} | {'N/A':>{min_width}} | {'N/A':>{max_width}} | {'N/A':>{avg_width}} | {'N/A':>{std_width}}"
+                row_str = f"{label:>{period_width}} |{norm_tenor(tenor):>{tenor_width}} |{'0':>{cnt_width}} |{'N/A':>{min_width}} |{'N/A':>{max_width}} |{'N/A':>{avg_width}} |{'N/A':>{std_width}} "
             else:
                 cnt = len(subset)
                 min_v = subset.min()
                 max_v = subset.max()
                 avg_v = subset.mean()
                 std_v = subset.std() if cnt > 1 else 0
-                row_str = f"{label:>{period_width}} | {norm_tenor(tenor):>{tenor_width}} | {cnt:>{cnt_width}} | {min_v:>{min_width}.2f} | {max_v:>{max_width}.2f} | {avg_v:>{avg_width}.2f} | {std_v:>{std_width}.2f}"
+                row_str = f"{label:>{period_width}} |{norm_tenor(tenor):>{tenor_width}} |{cnt:>{cnt_width}} |{min_v:>{min_width}.1f}|{max_v:>{max_width}.1f}|{avg_v:>{avg_width}.1f}|{std_v:>{std_width}.1f} "
             rows_out.append(row_str)
 
     rows_text = "\n".join([f"│{r}│" for r in rows_out])
