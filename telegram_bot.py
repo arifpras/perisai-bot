@@ -879,8 +879,8 @@ def format_auction_comparison(hist_data: Dict, forecast_data: Dict) -> str:
     month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     for m in hist_data['monthly']:
         month_name = month_names[m['month']]
-        lines.append(f"• {month_name}: Rp {m['incoming']:,.2f}T | {m['bid_to_cover']:.2f}x bid-to-cover")
-    lines.append(f"<b>Total:</b> Rp {hist_data['total_incoming']:,.2f}T | Avg BtC: {hist_data['avg_bid_to_cover']:.2f}x")
+        lines.append(f"• {month_name}: Rp {m['incoming']:,.2f}T incoming, {m['bid_to_cover']:.2f}x bid-to-cover")
+    lines.append(f"<b>Total:</b> Rp {hist_data['total_incoming']:,.2f}T incoming, Avg BtC: {hist_data['avg_bid_to_cover']:.2f}x")
     
     lines.append("")
     
@@ -889,11 +889,10 @@ def format_auction_comparison(hist_data: Dict, forecast_data: Dict) -> str:
     lines.append(f"<b>{forecast_q} Auction Demand (Forecast):</b>")
     for m in forecast_data['monthly']:
         month_name = month_names[m['month']]
-        lines.append(f"• {month_name}: Rp {m['incoming']:,.2f}T | {m['bid_to_cover']:.2f}x bid-to-cover")
-    lines.append(f"<b>Total:</b> Rp {forecast_data['total_incoming']:,.2f}T | Avg BtC: {forecast_data['avg_bid_to_cover']:.2f}x")
+        lines.append(f"• {month_name}: Rp {m['incoming']:,.2f}T incoming, {m['bid_to_cover']:.2f}x bid-to-cover")
+    lines.append(f"<b>Total:</b> Rp {forecast_data['total_incoming']:,.2f}T incoming, Avg BtC: {forecast_data['avg_bid_to_cover']:.2f}x")
     
     lines.append("")
-    lines.append("─" * 50)
     
     # YoY comparison
     incoming_change = ((forecast_data['total_incoming'] / hist_data['total_incoming']) - 1) * 100
