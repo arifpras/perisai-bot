@@ -5200,11 +5200,18 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Relevant factors: BI interest rates, inflation expectations, Rupiah strength, fiscal policy\n\n"
                 f"Kei's quantitative analysis summary:\n{table_summary}\n\n"
                 f"The detailed INDOGB yield/price comparison table has been rendered and sent separately.\n\n"
+                f"CRITICAL INSTRUCTIONS FOR ANALYSIS:\n"
+                f"1. USE TABLE DATA AS YOUR PRIMARY SOURCE - cite exact averages, min, max, standard deviations from the table\n"
+                f"2. Calculate yield changes from table data: (2024 Avg - 2025 Avg) in basis points\n"
+                f"3. Only use web search for CONTEXT and EXPLANATION (BI policy, market drivers, macro conditions)\n"
+                f"4. VERIFY any numbers cited against the table data shown - do not fabricate statistics\n"
+                f"5. Reference the Count field to note data quality (261 observations in 2024, 247 in 2025)\n\n"
                 f"Based on this Indonesia government bond data table and the original question:\n"
-                f"1. Provide strategic interpretation of the yield/price trends specific to the Indonesian bond market\n"
-                f"2. Discuss implications for BI monetary policy, Rupiah dynamics, and local investor positioning\n"
-                f"3. Analyze how these trends compare to other emerging market bond movements if relevant\n"
-                f"4. Focus on key period-over-period changes and their economic/policy drivers in Indonesia"
+                f"1. Lead with the actual table statistics: which tenor declined more, by how much (in bps), volatility trends\n"
+                f"2. Provide strategic interpretation of the yield/price trends specific to the Indonesian bond market\n"
+                f"3. Discuss implications for BI monetary policy, Rupiah dynamics, and local investor positioning using market context\n"
+                f"4. Analyze how these trends compare to other emerging market bond movements if relevant\n"
+                f"5. Focus on key period-over-period changes and their economic/policy drivers in Indonesia"
             )
             logger.info(f"Bond table /both: Calling ask_kin for interpretation")
             try:
