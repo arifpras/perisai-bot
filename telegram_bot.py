@@ -4278,11 +4278,15 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"STATISTICS FROM DATABASE:\n"
                         + "\n".join(tenor_stats_text) +
                         f"\n\n"
-                        f"CRITICAL INSTRUCTIONS:\n"
-                        f"1. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries or foreign bonds\n"
-                        f"2. Focus your analysis ONLY on the period the user requested in their question\n"
-                        f"3. Do NOT mention date ranges not requested by the user\n"
-                        f"4. SKIP the headline - the chart itself provides the visual context. Write ONLY 3 paragraphs of analysis WITHOUT a headline or emoji"
+                        f"MANDATORY ANALYSIS REQUIREMENTS:\n"
+                        f"1. Lead with EXACT statistics from the database above - cite specific averages, ranges, volatility (std dev), observation counts\n"
+                        f"2. Show TRENDS across tenors: which tenor had higher average {metric_display}? Which was more volatile (higher std dev)?\n"
+                        f"3. Cite exact values: e.g., '5Y averaged 6.45% with 0.32% volatility across 247 observations' NOT 'around 6.5% yields'\n"
+                        f"4. For multi-tenor analysis, calculate spread/differential: e.g., '10Y exceeded 5Y by X basis points on average'\n"
+                        f"5. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries - focus on BI policy, Rupiah dynamics, local market conditions\n"
+                        f"6. Focus analysis ONLY on the period requested ({date_range_text})\n"
+                        f"7. SKIP the headline - the chart itself provides the visual context. Write ONLY 3 paragraphs of analysis WITHOUT a headline or emoji\n"
+                        f"8. Reference observation counts to note data quality: 'With [X] observations across this period, the data shows...'"
                     )
                     
                     # Have Kin analyze the quantitative summary
@@ -5431,12 +5435,16 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"STATISTICS FROM DATABASE:\n"
                         + "\n".join(tenor_stats_text) +
                         f"\n\n"
-                        f"CRITICAL INSTRUCTIONS:\n"
-                        f"1. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries or foreign bonds\n"
-                        f"2. Focus your analysis ONLY on the period the user requested in their question\n"
-                        f"3. Do NOT mention date ranges not requested by the user\n"
-                        f"4. Do NOT include a headline (one is already provided above in the data summary)\n"
-                        f"5. Provide 3-4 paragraphs of analysis focused on market trends, drivers, and economic context"
+                        f"MANDATORY ANALYSIS REQUIREMENTS:\n"
+                        f"1. Lead with EXACT statistics from the database above - cite specific averages, ranges, volatility (std dev), observation counts\n"
+                        f"2. Show TRENDS across tenors: which tenor had higher average {metric_display}? Which was more volatile (higher std dev)?\n"
+                        f"3. Cite exact values: e.g., '5Y averaged 6.45% with 0.32% volatility across 247 observations' NOT 'around 6.5% yields'\n"
+                        f"4. For multi-tenor analysis, calculate spread/differential: e.g., '10Y exceeded 5Y by X basis points on average'\n"
+                        f"5. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries - focus on BI policy, Rupiah dynamics, local market conditions\n"
+                        f"6. Focus analysis ONLY on the period requested ({date_range_text})\n"
+                        f"7. Do NOT include a headline (one is already provided above in the data summary)\n"
+                        f"8. Reference observation counts to note data quality: 'With [X] observations across this period, the data shows...'\n"
+                        f"9. Show CALCULATIONS: e.g., 'The 10Y-5Y spread averaged [X]bps' - show the math when comparing tenors"
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
@@ -5576,12 +5584,16 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"STATISTICS FROM DATABASE:\n"
                         + "\n".join(tenor_stats_text) +
                         f"\n\n"
-                        f"CRITICAL INSTRUCTIONS:\n"
-                        f"1. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries or foreign bonds\n"
-                        f"2. Focus your analysis ONLY on the period the user requested in their question\n"
-                        f"3. Do NOT mention date ranges not requested by the user\n"
-                        f"4. Do NOT include a headline (one is already provided above in the data summary)\n"
-                        f"5. Provide 3-4 paragraphs of analysis focused on market trends, drivers, and economic context"
+                        f"MANDATORY ANALYSIS REQUIREMENTS:\n"
+                        f"1. Lead with EXACT statistics from the database above - cite specific averages, ranges, volatility (std dev), observation counts\n"
+                        f"2. Show TRENDS across tenors: which tenor had higher average {metric_display}? Which was more volatile (higher std dev)?\n"
+                        f"3. Cite exact values: e.g., '5Y averaged 6.45% with 0.32% volatility across 247 observations' NOT 'around 6.5% yields'\n"
+                        f"4. For multi-tenor analysis, calculate spread/differential: e.g., '10Y exceeded 5Y by X basis points on average'\n"
+                        f"5. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries - focus on BI policy, Rupiah dynamics, local market conditions\n"
+                        f"6. Focus analysis ONLY on the period requested ({date_range_text})\n"
+                        f"7. Do NOT include a headline (one is already provided above in the data summary)\n"
+                        f"8. Reference observation counts to note data quality: 'With [X] observations across this period, the data shows...'\n"
+                        f"9. Show CALCULATIONS: e.g., 'The 10Y-5Y spread averaged [X]bps' - show the math when comparing tenors"
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
