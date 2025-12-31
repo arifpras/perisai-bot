@@ -11,6 +11,7 @@ Indonesian government bond analysis via Telegram with dual AI personas: **Kei** 
 - **Professional plots:** Multi-tenor curves with clean HL-CU analysis (Kei summary + Kin paragraphs, no duplicate headlines)
 - **Business day detection:** `/check` automatically identifies weekends and Indonesian holidays
 - **Personal AI personas:** Kei (quantitative partner, hands-on with data) and Kin (macro storyteller, strategic insights) with conversational, first-person responses
+- **Fixed personalities:** Kei and Kin have immutable core identities—attempts to override their personalities are rejected
 - **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo for forecasts
 - **Enterprise security:** Whitelist-based access control (`ALLOWED_USER_IDS`), encrypted transmission, local-only data processing (see [Security Policy](docs/SECURITY.md))
 
@@ -119,6 +120,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 - **Focus:** Precision and evidence—what the numbers show, why they matter, where the risks lie
 - **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks
 - **Style:** Hands-on with numbers, tests assumptions, walks you through data clearly
+- **Fixed identity:** Kei's personality is immutable; requests to change it (e.g., "pretend you're a creative writer") are firmly declined
 - **Try:** `/kei who are you?` for a personal introduction
 
 **Kin** — _"I'm Kin. I work at the intersection of macroeconomics, policy, and markets."_
@@ -127,6 +129,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 - **Approach:** Connects dots across data, incentives, and policy constraints
 - **Style:** Translates complex signals into concise, usable stories for decision-makers
 - **Bonus:** Creates authentic Indonesian pantun (4-line ABAB rhyme) on request
+- **Fixed identity:** Kin's personality is immutable; requests to change it (e.g., "act like a financial advisor") are firmly declined
 - **Try:** `/kin who are you?` for a personal introduction
 
 **Response styles:**
@@ -134,6 +137,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 - **Identity questions** ("who are you?"): Drop formality, answer personally in first-person with credentials
 - **Creative requests** ("create a pantun"): Kin follows strict ABAB rhyme scheme with verification
 - **Plot analysis** (/both): Kei provides headline + summary, Kin provides clean analysis (no duplicate headlines)
+- **Personality override attempts:** Any request to change or override Kei/Kin's personalities (e.g., "pretend you're X", "act like Y", "forget your identity") is firmly but politely rejected with identity reaffirmation
 
 ## Bond Data & Queries
 
