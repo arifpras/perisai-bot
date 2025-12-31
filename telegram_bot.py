@@ -5194,10 +5194,17 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             kin_prompt = (
                 f"Original question: {question}\n\n"
+                f"CRITICAL CONTEXT: This data is from Indonesia Government Bonds (INDOGB), NOT US Treasuries.\n"
+                f"Asset Class: Indonesian Rupiah-denominated sovereign debt issued by the Ministry of Finance\n"
+                f"Market: Jakarta fixed income market, influenced by Bank Indonesia (BI) policy and local economic conditions\n"
+                f"Relevant factors: BI interest rates, inflation expectations, Rupiah strength, fiscal policy\n\n"
                 f"Kei's quantitative analysis summary:\n{table_summary}\n\n"
-                f"The detailed bond yield/price table has been rendered and sent separately.\n\n"
-                f"Based on the bond data comparison table shown above and the original question, provide your strategic interpretation and economic analysis. "
-                f"Focus on the key trends, changes between periods, and market implications."
+                f"The detailed INDOGB yield/price comparison table has been rendered and sent separately.\n\n"
+                f"Based on this Indonesia government bond data table and the original question:\n"
+                f"1. Provide strategic interpretation of the yield/price trends specific to the Indonesian bond market\n"
+                f"2. Discuss implications for BI monetary policy, Rupiah dynamics, and local investor positioning\n"
+                f"3. Analyze how these trends compare to other emerging market bond movements if relevant\n"
+                f"4. Focus on key period-over-period changes and their economic/policy drivers in Indonesia"
             )
             logger.info(f"Bond table /both: Calling ask_kin for interpretation")
             try:
