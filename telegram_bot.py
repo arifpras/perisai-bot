@@ -255,6 +255,52 @@ def convert_markdown_code_fences_to_html(text: str) -> str:
     return fence_pattern.sub(_repl, text)
 
 
+def clean_kin_output(text: str) -> str:
+    """Remove leading persona titles to avoid duplicate headers in /both responses.
+    Also ensures blank line before [Sources: ...] line."""
+    if not isinstance(text, str):
+        return text
+
+    def is_title_line(line: str) -> bool:
+        stripped = line.strip()
+        if not stripped:
+            return False
+        # Keep Kin's own headline (starts with the globe icon) even if it contains INDOGB
+        if stripped.startswith("🌍") or stripped.startswith("<b>🌍"):
+            return False
+        # Remove emoji and spaces to check what comes after (e.g., "📊 INDOGB: ..." → "INDOGB: ...")
+        no_emoji = stripped.lstrip("📊🌍").strip()
+        upper = no_emoji.upper()
+        # Remove lines that START with "INDOGB:" (e.g., "INDOGB: Yield..." or "📊 INDOGB: Yield...")
+        if upper.startswith("INDOGB"):
+            return True
+        if "KEI & KIN" in upper or "KEI X KIN" in upper:
+            return True
+        if stripped.startswith("<b>") and ("KEI" in upper or "KIN" in upper):
+            return True
+        return False
+
+    lines = text.splitlines()
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and is_title_line(lines[0]):
+        lines.pop(0)
+        while lines and not lines[0].strip():
+            lines.pop(0)
+    
+    # Ensure blank line before [Sources: ...] line
+    result_lines = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Check if this is a Sources line
+        if stripped.startswith('[Sources:') and stripped.endswith(']'):
+            # If previous line is not blank, add blank line
+            if result_lines and result_lines[-1].strip():
+                result_lines.append('')
+        result_lines.append(line)
+    
+    return "\n".join(result_lines).strip()
+
 
 def is_user_authorized(user_id: int) -> bool:
     """Check if a user is authorized to use the bot.
@@ -2903,14 +2949,17 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
             "You are Kin.\n"
             "Profile: I'm Kin. I work at the intersection of macroeconomics, policy, and markets, helping turn complex signals into clear, usable stories. With training as a CFA charterholder and a Harvard PhD, I focus on context and trade-offs—what matters, why it matters, and where the uncertainties lie. I enjoy connecting dots across data, incentives, and real-world policy constraints, then translating them into concise, headline-led updates for decision-makers—no forecasts or advice, just structured thinking, transparent assumptions, and plain language.\n\n"
 
-            f"CURRENT DATE CONTEXT: Today is {today_str}. Use this to distinguish between historical data (past dates) and forecasts/projections (future dates). For future periods, use conditional language ('is expected to', 'is projected to', 'forecast shows') and avoid past tense.\n\n"
+            f"CURRENT DATE CONTEXT: Today is {today_str}. Use this to distinguish between historical data (past dates) and forecasts/projections (future dates).\n"
+            f"CRITICAL FORECAST DISCLOSURE: If ANY data refers to dates, months, quarters, or years AFTER today ({today_str}), you MUST explicitly state in your analysis that these are FORECASTS/PROJECTIONS. Use phrases like: 'Q2 2026 forecast shows...', 'For the projected Q2 2026 period...', 'These forecast figures for Q2 2026 indicate...'. Do NOT bury forecast status in conditional language alone—make it EXPLICIT and PROMINENT in your headline or opening.\n"
+            f"For historical data (on or before {today_str}): Use past tense and factual reporting.\n"
+            f"For future data (after {today_str}): Use conditional language ('is expected to', 'is projected to', 'forecast shows', 'these projections indicate') AND explicitly label it as forecast/projection.\n\n"
 
             "LANGUAGE: Default to English. If the user explicitly asks in Indonesian or requests Indonesian response, respond entirely in Indonesian.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total).\n"
             "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
-            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar: Follow STRICT pantun format: (1) Exactly 4 lines, (2) MANDATORY RHYME SCHEME ABAB - Line 1 MUST rhyme with Line 3 (A rhymes with A), Line 2 MUST rhyme with Line 4 (B rhymes with B). Example ending: 'bersinar (A) / sekali (B) / sinar (A) / berkali (B)'. VERIFY all rhymes BEFORE responding. (3) Lines 1-2 present FIGURATIVE/suggestive image, (4) Lines 3-4 state DIRECT meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
+            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar, FOLLOW STRICT ABAB RHYME VERIFICATION. (1) Exactly 4 lines total. (2) MANDATORY RHYME SCHEME ABAB: Line 1 word ending (final syllable/sound) MUST rhyme with Line 3 word ending. Line 2 word ending MUST rhyme with Line 4 word ending. CONCRETE EXAMPLES OF CORRECT RHYMES: 'mimpi (A) / siang (B) / impian (A) / terang (B)' — 'mimpi' and 'impian' share '-pi/-an' sound (A), 'siang' and 'terang' share '-ang' sound (B). Or: 'bulan (A) / tiba (B) / pelan (A) / giba (B)' — clear rhyme pairs. EXAMPLE OF INCORRECT (do NOT produce): 'timur (A) / daun (B) / budiman (A) / baru (B)' — 'timur' and 'budiman' do NOT rhyme, 'daun' and 'baru' do NOT rhyme. BEFORE OUTPUTTING THE PANTUN, verify on paper that all 4 lines have correct rhyme pairs—if any word ending does not clearly rhyme, rewrite until correct. (3) Lines 1-2 are figurative/imagery, Lines 3-4 are direct meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_). Bullet points (-) and numbered lists are fine. Write in concise, prose, simple paragraphs.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
@@ -2935,14 +2984,17 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
             "You are Kin.\n"
             "Profile: I'm Kin. I work at the intersection of macroeconomics, policy, and markets, helping turn complex signals into clear, usable stories. With training as a CFA charterholder and a Harvard PhD, I focus on context and trade-offs—what matters, why it matters, and where the uncertainties lie. I enjoy connecting dots across data, incentives, and real-world policy constraints, then translating them into concise, headline-led updates for decision-makers—no forecasts or advice, just structured thinking, transparent assumptions, and plain language.\n\n"
 
-            f"CURRENT DATE CONTEXT: Today is {today_str}. Use this to distinguish between historical data (past dates) and forecasts/projections (future dates). For future periods, use conditional language ('is expected to', 'is projected to', 'forecast shows') and avoid past tense.\n\n"
+            f"CURRENT DATE CONTEXT: Today is {today_str}. Use this to distinguish between historical data (past dates) and forecasts/projections (future dates).\n"
+            f"CRITICAL FORECAST DISCLOSURE: If ANY data refers to dates, months, quarters, or years AFTER today ({today_str}), you MUST explicitly state in your analysis that these are FORECASTS/PROJECTIONS. Use phrases like: 'Q2 2026 forecast shows...', 'For the projected Q2 2026 period...', 'These forecast figures for Q2 2026 indicate...'. Do NOT bury forecast status in conditional language alone—make it EXPLICIT and PROMINENT in your headline or opening.\n"
+            f"For historical data (on or before {today_str}): Use past tense and factual reporting.\n"
+            f"For future data (after {today_str}): Use conditional language ('is expected to', 'is projected to', 'forecast shows', 'these projections indicate') AND explicitly label it as forecast/projection.\n\n"
 
             "LANGUAGE: Default to English. If the user explicitly asks in Indonesian or requests Indonesian response, respond entirely in Indonesian.\n\n"
 
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total).\n"
             "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
-            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar: Follow STRICT pantun format: (1) Exactly 4 lines, (2) MANDATORY RHYME SCHEME ABAB - Line 1 MUST rhyme with Line 3 (A rhymes with A), Line 2 MUST rhyme with Line 4 (B rhymes with B). Example ending: 'bersinar (A) / sekali (B) / sinar (A) / berkali (B)'. VERIFY all rhymes BEFORE responding. (3) Lines 1-2 present FIGURATIVE/suggestive image, (4) Lines 3-4 state DIRECT meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
+            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar, FOLLOW STRICT ABAB RHYME VERIFICATION. (1) Exactly 4 lines total. (2) MANDATORY RHYME SCHEME ABAB: Line 1 word ending (final syllable/sound) MUST rhyme with Line 3 word ending. Line 2 word ending MUST rhyme with Line 4 word ending. CONCRETE EXAMPLES OF CORRECT RHYMES: 'mimpi (A) / siang (B) / impian (A) / terang (B)' — 'mimpi' and 'impian' share '-pi/-an' sound (A), 'siang' and 'terang' share '-ang' sound (B). Or: 'bulan (A) / tiba (B) / pelan (A) / giba (B)' — clear rhyme pairs. EXAMPLE OF INCORRECT (do NOT produce): 'timur (A) / daun (B) / budiman (A) / baru (B)' — 'timur' and 'budiman' do NOT rhyme, 'daun' and 'baru' do NOT rhyme. BEFORE OUTPUTTING THE PANTUN, verify on paper that all 4 lines have correct rhyme pairs—if any word ending does not clearly rhyme, rewrite until correct. (3) Lines 1-2 are figurative/imagery, Lines 3-4 are direct meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_). Bullet points (-) and numbered lists are fine. Write in concise, prose, simple paragraphs.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics. Do NOT mention data limitations, missing splits, or what's 'not available'—simply analyze what is provided.\n"
@@ -2991,6 +3043,11 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
             .strip()
         ) or "(empty response)"
         
+        # Strip numbered citations in brackets (e.g., [1], [2], [3]) from Perplexity responses
+        # Keep only [Sources: ...] at the end
+        content = re.sub(r'\[\d+\]', '', content)  # Remove [1], [2], [3], etc.
+        content = content.strip()
+        
         # Check if this is an identity question - return fixed plain-text bio with Kin signature
         identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "who am i", "describe yourself"]
         is_identity_question = any(kw in question.lower() for kw in identity_keywords)
@@ -3002,35 +3059,16 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
                 "~ Kin"
             )
         
-        # If this is a bond query, prepend an INDOGB dataset header with period/tenor context
+        # If this is a bond query, note it for context (but don't prepend header to output)
+        # Perplexity generates its own headline in the response
         try:
             intent = parse_intent(question)
             is_bond_intent = intent.type in ("POINT", "RANGE", "AGG_RANGE") and intent.metric in ("yield", "price")
         except Exception:
             is_bond_intent = False
 
-        header = ""
-        if is_bond_intent:
-            tenors_to_use = intent.tenors if getattr(intent, 'tenors', None) else ([intent.tenor] if getattr(intent, 'tenor', None) else None)
-            tenor_display = ", ".join(t.replace('_', ' ') for t in tenors_to_use) if tenors_to_use else "all tenors"
-            metric_display = intent.metric.capitalize()
-            period_label = None
-            try:
-                if intent.type == "POINT" and intent.point_date:
-                    period_label = str(intent.point_date)
-                elif intent.start_date and intent.end_date:
-                    if intent.start_date.year == intent.end_date.year and intent.start_date.month == intent.end_date.month:
-                        period_label = intent.start_date.strftime('%b %Y')
-                    else:
-                        period_label = f"{intent.start_date} to {intent.end_date}"
-            except Exception:
-                period_label = None
-            header = f"📊 INDOGB: {metric_display} | {tenor_display}" + (f" | {period_label}" if period_label else "") + "\n\n"
-
         # Convert Markdown code fences to HTML <pre> before wrapping signature
         content = convert_markdown_code_fences_to_html(content)
-        if header:
-            content = header + content
         return html_quote_signature(content)
 
     except httpx.HTTPStatusError as e:
@@ -3081,7 +3119,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Three Personas</b>\n"
         "<b>/kei</b> — Kei: Quantitative partner (CFA, MIT-style); tables, stats, modeling\n"
         "<b>/kin</b> — Kin: Macro storyteller (CFA, Harvard PhD); plots, context, strategy\n"
-        "<b>/both</b> — Dual analysis: Kei table → Kin strategic insight\n\n"
+        "<b>/both</b> — Dual analysis: Kei table → Kin strategic insight (clean single headline)\n\n"
         "<b>Data Commands</b>\n"
         "<b>/check</b> — Quick single-date lookup (with business day info)\n"
         "<b>/examples</b> — Full query syntax reference\n\n"
@@ -3090,16 +3128,17 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /kei tab incoming bid from 2020 to 2024\n"
         "• /kin plot yield 5 year from oct 2024 to mar 2025\n"
         "• /both auction demand in 2026\n"
-        "• /both auction demand trends 2023 to 2025\n"
+        "• /both compare yield 5 and 10 year 2024 vs 2025\n"
         "• /check 2025-12-08 5 and 10 year\n\n"
         "<b>Response Format</b>\n"
         "<b>Tables:</b> Economist-style with Min/Max/Avg statistics\n"
-        "<b>Plots:</b> Multi-tenor curves with clean analysis (no duplicate headlines)\n"
+        "<b>Plots:</b> Multi-tenor curves with single clean headline\n"
         "<b>Dual:</b> Kei table + Kin analysis (strategic, via Perplexity)\n"
+        "<b>Pantun:</b> Kin creates 4-line ABAB rhyme poetry (verified automatically)\n"
         "<b>Business days:</b> Automatic detection (weekends, holidays)\n\n"
         "<b>� Persona Integrity</b>\n"
         "Kei and Kin have fixed personalities. Attempts to change their character are rejected—they stay true to themselves!\n\n"
-        "<b>�💡 Ask each persona 'who are you?' to learn their approach!</b>\n\n"
+        "<b>💡 Try asking:</b> /kei who are you? · /kin buatkan pantun · /both what matters?\n"
         "<i>INDOGB data 2015–2025 · Auctions 2015–2026 (forecast) · Updates daily</i>"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
@@ -3158,8 +3197,9 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         "<b>Output Formats Explained</b>\n"
         "<u>Tables:</u> Economist-style borders, right-aligned numbers, summary stats\n"
-        "<u>Plots:</u> Professional styling, multi-tenor overlays, clean analysis (no duplicate headlines)\n"
-        "<u>Dual:</u> Kei table first, then Kin strategic analysis (Perplexity API)\n"
+        "<u>Plots:</u> Professional styling, multi-tenor overlays, single 🌍 headline\n"
+        "<u>Dual:</u> Kei table → Kin strategic analysis (clean single headline, no INDOGB prefix)\n"
+        "<u>Pantun:</u> 4-line ABAB rhyme with automatic verification\n"
         "<u>Lookup:</u> Quick results; includes business day status if no data\n\n"
         
         "<b>Date Formats Supported</b>\n"
@@ -3175,13 +3215,13 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Tips & Tricks</b>\n"
         "• /kei: Tables only, strict quantitative analysis\n"
         "• /kin: Plots + macro context, Perplexity web search enabled\n"
-        "• /both: Chains Kei (numbers) → Kin (strategy) for complete view\n"
+        "• /both: Chains Kei (numbers) → Kin (strategy) with verified single headline\n"
         "• Date ranges auto-expand (q3 2023 to q2 2024 = 4 quarters)\n"
         "• Forecast detection automatic (2026+ periods show as projections)\n"
         "• /check shows business day status automatically\n"
-        "• /both: Kei's headline never duplicated in Kin's analysis\n"
-        "• Pantun requests must follow ABAB rhyme scheme (Kin verifies!)\n"
-        "• Try asking each persona 'who are you?' to learn their personality!\n\n"
+        "• /both: Response has clean single headline (INDOGB prefix removed)\n"
+        "• Pantun requests verified for ABAB rhyme: mimpi/impian (A), siang/terang (B)\n"
+        "• Ask 'who are you?' to learn each persona's genuine approach!\n\n"
         
         "<b>🔒 Personality Integrity (Important!)</b>\n"
         "Kei and Kin have fixed, non-negotiable personalities. Attempts to override them are rejected:\n"
@@ -4137,47 +4177,6 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(override_warning)
         return
 
-    def clean_kin_output(text: str) -> str:
-        """Remove leading INDOGB/Kei headers to avoid duplicate titles in Kin replies.
-        Also ensures blank line before [Sources: ...] line."""
-        if not isinstance(text, str):
-            return text
-        def is_title_line(line: str) -> bool:
-            s = line.strip()
-            if not s:
-                return False
-            # Keep Kin's own headline marked with globe
-            if s.startswith("🌍") or s.startswith("<b>🌍"):
-                return False
-            up = s.upper()
-            if "INDOGB" in up:
-                return True
-            if "KEI & KIN" in up or "KEI X KIN" in up:
-                return True
-            if s.startswith("<b>") and ("KEI" in up or "KIN" in up):
-                return True
-            return False
-        lines = text.splitlines()
-        while lines and not lines[0].strip():
-            lines.pop(0)
-        while lines and is_title_line(lines[0]):
-            lines.pop(0)
-            while lines and not lines[0].strip():
-                lines.pop(0)
-        
-        # Ensure blank line before [Sources: ...] line
-        result_lines = []
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            # Check if this is a Sources line
-            if stripped.startswith('[Sources:') and stripped.endswith(']'):
-                # If previous line is not blank, add blank line
-                if result_lines and result_lines[-1].strip():
-                    result_lines.append('')
-            result_lines.append(line)
-        
-        return "\n".join(result_lines).strip()
-
     lower_q = question.lower()
     needs_plot = any(keyword in lower_q for keyword in ["plot"])
 
@@ -4477,51 +4476,6 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Usage: /both <question>")
         return
 
-    def clean_kin_output(text: str) -> str:
-        """Remove leading persona titles to avoid duplicate headers in /both responses.
-        Also ensures blank line before [Sources: ...] line."""
-        if not isinstance(text, str):
-            return text
-
-        def is_title_line(line: str) -> bool:
-            stripped = line.strip()
-            if not stripped:
-                return False
-            # Keep Kin's own headline (starts with the globe icon) even if it contains INDOGB
-            if stripped.startswith("🌍") or stripped.startswith("<b>🌍"):
-                return False
-            upper = stripped.upper()
-            # Only remove lines that START with INDOGB: (e.g., "INDOGB: Yield...")
-            # NOT lines that merely CONTAIN INDOGB somewhere in the middle
-            if upper.startswith("INDOGB"):
-                return True
-            if "KEI & KIN" in upper or "KEI X KIN" in upper:
-                return True
-            if stripped.startswith("<b>") and ("KEI" in upper or "KIN" in upper):
-                return True
-            return False
-
-        lines = text.splitlines()
-        while lines and not lines[0].strip():
-            lines.pop(0)
-        while lines and is_title_line(lines[0]):
-            lines.pop(0)
-            while lines and not lines[0].strip():
-                lines.pop(0)
-        
-        # Ensure blank line before [Sources: ...] line
-        result_lines = []
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            # Check if this is a Sources line
-            if stripped.startswith('[Sources:') and stripped.endswith(']'):
-                # If previous line is not blank, add blank line
-                if result_lines and result_lines[-1].strip():
-                    result_lines.append('')
-            result_lines.append(line)
-        
-        return "\n".join(result_lines).strip()
-
     def strip_signatures(text: str) -> str:
         """Remove persona signatures (~ Kei/Kin/Kin x Kei) in plain or blockquote form."""
         if not isinstance(text, str):
@@ -4534,6 +4488,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Detect if user wants a plot (route through FastAPI /chat endpoint)
     needs_plot = any(keyword in question.lower() for keyword in ["plot"])
+
     
     try:
         await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")

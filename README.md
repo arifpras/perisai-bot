@@ -8,7 +8,7 @@ Indonesian government bond analysis via Telegram with dual AI personas: **Kei** 
 - **Auction data:** Incoming & awarded bids (2015 onwards, historical + forecast)
 - **Economist-style tables:** Right-aligned numbers, summary stats (Count/Min/Max/Avg/Std), two-decimal precision
 - **Multi-tenor queries:** Compare 5Y, 10Y, 15Y, 20Y, 30Y bonds side-by-side
-- **Professional plots:** Multi-tenor curves with clean HL-CU analysis (Kei summary + Kin paragraphs, no duplicate headlines)
+- **Professional plots:** Multi-tenor curves with single 🌍 headline (HL-CU format: Kei summary + Kin paragraphs, no INDOGB prefix)
 - **Business day detection:** `/check` automatically identifies weekends and Indonesian holidays
 - **Personal AI personas:** Kei (quantitative partner, hands-on with data) and Kin (macro storyteller, strategic insights) with conversational, first-person responses
 - **Fixed personalities:** Kei and Kin have immutable core identities—attempts to override their personalities are rejected
@@ -110,7 +110,8 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 **Response Formats:**
 - **Kei (tables):** Economist-style borders, right-aligned numbers, Count/Min/Max/Avg/Std rows
 - **Kin (plots):** Professional curves, single 🌍 headline (HL-CU format), 3 paragraphs max
-- **Both (dual):** Kei table first → Kin strategic analysis (via Perplexity API)
+- **Both (dual):** Kei table → Kin strategic analysis (clean single headline, no INDOGB prefix duplication)
+- **Pantun:** 4-line ABAB rhyme scheme verified automatically (e.g., mimpi/impian, siang/terang)
 - **Check (lookup):** Quick data + business day status (if Saturday, Sunday, or Indonesian holiday)
 
 ## Meet the Personas
@@ -128,15 +129,18 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 - **Focus:** Context and trade-offs—what matters, why it matters, where the uncertainties lie
 - **Approach:** Connects dots across data, incentives, and policy constraints
 - **Style:** Translates complex signals into concise, usable stories for decision-makers
-- **Bonus:** Creates authentic Indonesian pantun (4-line ABAB rhyme) on request
+- **Bonus:** Creates authentic Indonesian pantun (4-line ABAB rhyme with automatic verification)
+  - Example: "mimpi/impian" (A rhyme) + "siang/terang" (B rhyme) = ABAB verified
+  - Kin checks rhyme scheme before responding
 - **Fixed identity:** Kin's personality is immutable; requests to change it (e.g., "act like a financial advisor") are firmly declined
-- **Try:** `/kin who are you?` for a personal introduction
+- **Try:** `/kin who are you?` for a personal introduction or `/kin buatkan pantun tentang pagi` for a verified pantun
 
 **Response styles:**
 - **HL-CU format** (Headline-Led Corporate Update): Single headline + 3 concise paragraphs for data analysis
 - **Identity questions** ("who are you?"): Drop formality, answer personally in first-person with credentials
-- **Creative requests** ("create a pantun"): Kin follows strict ABAB rhyme scheme with verification
-- **Plot analysis** (/both): Kei provides headline + summary, Kin provides clean analysis (no duplicate headlines)
+- **Pantun requests** ("create a pantun"): Kin verifies ABAB rhyme before responding (mimpi/impian for A, siang/terang for B)
+- **Bond dual analysis** (/both compare, /both yield, etc.): Kei provides headline, Kin provides clean analysis with single headline (no INDOGB prefix)
+- **Auction dual analysis** (/both auction): Kei table → Kin Perplexity insight with verified single headline
 - **Personality override attempts:** Any request to change or override Kei/Kin's personalities (e.g., "pretend you're X", "act like Y", "forget your identity") is firmly but politely rejected with identity reaffirmation
 
 ## Bond Data & Queries
@@ -270,11 +274,30 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-**Current Version:** `v2025.12.30-persona-identity-update`
+**Current Version:** `v2025.12.31-clean-headlines-pantun-verification`
 
-**Updates (Dec 30, 2025):**
+**Updates (Dec 31, 2025):**
 
-**Phase 6: Persona Identity Enhancement** (Current)
+**Phase 7: Clean Headlines & Pantun Verification** (Current)
+- ✅ **Double headline elimination in /both bond queries:**
+  - Fixed emoji/whitespace handling in `clean_kin_output()` function
+  - INDOGB-prefixed headers now properly removed: `"📊 INDOGB: ..."` → removed
+  - Kin's globe headline (🌍) preserved as signature
+  - All 8 user-specified `/both` query patterns tested and working ✓
+- ✅ **Pantun ABAB rhyme verification enhanced:**
+  - System prompts now include concrete rhyme examples
+  - Correct: mimpi (A) / siang (B) / impian (A) / terang (B)
+  - Incorrect: timur / daun / budiman / baru (wrong rhyme pair)
+  - Kin verifies rhyme scheme on paper before responding
+- ✅ **UnboundLocalError fix (prior session):**
+  - Moved `clean_kin_output()` to module level (accessible to all commands)
+  - All 11 failing `/both` bond compare queries now work ✓
+- ✅ **Updated documentation:**
+  - /start: Added "clean single headline" and "verified pantun" mentions
+  - /examples: Clarified pantun ABAB verification and /both headline behavior
+  - README: New section on pantun verification examples and /both dual analysis specifics
+
+**Phase 6: Persona Identity Enhancement**
 - ✅ **Conversational persona identities:**
   - Rewrote Kei and Kin profiles to be personal, first-person, engaging
   - Kei: "I'm Kei, a quantitatively minded partner who enjoys turning data into insight"
