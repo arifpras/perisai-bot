@@ -2489,7 +2489,7 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
     std_width = 4
     total_width = period_width + 1 + tenor_width + 1 + cnt_width + 1 + min_width + 1 + max_width + 1 + avg_width + 1 + std_width + 1
     border = '─' * total_width
-    header = f"{'Prd':>{period_width}}|{'Tnr':>{tenor_width}}|{'Cnt':>{cnt_width}}|{'Min':>{min_width}}|{'Max':>{max_width}}|{'Avg':>{avg_width}}|{'Std':>{std_width}}"
+    header = f"{' ':>{period_width}}|{' ':>{tenor_width}}|{'Cnt':>{cnt_width}}|{'Min':>{min_width}}|{'Max':>{max_width}}|{'Avg':>{avg_width}}|{'Std':>{std_width}}"
 
     def norm_tenor(t):
         label = str(t or '').replace('_', ' ').strip()
