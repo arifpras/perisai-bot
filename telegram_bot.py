@@ -4219,6 +4219,81 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Check for historical auction queries with year or month ranges (e.g., "from 2010 to 2024" or "from dec 2010 to feb 2011")
     is_auction_query = ('auction' in q_lower or 'incoming' in q_lower or 'awarded' in q_lower or 'bid' in q_lower)
     if is_auction_query:
+        # Handle flexible month/quarter/year comparisons (e.g., "compare auction May 2025 vs Jun 2025")
+        if 'compare' in q_lower:
+            periods = parse_auction_compare_query(q_lower)
+            if periods and len(periods) >= 2:
+                try:
+                    periods_data = []
+                    skipped = []
+                    month_names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    
+                    for p in periods:
+                        pdata = load_auction_period(p)
+                        if not pdata:
+                            label = (
+                                f"Q{p['quarter']} {p['year']}" if p['type'] == 'quarter' else (
+                                    f"{month_names[p['month']]} {p['year']}" if p['type'] == 'month' else f"{p['year']}"
+                                )
+                            )
+                            skipped.append(label)
+                            continue
+                        periods_data.append(pdata)
+                    
+                    if not periods_data:
+                        skipped_str = ', '.join(skipped) if skipped else 'all periods'
+                        await update.message.reply_text(
+                            f"❌ No auction data found for {skipped_str}.",
+                            parse_mode=ParseMode.HTML
+                        )
+                        response_time = time.time() - start_time
+                        metrics.log_query(user_id, username, question, "text", response_time, False, "no_auction_data", "both")
+                        return
+                    
+                    # Format comparison table
+                    kei_table = format_auction_comparison_general(periods_data)
+                    await update.message.reply_text(kei_table, parse_mode=ParseMode.HTML)
+                    
+                    # Identify forecast periods (today is Dec 31, 2025, so 2026+ are forecasts)
+                    from datetime import datetime
+                    current_year = datetime.now().year
+                    forecast_periods = [p for p in periods if p['year'] > current_year]
+                    forecast_note = ""
+                    if forecast_periods:
+                        historical_periods = [p for p in periods if p['year'] <= current_year]
+                        # Get unique years/periods from each type
+                        if periods[0]['type'] == 'month':
+                            hist_labels = [f"{month_names[p['month']]} {p['year']}" for p in historical_periods]
+                            forecast_labels = [f"{month_names[p['month']]} {p['year']}" for p in forecast_periods]
+                        elif periods[0]['type'] == 'quarter':
+                            hist_labels = [f"Q{p['quarter']} {p['year']}" for p in historical_periods]
+                            forecast_labels = [f"Q{p['quarter']} {p['year']}" for p in forecast_periods]
+                        else:
+                            hist_labels = [str(p['year']) for p in historical_periods]
+                            forecast_labels = [str(p['year']) for p in forecast_periods]
+                        
+                        forecast_note = f"\n\nCRITICAL DATA DISTINCTION:\n- Period(s) {', '.join(hist_labels)} are HISTORICAL (actual data)\n- Period(s) {', '.join(forecast_labels)} are FORECAST/PROJECTIONS (not yet occurred)\n\nWhen analyzing forecast periods, use conditional language like 'is expected to', 'is projected to', 'forecast shows' and explicitly note that these are projections, not actuals. Clearly distinguish between historical performance and future expectations in your analysis."
+                    
+                    kin_prompt = (
+                        f"Original question: {question}\n\n"
+                        f"Kei's quantitative analysis:\n{kei_table}\n\n"
+                        f"Based on this auction comparison and the original question, provide your strategic interpretation and economic analysis.{forecast_note}"
+                    )
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                    if kin_answer and kin_answer.strip():
+                        kin_cleaned = clean_kin_output(kin_answer)
+                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                    
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, True, "auction_compare_both", "both")
+                    return
+                except Exception as e:
+                    logger.error(f"Error in auction comparison /both: {e}", exc_info=True)
+                    await update.message.reply_text(f"❌ Error processing auction comparison: {type(e).__name__}")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, f"auction_compare_error: {e}", "both")
+                    return
+        
         # Handle direct year-vs-year auction comparisons (e.g., "auction compare 2024 vs 2025")
         yr_vs_yr = re.search(r"compare\s+(?:auction\s+)?(19\d{2}|20\d{2})\s+vs\s+(19\d{2}|20\d{2})", q_lower)
         if yr_vs_yr:
