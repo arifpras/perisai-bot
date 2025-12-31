@@ -803,13 +803,12 @@ def format_auction_comparison_general(periods_data: List[Dict]) -> str:
         forecast_marker = " <i>(Forecast)</i>" if is_forecast else ""
         lines.append(f"<b>{label}{forecast_marker} Auction Demand:</b>")
         for m in pdata.get('monthly', []):
-            lines.append(f"• {month_names[m['month']]}: Rp {m['incoming']:.2f}T | {m['bid_to_cover']:.2f}x bid-to-cover")
-        lines.append(f"<b>Total:</b> Rp {pdata['total_incoming']:.2f}T | Avg BtC: {pdata['avg_bid_to_cover']:.2f}x")
+            lines.append(f"• {month_names[m['month']]}: Rp {m['incoming']:.2f}T incoming, {m['bid_to_cover']:.2f}x bid-to-cover")
+        lines.append(f"<b>Total:</b> Rp {pdata['total_incoming']:.2f}T incoming, Avg BtC: {pdata['avg_bid_to_cover']:.2f}x")
         lines.append("")
     
     # Changes vs baseline
     base = periods_data[0]
-    lines.append("─" * 50)
     for pdata in periods_data[1:]:
         inc_chg = ((pdata['total_incoming'] / base['total_incoming']) - 1) * 100 if base['total_incoming'] else 0.0
         btc_chg = ((pdata['avg_bid_to_cover'] / base['avg_bid_to_cover']) - 1) * 100 if base['avg_bid_to_cover'] else 0.0
