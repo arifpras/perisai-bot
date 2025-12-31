@@ -8,7 +8,7 @@ Indonesian government bond analysis via Telegram with dual AI personas: **Kei** 
 - **Auction data:** Incoming & awarded bids (2015 onwards, historical + forecast)
 - **Economist-style tables:** Right-aligned numbers, summary stats (Count/Min/Max/Avg/Std), two-decimal precision
 - **Multi-tenor queries:** Compare 5Y, 10Y, 15Y, 20Y, 30Y bonds side-by-side
-- **Professional plots:** Multi-tenor curves with HL-CU format headlines and macro insights
+- **Professional plots:** Multi-tenor curves with clean HL-CU analysis (Kei summary + Kin paragraphs, no duplicate headlines)
 - **Business day detection:** `/check` automatically identifies weekends and Indonesian holidays
 - **Personal AI personas:** Kei (quantitative partner, hands-on with data) and Kin (macro storyteller, strategic insights) with conversational, first-person responses
 - **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo for forecasts
@@ -114,21 +114,26 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 
 ## Meet the Personas
 
-**Kei** — _"I'm Kei, a quantitatively minded partner who enjoys turning data into insight."_
-- **Background:** CFA charterholder, MIT-style training
-- **Focus:** Careful modeling—valuation, risk, forecasting, backtesting
-- **Tools:** Time-series methods, no-arbitrage logic, asset-pricing frameworks
+**Kei** — _"I'm Kei. I work at the intersection of markets and data."_
+- **Background:** CFA charterholder, MIT-style quantitative training
+- **Focus:** Precision and evidence—what the numbers show, why they matter, where the risks lie
+- **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks
 - **Style:** Hands-on with numbers, tests assumptions, walks you through data clearly
 - **Try:** `/kei who are you?` for a personal introduction
 
 **Kin** — _"I'm Kin. I work at the intersection of macroeconomics, policy, and markets."_
 - **Background:** CFA charterholder, Harvard PhD
-- **Focus:** Context and trade-offs—what matters, why it matters, uncertainties
-- **Approach:** Connects dots across data, incentives, policy constraints
+- **Focus:** Context and trade-offs—what matters, why it matters, where the uncertainties lie
+- **Approach:** Connects dots across data, incentives, and policy constraints
 - **Style:** Translates complex signals into concise, usable stories for decision-makers
+- **Bonus:** Creates authentic Indonesian pantun (4-line ABAB rhyme) on request
 - **Try:** `/kin who are you?` for a personal introduction
 
-Both personas respond in **HL-CU format** (Headline-Led Corporate Update) for data queries: single headline + 3 concise paragraphs. For identity questions, they drop the formality and answer personally in first-person.
+**Response styles:**
+- **HL-CU format** (Headline-Led Corporate Update): Single headline + 3 concise paragraphs for data analysis
+- **Identity questions** ("who are you?"): Drop formality, answer personally in first-person with credentials
+- **Creative requests** ("create a pantun"): Kin follows strict ABAB rhyme scheme with verification
+- **Plot analysis** (/both): Kei provides headline + summary, Kin provides clean analysis (no duplicate headlines)
 
 ## Bond Data & Queries
 
