@@ -5148,15 +5148,25 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:  # Up to a year without quarters: split by month
                     periods = []
                     current = start_date
+                    # Collect all months for later
+                    all_periods = []
                     while current <= end_date:
                         month_end = min(current + _relativedelta(months=1) - timedelta(days=1), end_date)
                         month_name = current.strftime('%b %Y')
-                        periods.append({
+                        all_periods.append({
                             'label': month_name,
                             'start_date': current,
                             'end_date': month_end
                         })
                         current = month_end + timedelta(days=1)
+                    
+                    # For readability: limit to start and end periods (3-column format)
+                    # This prevents wide tables with many columns
+                    if len(all_periods) > 2:
+                        # Show first and last period only
+                        periods = [all_periods[0], all_periods[-1]]
+                    else:
+                        periods = all_periods
                 
                 # Now use format_bond_compare_periods with the split periods
                 table_text = format_bond_compare_periods(
