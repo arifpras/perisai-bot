@@ -573,8 +573,12 @@ def parse_auction_table_query(q: str) -> Optional[Dict]:
     Returns {'metrics': [..], 'periods': [period_dict,...]} or None.
     Supported connectors: 'from X to Y', 'in X and Y', single 'in X'.
     Period types: month, quarter, year.
+    For ranges (from X to Y), expands to include all intermediate periods.
     """
     import re
+    from dateutil.relativedelta import relativedelta
+    from datetime import date
+    
     q = q.lower()
     # Allow queries with or without 'tab' keyword
     # But require either 'tab' keyword OR 'from' connector for range queries
@@ -623,6 +627,36 @@ def parse_auction_table_query(q: str) -> Optional[Dict]:
             return {'type': 'year', 'year': int(m.group(1))}
         return None
 
+    def expand_quarter_range(start: Dict, end: Dict) -> List[Dict]:
+        """Expand a quarter range to include all quarters between start and end."""
+        periods = []
+        year = start['year']
+        quarter = start['quarter']
+        while (year < end['year']) or (year == end['year'] and quarter <= end['quarter']):
+            periods.append({'type': 'quarter', 'quarter': quarter, 'year': year})
+            quarter += 1
+            if quarter > 4:
+                quarter = 1
+                year += 1
+        return periods
+
+    def expand_month_range(start: Dict, end: Dict) -> List[Dict]:
+        """Expand a month range to include all months between start and end."""
+        periods = []
+        current = date(start['year'], start['month'], 1)
+        end_date = date(end['year'], end['month'], 1)
+        while current <= end_date:
+            periods.append({'type': 'month', 'month': current.month, 'year': current.year})
+            current += relativedelta(months=1)
+        return periods
+
+    def expand_year_range(start: Dict, end: Dict) -> List[Dict]:
+        """Expand a year range to include all years between start and end."""
+        periods = []
+        for year in range(start['year'], end['year'] + 1):
+            periods.append({'type': 'year', 'year': year})
+        return periods
+
     periods: List[Dict] = []
     # "from X to Y" pattern
     from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q)
@@ -630,7 +664,16 @@ def parse_auction_table_query(q: str) -> Optional[Dict]:
         p1 = parse_one_period(from_match.group(1))
         p2 = parse_one_period(from_match.group(2))
         if p1 and p2:
-            periods = [p1, p2]
+            # Expand range based on period type
+            if p1['type'] == 'quarter' and p2['type'] == 'quarter':
+                periods = expand_quarter_range(p1, p2)
+            elif p1['type'] == 'month' and p2['type'] == 'month':
+                periods = expand_month_range(p1, p2)
+            elif p1['type'] == 'year' and p2['type'] == 'year':
+                periods = expand_year_range(p1, p2)
+            else:
+                # Mixed types - just use endpoints
+                periods = [p1, p2]
             return {'metrics': metrics, 'periods': periods}
     # "X to Y" pattern (without explicit 'from')
     to_match = re.search(r'(?:(q[1-4]\s+\d{4})|(\d{4})|((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}))\s+to\s+(?:(q[1-4]\s+\d{4})|(\d{4})|((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}))', q)
@@ -640,7 +683,16 @@ def parse_auction_table_query(q: str) -> Optional[Dict]:
         p1 = parse_one_period(start_spec)
         p2 = parse_one_period(end_spec)
         if p1 and p2:
-            periods = [p1, p2]
+            # Expand range based on period type
+            if p1['type'] == 'quarter' and p2['type'] == 'quarter':
+                periods = expand_quarter_range(p1, p2)
+            elif p1['type'] == 'month' and p2['type'] == 'month':
+                periods = expand_month_range(p1, p2)
+            elif p1['type'] == 'year' and p2['type'] == 'year':
+                periods = expand_year_range(p1, p2)
+            else:
+                # Mixed types - just use endpoints
+                periods = [p1, p2]
             return {'metrics': metrics, 'periods': periods}
     # in X and Y
     m_and = re.search(r'in\s+(.+?)\s+and\s+(.+)$', q)
@@ -648,7 +700,16 @@ def parse_auction_table_query(q: str) -> Optional[Dict]:
         p1 = parse_one_period(m_and.group(1))
         p2 = parse_one_period(m_and.group(2))
         if p1 and p2:
-            periods = [p1, p2]
+            # For "in X and Y" syntax, expand range if both same type
+            if p1['type'] == 'quarter' and p2['type'] == 'quarter':
+                periods = expand_quarter_range(p1, p2)
+            elif p1['type'] == 'month' and p2['type'] == 'month':
+                periods = expand_month_range(p1, p2)
+            elif p1['type'] == 'year' and p2['type'] == 'year':
+                periods = expand_year_range(p1, p2)
+            else:
+                # Mixed types or incompatible - just use both
+                periods = [p1, p2]
             return {'metrics': metrics, 'periods': periods}
     # single in X
     m_in = re.search(r'in\s+(.+)$', q)
