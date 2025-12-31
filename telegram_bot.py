@@ -2505,14 +2505,14 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
         for tenor in tenors:
             subset = sub[sub['tenor'] == tenor][metric].dropna()
             if subset.empty:
-                row_str = f"{label:>{period_width}} |{norm_tenor(tenor):>{tenor_width}} |{'0':>{cnt_width}} |{'N/A':>{min_width}} |{'N/A':>{max_width}} |{'N/A':>{avg_width}} |{'N/A':>{std_width}} "
+                row_str = f"{label:>{period_width}}|{norm_tenor(tenor):>{tenor_width}}|{'0':>{cnt_width}}|{'N/A':>{min_width}}|{'N/A':>{max_width}}|{'N/A':>{avg_width}}|{'N/A':>{std_width}}"
             else:
                 cnt = len(subset)
                 min_v = subset.min()
                 max_v = subset.max()
                 avg_v = subset.mean()
                 std_v = subset.std() if cnt > 1 else 0
-                row_str = f"{label:>{period_width}} |{norm_tenor(tenor):>{tenor_width}} |{cnt:>{cnt_width}} |{min_v:>{min_width}.1f}|{max_v:>{max_width}.1f}|{avg_v:>{avg_width}.1f}|{std_v:>{std_width}.1f} "
+                row_str = f"{label:>{period_width}}|{norm_tenor(tenor):>{tenor_width}}|{cnt:>{cnt_width}}|{min_v:>{min_width}.1f}|{max_v:>{max_width}.1f}|{avg_v:>{avg_width}.1f}|{std_v:>{std_width}.1f}"
             rows_out.append(row_str)
 
     rows_text = "\n".join([f"│{r}│" for r in rows_out])
