@@ -2665,7 +2665,7 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
     lines.append(divider)
     
     # Data rows
-    for tenor in all_tenors:
+    for tenor_idx, tenor in enumerate(all_tenors):
         for stat in stats:
             metric_label = f"{tenor} {stat}"
             row = f"│ {metric_label:<{metric_col_width}} "
@@ -2674,6 +2674,14 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
                 row += f"│ {value:>{period_col_widths[label]}} "
             row += "│"
             lines.append(row)
+        
+        # Add separator line between tenor groups (not after the last one)
+        if tenor_idx < len(all_tenors) - 1:
+            tenor_divider = "├" + "─" * (metric_col_width + 2)
+            for label in period_labels:
+                tenor_divider += "┼" + "─" * (period_col_widths[label] + 2)
+            tenor_divider += "┤"
+            lines.append(tenor_divider)
     
     # Bottom border
     bottom = "└" + "─" * (metric_col_width + 2)
