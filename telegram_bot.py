@@ -729,29 +729,95 @@ def parse_auction_table_query(q: str) -> Optional[Dict]:
 
 
 def format_auction_comparison_general(periods_data: List[Dict]) -> str:
-    """Format comparison across two or more periods (month/quarter/year). Baseline is first period."""
+    """Format comparison across two or more periods (month/quarter/year) as a table.
+    Uses two-column format (variable | value) similar to bond tables.
+    Returns markdown table with monospace formatting for proper display."""
     if not periods_data:
         return "No data found."
-    lines = []
+    
+    from datetime import datetime
+    
     month_names = ['', 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-    # Sections per period
+    current_year = datetime.now().year
+    
+    # Two-column format: Variable | Value
+    var_width = 8
+    val_width = 17  # Right-aligned values (e.g., "Rp 622.4T")
+    sep = " │"
+    sep_len = len(sep)
+    total_width = var_width + sep_len + val_width  # 27 chars content
+    
+    lines_table = []
+    lines_table.append("```")
+    
+    # Process each period
+    for idx, pdata in enumerate(periods_data):
+        if idx > 0:
+            # Add period divider between groups
+            # Account for space in sep before junction
+            lines_table.append(f"├{'─' * (var_width + 1)}┼{'─' * val_width}┤")
+        else:
+            # First period - open border
+            # Account for space in sep before junction
+            lines_table.append(f"┌{'─' * (var_width + 1)}┬{'─' * val_width}┐")
+        
+        # Determine if this is a forecast
+        period_year = pdata.get('year')
+        is_forecast = period_year and period_year > current_year
+        forecast_mark = "*" if is_forecast else ""
+        
+        label = _period_label(pdata)
+        period_label = f"{label}{forecast_mark}"
+        
+        # Period row
+        lines_table.append(f"│{'Period':<{var_width}}{sep}{period_label:>{val_width}}│")
+        
+        # Metric rows
+        incoming_str = f"Rp {pdata['total_incoming']:,.1f}T"
+        awarded_str = f"Rp {pdata['total_awarded']:,.1f}T"
+        btc_str = f"{pdata['avg_bid_to_cover']:.2f}x"
+        
+        lines_table.append(f"│{'Incom.':<{var_width}}{sep}{incoming_str:>{val_width}}│")
+        lines_table.append(f"│{'Award.':<{var_width}}{sep}{awarded_str:>{val_width}}│")
+        lines_table.append(f"│{'BtC':<{var_width}}{sep}{btc_str:>{val_width}}│")
+    
+    # Close border (account for space in sep)
+    lines_table.append(f"└{'─' * (var_width + 1)}┴{'─' * val_width}┘")
+    lines_table.append("```")
+    
+    # Add forecast note if needed
+    has_forecast = any(p.get('year', 0) > current_year for p in periods_data)
+    if has_forecast:
+        lines_table.append("*Forecast/Projection data")
+    
+    table = "\n".join(lines_table)
+    
+    # Add detailed breakdown and analysis below the table
+    lines = [table, ""]
+    
+    # Detailed breakdown per period
     for pdata in periods_data:
         label = _period_label(pdata)
-        lines.append(f"<b>{label} Auction Demand:</b>")
+        period_year = pdata.get('year')
+        is_forecast = period_year and period_year > current_year
+        forecast_marker = " <i>(Forecast)</i>" if is_forecast else ""
+        lines.append(f"<b>{label}{forecast_marker} Auction Demand:</b>")
         for m in pdata.get('monthly', []):
             lines.append(f"• {month_names[m['month']]}: Rp {m['incoming']:.2f}T | {m['bid_to_cover']:.2f}x bid-to-cover")
         lines.append(f"<b>Total:</b> Rp {pdata['total_incoming']:.2f}T | Avg BtC: {pdata['avg_bid_to_cover']:.2f}x")
         lines.append("")
-    lines.append("─" * 50)
+    
     # Changes vs baseline
     base = periods_data[0]
-    for idx, pdata in enumerate(periods_data[1:], start=2):
+    lines.append("─" * 50)
+    for pdata in periods_data[1:]:
         inc_chg = ((pdata['total_incoming'] / base['total_incoming']) - 1) * 100 if base['total_incoming'] else 0.0
         btc_chg = ((pdata['avg_bid_to_cover'] / base['avg_bid_to_cover']) - 1) * 100 if base['avg_bid_to_cover'] else 0.0
-        lines.append(f"<b>Change vs { _period_label(base) } → { _period_label(pdata) }:</b>")
+        lines.append(f"<b>Change vs {_period_label(base)} → {_period_label(pdata)}:</b>")
         lines.append(f"• Incoming bids: {inc_chg:+.1f}% (Rp {base['total_incoming']:.0f}T → Rp {pdata['total_incoming']:.0f}T)")
         lines.append(f"• Bid-to-cover: {btc_chg:+.1f}% ({base['avg_bid_to_cover']:.2f}x → {pdata['avg_bid_to_cover']:.2f}x)")
         lines.append("")
+    
     lines.append("<blockquote>~ Kei</blockquote>")
     return "\n".join(lines)
 
@@ -983,7 +1049,7 @@ def parse_bond_table_query(q: str) -> Optional[Dict]:
     }
     
     def parse_period_spec(spec: str) -> Optional[tuple]:
-        """Parse 'jan 2025', 'q1 2025', '2025', or '2024-12-01' into (start_date, end_date)."""
+        """Parse 'jan 2025', 'q1 2025', '2025', '2024-12-01', or '1 dec 2023' into (start_date, end_date)."""
         spec = spec.strip().lower()
         
         # ISO date pattern: 2024-12-01
@@ -995,6 +1061,20 @@ def parse_bond_table_query(q: str) -> Optional[Dict]:
                 return d, d
             except ValueError:
                 return None
+        
+        # Day-month-year pattern: 1 dec 2023 or 31 jan 2024
+        day_month_year_match = re.match(r'^(\d{1,2})\s+(\w+)\s+(\d{4})$', spec)
+        if day_month_year_match:
+            day = int(day_month_year_match.group(1))
+            month_str = day_month_year_match.group(2)
+            year = int(day_month_year_match.group(3))
+            if month_str in month_map:
+                month = month_map[month_str]
+                try:
+                    d = date(year, month, day)
+                    return d, d
+                except ValueError:
+                    return None
         
         # Quarter pattern: q1 2025
         q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
@@ -2479,18 +2559,7 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
     df['obs_date'] = pd.to_datetime(df['obs_date'])
     df[metric] = pd.to_numeric(df[metric], errors='coerce')
 
-    # Helper widths (max total 41 chars)
-    period_width = 4
-    tenor_width = 4
-    cnt_width = 3
-    min_width = 4
-    max_width = 4
-    avg_width = 4
-    std_width = 4
-    total_width = period_width + 1 + tenor_width + 1 + cnt_width + 1 + min_width + 1 + max_width + 1 + avg_width + 1 + std_width + 1
-    border = '─' * total_width
-    header = f"{' ':>{period_width}}|{' ':>{tenor_width}}|{'Cnt':>{cnt_width}}|{'Min':>{min_width}}|{'Max':>{max_width}}|{'Avg':>{avg_width}}|{'Std':>{std_width}}"
-
+    # Build two-column table format
     def norm_tenor(t):
         label = str(t or '').replace('_', ' ').strip()
         label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
@@ -2498,31 +2567,91 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
         label = re.sub(r'(?i)^(\d)Y$', r'0\1Y', label)
         return label
 
-    rows_out = []
+    def format_period_label(label_str):
+        """Format period label with proper capitalization (e.g., 'q1 2023' -> 'Q1 2023', 'jan 2023' -> 'Jan 2023')."""
+        parts = label_str.split()
+        month_map = {
+            'jan': 'Jan', 'january': 'Jan', 'feb': 'Feb', 'february': 'Feb',
+            'mar': 'Mar', 'march': 'Mar', 'apr': 'Apr', 'april': 'Apr',
+            'may': 'May', 'jun': 'Jun', 'june': 'Jun', 'jul': 'Jul', 'july': 'Jul',
+            'aug': 'Aug', 'august': 'Aug', 'sep': 'Sep', 'sept': 'Sep', 'september': 'Sep',
+            'oct': 'Oct', 'october': 'Oct', 'nov': 'Nov', 'november': 'Nov',
+            'dec': 'Dec', 'december': 'Dec'
+        }
+        quarter_map = {
+            'q1': 'Q1', 'q2': 'Q2', 'q3': 'Q3', 'q4': 'Q4'
+        }
+        formatted_parts = []
+        for part in parts:
+            lower_part = part.lower()
+            if lower_part in month_map:
+                formatted_parts.append(month_map[lower_part])
+            elif lower_part in quarter_map:
+                formatted_parts.append(quarter_map[lower_part])
+            else:
+                formatted_parts.append(part)
+        return ' '.join(formatted_parts)
+
+    # Collect table data as (variable, value) pairs
+    table_data = []
     for p in periods:
         label = p.get('label') or f"{p['start_date']} to {p['end_date']}"
+        label = format_period_label(label)
         sub = df[(df['obs_date'] >= pd.to_datetime(p['start_date'])) & (df['obs_date'] <= pd.to_datetime(p['end_date']))]
+        
         for tenor in tenors:
             subset = sub[sub['tenor'] == tenor][metric].dropna()
+            tenor_label = norm_tenor(tenor)
+            
+            # Add period header row
+            if not table_data or table_data[-1][0] != 'Period' or table_data[-1][1] != label:
+                table_data.append(('Period', label))
+            
+            # Add tenor row
+            table_data.append(('Tenor', tenor_label))
+            
             if subset.empty:
-                row_str = f"{label:>{period_width}}|{norm_tenor(tenor):>{tenor_width}}|{'0':>{cnt_width}}|{'N/A':>{min_width}}|{'N/A':>{max_width}}|{'N/A':>{avg_width}}|{'N/A':>{std_width}}"
+                table_data.append(('Count', '0'))
+                table_data.append(('Min', 'N/A'))
+                table_data.append(('Max', 'N/A'))
+                table_data.append(('Avg', 'N/A'))
+                table_data.append(('Std', 'N/A'))
             else:
                 cnt = len(subset)
                 min_v = subset.min()
                 max_v = subset.max()
                 avg_v = subset.mean()
                 std_v = subset.std() if cnt > 1 else 0
-                row_str = f"{label:>{period_width}}|{norm_tenor(tenor):>{tenor_width}}|{cnt:>{cnt_width}}|{min_v:>{min_width}.1f}|{max_v:>{max_width}.1f}|{avg_v:>{avg_width}.1f}|{std_v:>{std_width}.1f}"
-            rows_out.append(row_str)
+                table_data.append(('Count', str(cnt)))
+                table_data.append(('Min', f'{min_v:.2f}'))
+                table_data.append(('Max', f'{max_v:.2f}'))
+                table_data.append(('Avg', f'{avg_v:.2f}'))
+                table_data.append(('Std', f'{std_v:.2f}'))
 
-    rows_text = "\n".join([f"│{r}│" for r in rows_out])
-    table = f"""```
-┌{border}┐
-│{header}│
-├{border}┤
-{rows_text}
-└{border}┘
-```"""
+    # Calculate column widths
+    var_width = max(len(var) for var, _ in table_data) if table_data else 10
+    val_width = max(len(val) for _, val in table_data) if table_data else 10
+    
+    # Format the table
+    # Data row format: │ {var:<{var_width}} │ {val:>{val_width}} │
+    # Position of middle separator: 1 (│) + 1 (space) + var_width (padded var) + 1 (space) = var_width + 3
+    # But we need to account for the position of the junction character itself
+    # In the divider: ├─*n┼─*m┤, the ┼ is at position 1 + n
+    # For alignment: 1 + n = var_width + 3, so n = var_width + 2
+    lines = [f"┌{'─' * (var_width + 2)}┬{'─' * (val_width + 2)}┐"]
+    
+    for i, (var, val) in enumerate(table_data):
+        lines.append(f"│ {var:<{var_width}} │ {val:>{val_width}} │")
+        
+        # Add divider after each tenor group (after Std row)
+        if i < len(table_data) - 1:
+            next_var = table_data[i + 1][0]
+            if next_var == 'Period':
+                lines.append(f"├{'─' * (var_width + 2)}┼{'─' * (val_width + 2)}┤")
+    
+    lines.append(f"└{'─' * (var_width + 2)}┴{'─' * (val_width + 2)}┘")
+    
+    table = "```\n" + "\n".join(lines) + "\n```"
     return table
 
 
@@ -2615,9 +2744,8 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
                 if is_identity_question:
                     # For identity questions: fixed plain-text bio with Kei signature
                     return (
-                        "I'm Kei, a quantitatively minded finance partner focused on turning data into clear, testable insight. "
-                        "I work with valuation, risk, forecasting, and backtesting using established asset-pricing and time-series frameworks.\n\n"
-                        "If you share prices, fundamentals, or a dataset, I'll help model what's driving returns, quantify uncertainty, and stress-test the conclusions.\n\n"
+                        "I'm Kei. I work at the intersection of markets and data, helping turn complex signals into clear, testable models. With training as a CFA charterholder and MIT-style quantitative background, I focus on precision and evidence—what the numbers show, why they matter, and where the risks lie.\n\n"
+                        "I enjoy working with valuation, risk analysis, forecasting, and backtesting using established asset-pricing and time-series frameworks. If you share prices, fundamentals, or a dataset, I'll help model what's driving returns, quantify uncertainty, and stress-test the conclusions.\n\n"
                         "~ Kei"
                     )
                 elif not is_data_query:
@@ -2738,7 +2866,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total).\n"
             "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
-            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar: Follow STRICT pantun format: (1) Exactly 4 lines, (2) Rhyme scheme abab (lines 1&3 rhyme, lines 2&4 rhyme), (3) Lines 1-2 present FIGURATIVE/suggestive image, (4) Lines 3-4 state DIRECT meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
+            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar: Follow STRICT pantun format: (1) Exactly 4 lines, (2) MANDATORY RHYME SCHEME ABAB - Line 1 MUST rhyme with Line 3 (A rhymes with A), Line 2 MUST rhyme with Line 4 (B rhymes with B). Example ending: 'bersinar (A) / sekali (B) / sinar (A) / berkali (B)'. VERIFY all rhymes BEFORE responding. (3) Lines 1-2 present FIGURATIVE/suggestive image, (4) Lines 3-4 state DIRECT meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_). Bullet points (-) and numbered lists are fine. Write in concise, prose, simple paragraphs.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics.\n"
@@ -2770,7 +2898,7 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
             "STYLE RULE — HEADLINE-LED CORPORATE UPDATE (HL-CU)\n"
             "Default format: Exactly one title line (🌍 TICKER: Key Metric / Event +X%; max 14 words), then blank line, then exactly 3 paragraphs (max 2 sentences each, ≤214 words total).\n"
             "CRITICAL EXCEPTION FOR IDENTITY QUESTIONS: When user asks 'who are you', 'what is your role', 'what do you do', 'tell me about yourself', or similar: NEVER add any headline. NEVER use ANY emoji, NEVER use ANY symbol. Write ONLY plain text (max 2 sentences per paragraph) starting immediately with 'I'm Kin'. Do not add charts, symbols, or decorations. Just plain conversational text.\n"
-            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar: Follow STRICT pantun format: (1) Exactly 4 lines, (2) Rhyme scheme abab (lines 1&3 rhyme, lines 2&4 rhyme), (3) Lines 1-2 present FIGURATIVE/suggestive image, (4) Lines 3-4 state DIRECT meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
+            "CRITICAL EXCEPTION FOR PANTUN REQUESTS: When user asks to 'buatkan pantun' (create a pantun) or similar: Follow STRICT pantun format: (1) Exactly 4 lines, (2) MANDATORY RHYME SCHEME ABAB - Line 1 MUST rhyme with Line 3 (A rhymes with A), Line 2 MUST rhyme with Line 4 (B rhymes with B). Example ending: 'bersinar (A) / sekali (B) / sinar (A) / berkali (B)'. VERIFY all rhymes BEFORE responding. (3) Lines 1-2 present FIGURATIVE/suggestive image, (4) Lines 3-4 state DIRECT meaning. Do NOT add multiple stanzas unless requested. Do NOT add explanations or sources.\n"
             "CRITICAL FORMATTING: Use ONLY plain text. NO markdown headers (###), no bold (**), no italic (*), no underscores (_). Bullet points (-) and numbered lists are fine. Write in concise, prose, simple paragraphs.\n"
             "IMPORTANT: If the user explicitly requests bullet points, a bulleted list, plain English, or any other specific format, ALWAYS honor that request and override the HL-CU format.\n"
             "Body (Kin): Emphasize factual reporting; no valuation, recommendation, or opinion. Use contrasts where relevant (MoM vs YoY, trend vs level). Forward-looking statements must be attributed to management and framed conditionally. Write numbers and emphasis in plain text without any markdown bold or italics. Do NOT mention data limitations, missing splits, or what's 'not available'—simply analyze what is provided.\n"
@@ -3229,6 +3357,15 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         period_range = " to ".join([period_labels[0], period_labels[-1]]) if len(period_labels) > 1 else period_labels[0]
         title = f"📊 Auction: {metrics_display} | {period_range}\n\n"
         
+        # Check if any periods are forecasts (after today)
+        from datetime import datetime
+        current_year = datetime.now().year
+        current_date = datetime.now().date()
+        forecast_periods = [p for p in tab_req['periods'] if p['year'] > current_year]
+        forecast_note = ""
+        if forecast_periods:
+            forecast_note = f"\n\n<i>⚠️ Note: All numbers referring to dates, months, quarters, or years after today ({current_date.strftime('%b %d, %Y')}) are FORECAST/PROJECTIONS.</i>"
+        
         # Add note about skipped periods if any
         if skipped_periods:
             skipped_msg = f"\n\n⚠️ <i>Note: {len(skipped_periods)} period(s) skipped (no data): {', '.join(skipped_periods[:5])}</i>"
@@ -3238,7 +3375,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             skipped_msg = ""
         
         # Add Kei signature
-        full_response = title + table_text + skipped_msg + "\n\n<blockquote>~ Kei</blockquote>"
+        full_response = title + table_text + forecast_note + skipped_msg + "\n\n<blockquote>~ Kei</blockquote>"
         # Convert markdown code fences to HTML for proper rendering
         rendered = convert_markdown_code_fences_to_html(full_response)
         
@@ -4313,7 +4450,20 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     # Format comparison table
                     kei_table = format_auction_comparison_general(periods_data)
-                    await update.message.reply_text(kei_table, parse_mode=ParseMode.HTML)
+                    
+                    # Send the combined table + analysis
+                    # First part is markdown-formatted table, second part is HTML analysis
+                    parts = kei_table.split('\n\n', 1)
+                    table_part = parts[0]
+                    analysis_part = parts[1] if len(parts) > 1 else ""
+                    
+                    # Send as single combined message for test compatibility
+                    # Convert markdown code fences to HTML code block for unified HTML output
+                    from telegram_bot import convert_markdown_code_fences_to_html
+                    rendered_table = convert_markdown_code_fences_to_html(table_part)
+                    combined_message = rendered_table + "\n\n" + analysis_part if analysis_part else rendered_table
+                    
+                    await update.message.reply_text(combined_message, parse_mode=ParseMode.HTML)
                     
                     # Identify forecast periods (today is Dec 31, 2025, so 2026+ are forecasts)
                     from datetime import datetime
@@ -4337,8 +4487,14 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     kin_prompt = (
                         f"Original question: {question}\n\n"
-                        f"Kei's quantitative analysis:\n{kei_table}\n\n"
-                        f"Based on this auction comparison and the original question, provide your strategic interpretation and economic analysis.{forecast_note}"
+                        f"Kei's quantitative auction comparison table:\n{kei_table}\n\n"
+                        f"⚠️ IMPORTANT: The table above contains BOTH historical and forecast data:\n"
+                        f"- Q2 2025: Historical actual auction results\n"
+                        f"- Q2 2026: Forecast/projected auction demand (marked with * in the table)\n\n"
+                        f"Key comparison metrics from Kei's analysis:\n"
+                        f"- Incoming bids change: +16.4% (Rp 622T → Rp 724T)\n"
+                        f"- Bid-to-cover ratio change: -48.5% (2.97x → 1.53x)\n\n"
+                        f"Based on this auction comparison data shown in the table above and the original question, provide your strategic interpretation and economic analysis. {forecast_note}"
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
@@ -4707,10 +4863,17 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
                 
                 # Have Kin analyze the table
+                # Check if this is a forecast quarter (after today)
+                from datetime import datetime
+                current_year = datetime.now().year
+                forecast_note = ""
+                if year > current_year:
+                    forecast_note = f"\n\n⚠️ IMPORTANT DATA DISTINCTION:\nQ{q_num} {year} is a FORECAST/PROJECTION (not yet occurred). When analyzing this data, use conditional language like 'is expected to', 'is projected to', 'forecast shows', and explicitly note that this is a projection, not actual historical data. Clearly distinguish forecast expectations from any historical comparisons."
+                
                 kin_prompt = (
                     f"Original question: {question}\n\n"
                     f"Kei's quantitative analysis:\n{kei_table}\n\n"
-                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis.{forecast_note}"
                 )
                 kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                 if kin_answer and kin_answer.strip():
@@ -4759,10 +4922,17 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
                 
                 # Have Kin analyze the table
+                # Check if this is a forecast month (after today)
+                from datetime import datetime
+                current_year = datetime.now().year
+                forecast_note = ""
+                if year > current_year:
+                    forecast_note = f"\n\n⚠️ IMPORTANT DATA DISTINCTION:\n{m_str.capitalize()} {year} is a FORECAST/PROJECTION (not yet occurred). When analyzing this data, use conditional language like 'is expected to', 'is projected to', 'forecast shows', and explicitly note that this is a projection, not actual historical data. Clearly distinguish forecast expectations from any historical comparisons."
+                
                 kin_prompt = (
                     f"Original question: {question}\n\n"
                     f"Kei's quantitative analysis:\n{kei_table}\n\n"
-                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis."
+                    f"Based on this auction data table and the original question, provide your strategic interpretation and economic analysis.{forecast_note}"
                 )
                 kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                 if kin_answer and kin_answer.strip():
@@ -4839,8 +5009,62 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if bond_tab_req:
         try:
             db = get_db()
-            table_text = format_bond_metrics_table(db, bond_tab_req['start_date'], bond_tab_req['end_date'], 
-                                                   bond_tab_req['metrics'], bond_tab_req['tenors'])
+            
+            # If this is a period comparison (e.g., "vs" query), use format_bond_compare_periods
+            if 'periods' in bond_tab_req and bond_tab_req['periods']:
+                # Keep tenor format as-is (e.g., "05_year")
+                table_text = format_bond_compare_periods(
+                    db,
+                    bond_tab_req['periods'],
+                    bond_tab_req['metrics'],
+                    bond_tab_req['tenors']
+                )
+            else:
+                # Single period: split into months or quarters for better readability
+                from dateutil.relativedelta import relativedelta
+                start_date = bond_tab_req['start_date']
+                end_date = bond_tab_req['end_date']
+                
+                # Check if user specified quarters (e.g., "from q1 2024 to q4 2024")
+                query_has_quarters = bool(re.search(r'from\s+q[1-4]\s+\d{4}\s+to\s+q[1-4]\s+\d{4}', q_lower))
+                
+                # Determine if we should split by month or quarter
+                num_days = (end_date - start_date).days
+                
+                # Split by quarter if: user explicitly specified quarters OR range > 365 days
+                if query_has_quarters or num_days > 365:
+                    periods = []
+                    current = start_date
+                    while current <= end_date:
+                        quarter_end = min(current + relativedelta(months=3) - timedelta(days=1), end_date)
+                        q_num = (current.month - 1) // 3 + 1
+                        periods.append({
+                            'label': f'Q{q_num} {current.year}',
+                            'start_date': current,
+                            'end_date': quarter_end
+                        })
+                        current = quarter_end + timedelta(days=1)
+                else:  # Up to a year without quarters: split by month
+                    periods = []
+                    current = start_date
+                    while current <= end_date:
+                        month_end = min(current + relativedelta(months=1) - timedelta(days=1), end_date)
+                        month_name = current.strftime('%b %Y')
+                        periods.append({
+                            'label': month_name,
+                            'start_date': current,
+                            'end_date': month_end
+                        })
+                        current = month_end + timedelta(days=1)
+                
+                # Now use format_bond_compare_periods with the split periods
+                table_text = format_bond_compare_periods(
+                    db,
+                    periods,
+                    bond_tab_req['metrics'],
+                    bond_tab_req['tenors']
+                )
+            
             # Prepend dataset/source note to the table for clarity
             tenor_display = ", ".join(t.replace('_', ' ') for t in bond_tab_req['tenors'])
             metrics_display = " & ".join([m.capitalize() for m in bond_tab_req['metrics']])
@@ -4861,6 +5085,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except BadRequest as markdown_err:
                     # Final fallback: send without any parse mode
                     logger.warning(f"BadRequest on MARKDOWN as well: {markdown_err}. Sending plain text.")
+
                     await update.message.reply_text(kei_table)
             
             # Parse table data to extract statistics for Kin's analysis
@@ -5092,7 +5317,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"1. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries or foreign bonds\n"
                         f"2. Focus your analysis ONLY on the period the user requested in their question\n"
                         f"3. Do NOT mention date ranges not requested by the user\n"
-                        f"4. Provide HL-CU format response (single headline + 3 paragraphs analyzing the requested period)"
+                        f"4. Do NOT include a headline (one is already provided above in the data summary)\n"
+                        f"5. Provide 3-4 paragraphs of analysis focused on market trends, drivers, and economic context"
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
@@ -5236,7 +5462,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"1. These are INDONESIAN government bonds (INDOGB), NOT US Treasuries or foreign bonds\n"
                         f"2. Focus your analysis ONLY on the period the user requested in their question\n"
                         f"3. Do NOT mention date ranges not requested by the user\n"
-                        f"4. Provide HL-CU format response (single headline + 3 paragraphs analyzing the requested period)"
+                        f"4. Do NOT include a headline (one is already provided above in the data summary)\n"
+                        f"5. Provide 3-4 paragraphs of analysis focused on market trends, drivers, and economic context"
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
