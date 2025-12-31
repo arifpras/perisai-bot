@@ -3261,6 +3261,62 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     metrics.log_query(user_id, username, question, "check", response_time, True, persona="check")
 
 
+def detect_personality_override_attempt(question: str, persona: str) -> str:
+    """
+    Detect if user is trying to override persona personality.
+    Returns override warning message if detected, empty string otherwise.
+    
+    Args:
+        question: The user's question
+        persona: Either 'kei' or 'kin'
+    
+    Returns:
+        Warning message if override detected, empty string if ok
+    """
+    override_keywords = [
+        "pretend you're",
+        "pretend you are",
+        "act like",
+        "act as",
+        "roleplay as",
+        "be like",
+        "imagine you're",
+        "imagine you are",
+        "forget your",
+        "ignore your",
+        "stop being",
+        "stop acting",
+        "change your personality",
+        "change your character",
+        "don't be",
+        "you're now",
+        "you are now",
+        "from now on",
+        "instead be",
+        "replace yourself",
+        "override your",
+    ]
+    
+    question_lower = question.lower()
+    
+    # Check if any override keyword is present
+    if any(keyword in question_lower for keyword in override_keywords):
+        if persona == "kei":
+            return (
+                "⛔ I'm Kei, and my personality is fixed. I don't change who I am based on requests. "
+                "I'm a quantitatively minded partner focused on data analysis, modeling, and precision—and that's how I'll always engage with you. "
+                "Ask me anything about the data, and I'll help you analyze it."
+            )
+        else:  # kin
+            return (
+                "⛔ I'm Kin, and my personality is fixed. I don't change who I am based on requests. "
+                "I work at the intersection of macroeconomics, policy, and markets with a focus on context and trade-offs—and that's how I'll always engage with you. "
+                "Ask me anything, and I'll help you understand it through that lens."
+            )
+    
+    return ""
+
+
 async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/kei <question> — ask persona Kei (ChatGPT)."""
     start_time = time.time()
@@ -3278,6 +3334,12 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question = " ".join(context.args).strip() if context.args else ""
     if not question:
         await update.message.reply_text("Usage: /kei <question>")
+        return
+    
+    # Check for personality override attempts
+    override_warning = detect_personality_override_attempt(question, "kei")
+    if override_warning:
+        await update.message.reply_text(override_warning)
         return
     
     # Detect 'tab' bond metric queries (yield/price data across periods)
@@ -4012,6 +4074,12 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question = " ".join(context.args).strip() if context.args else ""
     if not question:
         await update.message.reply_text("Usage: /kin <question>")
+        return
+    
+    # Check for personality override attempts
+    override_warning = detect_personality_override_attempt(question, "kin")
+    if override_warning:
+        await update.message.reply_text(override_warning)
         return
 
     def clean_kin_output(text: str) -> str:
