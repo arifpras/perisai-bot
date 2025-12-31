@@ -2676,17 +2676,28 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
                     'Std': f'{std_v:.2f}'
                 }
 
-    # Build 2x2 grid: periods as columns, tenors with stats as rows
+    # Build 3-column grid: Metric | Period1 | Period2 (max 41 chars per column)
     # Get all unique tenors in order
     all_tenors = [norm_tenor(t) for t in tenors]
     stats = ['Count', 'Avg', 'Std', 'Min', 'Max']
     
-    # Calculate column widths
-    metric_col_width = max(
-        max(len(f"{t} {s}") for t in all_tenors for s in stats),
-        len('Metric')
+    # Calculate column widths with max 41 character limit for balanced display
+    MAX_COL_WIDTH = 41
+    
+    # Metric column width: left-aligned, includes "Tenor Stat" labels
+    metric_col_width = min(
+        max(
+            max(len(f"{t} {s}") for t in all_tenors for s in stats),
+            len('Metric')
+        ),
+        MAX_COL_WIDTH
     )
-    period_col_widths = {label: max(len(label), 10) for label in period_labels}
+    
+    # Period columns: centered, for period labels and values
+    period_col_widths = {
+        label: min(max(len(label), 10), MAX_COL_WIDTH) 
+        for label in period_labels
+    }
     
     # Build header row
     lines = []
