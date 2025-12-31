@@ -4459,6 +4459,9 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/both <question> — chain both personas: Kei (quantitative) → Kin (interpretation)."""
+    # Import at function level to ensure availability throughout
+    from dateutil.relativedelta import relativedelta as _relativedelta
+    
     start_time = time.time()
     user_id = update.message.from_user.id
     username = update.message.from_user.username or f"user_{user_id}"
@@ -5105,7 +5108,6 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             else:
                 # Single period: split into months or quarters for better readability
-                from dateutil.relativedelta import relativedelta
                 start_date = bond_tab_req['start_date']
                 end_date = bond_tab_req['end_date']
                 
@@ -5120,7 +5122,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     periods = []
                     current = start_date
                     while current <= end_date:
-                        quarter_end = min(current + relativedelta(months=3) - timedelta(days=1), end_date)
+                        quarter_end = min(current + _relativedelta(months=3) - timedelta(days=1), end_date)
                         q_num = (current.month - 1) // 3 + 1
                         periods.append({
                             'label': f'Q{q_num} {current.year}',
@@ -5132,7 +5134,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     periods = []
                     current = start_date
                     while current <= end_date:
-                        month_end = min(current + relativedelta(months=1) - timedelta(days=1), end_date)
+                        month_end = min(current + _relativedelta(months=1) - timedelta(days=1), end_date)
                         month_name = current.strftime('%b %Y')
                         periods.append({
                             'label': month_name,
