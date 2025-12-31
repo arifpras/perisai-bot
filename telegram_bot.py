@@ -5136,15 +5136,24 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if query_has_quarters or num_days > 365:
                     periods = []
                     current = start_date
+                    # Collect all quarters for later
+                    all_periods = []
                     while current <= end_date:
                         quarter_end = min(current + _relativedelta(months=3) - timedelta(days=1), end_date)
                         q_num = (current.month - 1) // 3 + 1
-                        periods.append({
+                        all_periods.append({
                             'label': f'Q{q_num} {current.year}',
                             'start_date': current,
                             'end_date': quarter_end
                         })
                         current = quarter_end + timedelta(days=1)
+                    
+                    # For readability: limit to start and end periods (3-column format)
+                    if len(all_periods) > 2:
+                        # Show first and last quarter only
+                        periods = [all_periods[0], all_periods[-1]]
+                    else:
+                        periods = all_periods
                 else:  # Up to a year without quarters: split by month
                     periods = []
                     current = start_date
