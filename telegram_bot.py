@@ -2524,7 +2524,7 @@ async def try_compute_bond_summary(question: str) -> Optional[str]:
 
 def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], tenors: List[str]) -> str:
     """Compare bond metrics across multiple periods (e.g., 2024 vs 2025).
-    Outputs economist-style stats per period/tenor for a single metric.
+    Outputs economist-style 2x2 grid: periods as columns, tenors/stats as rows.
     """
     if not periods or not tenors or not metrics:
         return "❌ Invalid comparison request."
@@ -2557,7 +2557,6 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
     df['obs_date'] = pd.to_datetime(df['obs_date'])
     df[metric] = pd.to_numeric(df[metric], errors='coerce')
 
-    # Build two-column table format
     def norm_tenor(t):
         label = str(t or '').replace('_', ' ').strip()
         label = re.sub(r'(?i)(\b\d+)\s*y(?:ear)?\b', r'\1Y', label)
@@ -2590,64 +2589,98 @@ def format_bond_compare_periods(db, periods: List[Dict], metrics: List[str], ten
                 formatted_parts.append(part)
         return ' '.join(formatted_parts)
 
-    # Collect table data as (variable, value) pairs
-    table_data = []
+    # Build period labels and data matrix
+    period_labels = []
+    period_data = {}
+    
     for p in periods:
         label = p.get('label') or f"{p['start_date']} to {p['end_date']}"
         label = format_period_label(label)
+        period_labels.append(label)
+        period_data[label] = {}
+        
         sub = df[(df['obs_date'] >= pd.to_datetime(p['start_date'])) & (df['obs_date'] <= pd.to_datetime(p['end_date']))]
         
         for tenor in tenors:
             subset = sub[sub['tenor'] == tenor][metric].dropna()
             tenor_label = norm_tenor(tenor)
             
-            # Add period header row
-            if not table_data or table_data[-1][0] != 'Period' or table_data[-1][1] != label:
-                table_data.append(('Period', label))
-            
-            # Add tenor row
-            table_data.append(('Tenor', tenor_label))
+            if tenor_label not in period_data[label]:
+                period_data[label][tenor_label] = {}
             
             if subset.empty:
-                table_data.append(('Count', '0'))
-                table_data.append(('Min', 'N/A'))
-                table_data.append(('Max', 'N/A'))
-                table_data.append(('Avg', 'N/A'))
-                table_data.append(('Std', 'N/A'))
+                period_data[label][tenor_label] = {
+                    'Count': '0',
+                    'Min': 'N/A',
+                    'Max': 'N/A',
+                    'Avg': 'N/A',
+                    'Std': 'N/A'
+                }
             else:
                 cnt = len(subset)
                 min_v = subset.min()
                 max_v = subset.max()
                 avg_v = subset.mean()
                 std_v = subset.std() if cnt > 1 else 0
-                table_data.append(('Count', str(cnt)))
-                table_data.append(('Min', f'{min_v:.2f}'))
-                table_data.append(('Max', f'{max_v:.2f}'))
-                table_data.append(('Avg', f'{avg_v:.2f}'))
-                table_data.append(('Std', f'{std_v:.2f}'))
+                period_data[label][tenor_label] = {
+                    'Count': str(cnt),
+                    'Min': f'{min_v:.2f}',
+                    'Max': f'{max_v:.2f}',
+                    'Avg': f'{avg_v:.2f}',
+                    'Std': f'{std_v:.2f}'
+                }
 
+    # Build 2x2 grid: periods as columns, tenors with stats as rows
+    # Get all unique tenors in order
+    all_tenors = [norm_tenor(t) for t in tenors]
+    stats = ['Count', 'Avg', 'Std', 'Min', 'Max']
+    
     # Calculate column widths
-    var_width = max(len(var) for var, _ in table_data) if table_data else 10
-    val_width = max(len(val) for _, val in table_data) if table_data else 10
+    metric_col_width = max(
+        max(len(f"{t} {s}") for t in all_tenors for s in stats),
+        len('Metric')
+    )
+    period_col_widths = {label: max(len(label), 10) for label in period_labels}
     
-    # Format the table
-    # Data row format: │ {var:<{var_width}} │ {val:>{val_width}} │
-    # Position of middle separator: 1 (│) + 1 (space) + var_width (padded var) + 1 (space) = var_width + 3
-    # But we need to account for the position of the junction character itself
-    # In the divider: ├─*n┼─*m┤, the ┼ is at position 1 + n
-    # For alignment: 1 + n = var_width + 3, so n = var_width + 2
-    lines = [f"┌{'─' * (var_width + 2)}┬{'─' * (val_width + 2)}┐"]
+    # Build header row
+    lines = []
+    header_sep = "┌" + "─" * (metric_col_width + 2)
+    for label in period_labels:
+        header_sep += "┬" + "─" * (period_col_widths[label] + 2)
+    header_sep += "┐"
+    lines.append(header_sep)
     
-    for i, (var, val) in enumerate(table_data):
-        lines.append(f"│ {var:<{var_width}} │ {val:>{val_width}} │")
-        
-        # Add divider after each tenor group (after Std row)
-        if i < len(table_data) - 1:
-            next_var = table_data[i + 1][0]
-            if next_var == 'Period':
-                lines.append(f"├{'─' * (var_width + 2)}┼{'─' * (val_width + 2)}┤")
+    # Metric header
+    header_row = f"│ {'Metric':<{metric_col_width}} "
+    for label in period_labels:
+        header_row += f"│ {label:>{period_col_widths[label]}} "
+    header_row += "│"
+    lines.append(header_row)
     
-    lines.append(f"└{'─' * (var_width + 2)}┴{'─' * (val_width + 2)}┘")
+    # Divider after header
+    divider = "├" + "─" * (metric_col_width + 2)
+    for label in period_labels:
+        divider += "┼" + "─" * (period_col_widths[label] + 2)
+    divider += "┤"
+    lines.append(divider)
+    
+    # Data rows
+    for tenor in all_tenors:
+        for stat in stats:
+            metric_label = f"{tenor} {stat}"
+            row = f"│ {metric_label:<{metric_col_width}} "
+            for label in period_labels:
+                value = period_data[label].get(tenor, {}).get(stat, 'N/A')
+                row += f"│ {value:>{period_col_widths[label]}} "
+            row += "│"
+            lines.append(row)
+    
+    # Bottom border
+    bottom = "└" + "─" * (metric_col_width + 2)
+    for label in period_labels:
+        bottom += "┴" + "─" * (period_col_widths[label] + 2)
+    bottom += "┘"
+    lines.append(bottom)
     
     table = "```\n" + "\n".join(lines) + "\n```"
     return table
