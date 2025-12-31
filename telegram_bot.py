@@ -2833,12 +2833,13 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         return html_quote_signature(convert_markdown_code_fences_to_html(fallback))
 
 
-async def ask_kin(question: str, dual_mode: bool = False) -> str:
+async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: bool = False) -> str:
     """Persona /kin — world-class economist & synthesizer.
     
     Args:
         question: The user question
         dual_mode: If True, use "Kei & Kin | Data → Insight" signature (for /both command)
+        skip_bond_summary: If True, do not auto-compute bond_summary context (used when data is already in prompt)
     """
     if not PERPLEXITY_API_KEY:
         return "⚠️ Persona /kin unavailable: PERPLEXITY_API_KEY not configured."
@@ -2846,7 +2847,11 @@ async def ask_kin(question: str, dual_mode: bool = False) -> str:
     import httpx
     from datetime import datetime
 
-    data_summary = await try_compute_bond_summary(question)
+    # Only compute bond_summary if not explicitly skipped (e.g., when already passed in prompt)
+    if skip_bond_summary:
+        data_summary = None
+    else:
+        data_summary = await try_compute_bond_summary(question)
     
     # Get current date for context
     today = datetime.now().date()
@@ -5257,9 +5262,10 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     kin_prompt = (
                         f"Original question: {question}\n\n"
                         f"Kei's quantitative forecast data:\n{kei_data}\n\n"
-                        f"Provide one concise HL-CU-style unified analysis that synthesizes this forecast data with strategic context."
+                        f"Provide one concise HL-CU-style unified analysis that synthesizes this forecast data with strategic context. "
+                        f"Do NOT repeat or restate the data; only provide strategic analysis and market implications."
                     )
-                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=True, skip_bond_summary=True)
                     if kin_answer and kin_answer.strip():
                         kin_cleaned = clean_kin_output(kin_answer)
                         combined_with_sig = html_quote_signature(kin_cleaned + "\n\n~ Kei x Kin")
@@ -5271,9 +5277,10 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     kin_prompt = (
                         f"Original question: {question}\n\n"
                         f"Kei's quantitative forecast:\n{data_summary}\n\n"
-                        f"Provide one concise HL-CU-style analysis for the next observations."
+                        f"Provide one concise HL-CU-style analysis for the next observations. "
+                        f"Do NOT repeat or restate the data; only provide strategic analysis."
                     )
-                    kin_answer = await ask_kin(kin_prompt, dual_mode=True)
+                    kin_answer = await ask_kin(kin_prompt, dual_mode=True, skip_bond_summary=True)
                     if kin_answer and kin_answer.strip():
                         kin_cleaned = clean_kin_output(kin_answer)
                         await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
