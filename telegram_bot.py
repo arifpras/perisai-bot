@@ -5200,27 +5200,25 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Original question: {question}\n\n"
                 f"CRITICAL CONTEXT: This data is from Indonesia Government Bonds (INDOGB), NOT US Treasuries.\n"
                 f"Asset Class: Indonesian Rupiah-denominated sovereign debt issued by the Ministry of Finance\n"
-                f"Market: Jakarta fixed income market, influenced by Bank Indonesia (BI) policy and local economic conditions\n"
-                f"Relevant factors: BI interest rates, inflation expectations, Rupiah strength, fiscal policy\n\n"
-                f"Kei's quantitative analysis summary:\n{table_summary}\n\n"
-                f"The detailed INDOGB yield/price comparison table has been rendered and sent separately.\n\n"
-                f"MANDATORY CALCULATION REQUIREMENTS:\n"
-                f"1. SHOW YOUR CALCULATIONS - do not cite any yield changes without showing the math\n"
-                f"   Format: '5Y: [2024 Avg] minus [2025 Avg] = [X basis points]'\n"
-                f"   Example: '5Y: 6.66% minus 6.19% = 47 basis points decline'\n"
-                f"2. ONLY USE NUMBERS FROM THE TABLE - any statistic must come from Count, Avg, Std, Min, Max columns\n"
-                f"3. DO NOT ROUND OR ESTIMATE - use exact values from the table (e.g., 6.66, not ~6.7 or approx 6.5)\n"
-                f"4. IF A NUMBER IS NOT IN THE TABLE, DO NOT USE IT - cite only Count, Avg, Std, Min, Max\n"
-                f"5. CROSS-CHECK YOUR MATH - which tenor declined more (5Y or 10Y)? Check: 47bps vs 17bps\n"
-                f"6. REFERENCE TABLE CELLS - 'Per the table, 5Y Count shows 261 in 2024, 247 in 2025'\n\n"
+                f"Market: Jakarta fixed income market, influenced by Bank Indonesia (BI) policy and local economic conditions\n\n"
+                f"THE EXACT TABLE DATA (for reference):\n"
+                f"{table_text}\n\n"
+                f"MANDATORY REQUIREMENTS FOR YOUR ANALYSIS:\n"
+                f"1. EVERY number you cite must appear EXACTLY in the table above\n"
+                f"2. DO NOT ROUND - use exact values: 6.66%, not ~6.7% or 'around 6.5%'\n"
+                f"3. SHOW ALL CALCULATIONS: '5Y: 6.66% - 6.19% = 47 basis points decline'\n"
+                f"4. For volatility: cite EXACT Std values - 'Std fell from 0.22% to 0.54%' (copy from table)\n"
+                f"5. For ranges: cite EXACT Min/Max - 'Min 6.14% to 5.30%' (copy from table, NO estimation)\n"
+                f"6. Cross-check tenors: which declined more in bps? Calculate: (2024 Avg - 2025 Avg) × 100\n"
+                f"7. If a number is not in the table above, DO NOT USE IT - only cite what's shown\n"
+                f"8. Verify Count fields: 'With 261 observations in 2024 and 247 in 2025...'\n\n"
                 f"ANALYSIS STRUCTURE:\n"
-                f"1. Lead with exact table statistics (not rounded, not approximated, not from web search)\n"
-                f"2. Show which tenor changed more by comparing basis point drops\n"
-                f"3. Discuss volatility using Std and Min/Max changes from the table\n"
-                f"4. Then provide BI market context and economic drivers\n"
-                f"5. Compare to EM peers for context (this is where web search helps)\n"
-                f"6. End with implications for duration and positioning\n\n"
-                f"Remember: Table-first, web-search-for-context-only. Never cite statistics without showing the table source."
+                f"1. Lead with exact yields and changes with calculations shown\n"
+                f"2. Compare volatility (Std) and range (Min/Max) between periods\n"
+                f"3. Identify which tenor changed more and why\n"
+                f"4. Provide BI policy context and economic drivers\n"
+                f"5. End with strategic implications\n\n"
+                f"CRITICAL: Every statistic must be copied exactly from the table. No web search numbers for statistics."
             )
             logger.info(f"Bond table /both: Calling ask_kin for interpretation")
             try:
@@ -5321,11 +5319,20 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 kei_body = strip_signatures(data_summary)
                 # Send comparison table as MARKDOWN to properly render the economist-style table
                 await update.message.reply_text(kei_body, parse_mode=ParseMode.MARKDOWN)
-                # Have Kin analyze the comparison
+                # Have Kin analyze the comparison with STRICT requirements
                 kin_prompt = (
                     f"Original question: {question}\n\n"
+                    f"CRITICAL CONTEXT: This data is from Indonesia Government Bonds (INDOGB), NOT US Treasuries.\n\n"
                     f"Kei's quantitative analysis:\n{data_summary}\n\n"
-                    f"Based on this statistical comparison and the original question, provide your strategic interpretation and economic analysis."
+                    f"MANDATORY REQUIREMENTS FOR YOUR RESPONSE:\n"
+                    f"1. ONLY cite numbers that appear EXACTLY in the table above\n"
+                    f"2. For every statistic: write the EXACT value from the table (not rounded, not approximated)\n"
+                    f"3. Show calculations: '5Y: 6.66% minus 6.19% = 47 basis points' (show the subtraction)\n"
+                    f"4. For volatility discussion: use EXACT Std values from table (e.g., '5Y Std fell from 0.22% to 0.54%')\n"
+                    f"5. For range discussion: use EXACT Min/Max values from table - NO ROUNDING\n"
+                    f"6. If you cite a number, it must appear in the table above - if it doesn't, DO NOT USE IT\n"
+                    f"7. Focus on Indonesia-specific context (BI policy, Rupiah, not Fed or USD)\n\n"
+                    f"Do NOT fabricate numbers. Do NOT round. Copy exact values from the table only."
                 )
                 kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                 if kin_answer and kin_answer.strip():
