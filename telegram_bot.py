@@ -4544,7 +4544,6 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     # Send as single combined message for test compatibility
                     # Convert markdown code fences to HTML code block for unified HTML output
-                    from telegram_bot import convert_markdown_code_fences_to_html
                     rendered_table = convert_markdown_code_fences_to_html(table_part)
                     combined_message = rendered_table + "\n\n" + analysis_part if analysis_part else rendered_table
                     
