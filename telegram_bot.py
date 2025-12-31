@@ -5262,8 +5262,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     kin_prompt = (
                         f"Original question: {question}\n\n"
                         f"Kei's quantitative forecast data:\n{kei_data}\n\n"
-                        f"Provide one concise HL-CU-style unified analysis that synthesizes this forecast data with strategic context. "
-                        f"Do NOT repeat or restate the data; only provide strategic analysis and market implications."
+                        f"YOUR TASK: Provide EXACTLY ONE HL-CU-style analysis. CRITICAL: Do NOT repeat the forecast data, tables, or predictions. "
+                        f"Do NOT regenerate anything Kei provided. ONLY provide strategic context, market implications, and policy insights in 3 paragraphs maximum."
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True, skip_bond_summary=True)
                     if kin_answer and kin_answer.strip():
@@ -5277,8 +5277,8 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     kin_prompt = (
                         f"Original question: {question}\n\n"
                         f"Kei's quantitative forecast:\n{data_summary}\n\n"
-                        f"Provide one concise HL-CU-style analysis for the next observations. "
-                        f"Do NOT repeat or restate the data; only provide strategic analysis."
+                        f"YOUR TASK: Provide EXACTLY ONE HL-CU-style analysis. CRITICAL: Do NOT repeat the forecast data, tables, or predictions. "
+                        f"Do NOT regenerate anything Kei provided. ONLY provide strategic context, market implications, and policy insights in 3 paragraphs maximum."
                     )
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True, skip_bond_summary=True)
                     if kin_answer and kin_answer.strip():
