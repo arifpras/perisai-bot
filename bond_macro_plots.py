@@ -125,7 +125,8 @@ class BondMacroPlotter:
             raise FileNotFoundError(f"Macro data not found: {macro_file}")
         
         df_macro = pd.read_csv(macro_file)
-        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%d/%m/%Y').dt.date
+        # Parse date from yyyy/mm/dd format
+        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d').dt.date
         
         self.fx_data = df_macro[
             (df_macro['date'] >= self.start_date) &

@@ -2,7 +2,8 @@
 Macroeconomic Data Table Formatting for Kei
 
 Provides economist-style formatting of FX (IDR/USD) and VIX volatility data
-for /kei tab queries.
+for /kei tab queries with proper formatting: FX with thousand separators (no decimals),
+VIX with 2 decimals, and complete summary statistics.
 
 Usage:
     formatter = MacroDataFormatter()
@@ -13,8 +14,7 @@ Usage:
 import pandas as pd
 import os
 from datetime import datetime, date
-from typing import Optional, Tuple
-import statistics as stats_module
+from typing import Optional, List, Dict
 
 
 class MacroDataFormatter:
@@ -33,7 +33,8 @@ class MacroDataFormatter:
             raise FileNotFoundError(f"Macro data not found: {macro_file}")
         
         df = pd.read_csv(macro_file)
-        df['date'] = pd.to_datetime(df['date'], format='%d/%m/%Y').dt.date
+        # Parse date from yyyy/mm/dd format
+        df['date'] = pd.to_datetime(df['date'], format='%Y/%m/%d').dt.date
         self.macro_data = df.sort_values('date').reset_index(drop=True)
     
     def _parse_date(self, date_str: str) -> date:
@@ -42,14 +43,50 @@ class MacroDataFormatter:
             return datetime.strptime(date_str, '%Y-%m-%d').date()
         return date_str if isinstance(date_str, date) else date_str.date()
     
-    def _format_economist_table(self, rows: list, headers: list, value_col: int = 1) -> str:
-        """Format data as economist-style table with right-aligned numbers."""
+    def _format_economist_table(self, rows: list, headers: list, 
+                               col_formats: Dict[int, str] = None) -> str:
+        """Format data as economist-style table with right-aligned numbers.
+        
+        Parameters:
+        -----------
+        rows : list
+            List of row data
+        headers : list
+            Column headers
+        col_formats : dict
+            Format specification per column: {col_idx: 'fx'|'vix'|'text'}
+            'fx': thousand separator, no decimals
+            'vix': 2 decimal places
+            'text': text formatting
+        """
         if not rows:
             return "⚠️ No data found for the specified period."
         
-        # Determine column widths
-        col_widths = [max(len(h), max(len(str(row[i])) for row in rows)) 
-                      for i, h in enumerate(headers)]
+        if col_formats is None:
+            col_formats = {}
+        
+        # Determine column widths - need to account for formatted values
+        col_widths = [len(h) for h in headers]
+        for row in rows:
+            for i, cell in enumerate(row):
+                if i in col_formats:
+                    if col_formats[i] == 'fx':
+                        # Format: 15,592 (thousand separator, no decimals)
+                        try:
+                            formatted = f"{float(cell):,.0f}"
+                        except (ValueError, TypeError):
+                            formatted = str(cell)
+                    elif col_formats[i] == 'vix':
+                        # Format: 21.67 (2 decimals)
+                        try:
+                            formatted = f"{float(cell):.2f}"
+                        except (ValueError, TypeError):
+                            formatted = str(cell)
+                    else:
+                        formatted = str(cell)
+                else:
+                    formatted = str(cell)
+                col_widths[i] = max(col_widths[i], len(formatted))
         
         # Build table
         border = "┌" + "┬".join("─" * (w + 2) for w in col_widths) + "┐"
@@ -58,49 +95,128 @@ class MacroDataFormatter:
         
         table = border + "\n" + header_row + "\n" + separator + "\n"
         
-        # Add data rows with right-aligned numbers
+        # Add data rows
         for row in rows:
             formatted_row = []
             for i, cell in enumerate(row):
                 if i == 0:  # Date column (left-aligned)
-                    formatted_row.append(f" {str(cell):<{col_widths[i]}} ")
-                else:  # Value columns (right-aligned)
+                    formatted = str(cell)
+                    formatted_row.append(f" {formatted:<{col_widths[i]}} ")
+                elif i in col_formats:
+                    if col_formats[i] == 'fx':
+                        try:
+                            formatted = f"{float(cell):,.0f}"
+                        except (ValueError, TypeError):
+                            formatted = str(cell)
+                    elif col_formats[i] == 'vix':
+                        try:
+                            formatted = f"{float(cell):.2f}"
+                        except (ValueError, TypeError):
+                            formatted = str(cell)
+                    else:
+                        formatted = str(cell)
+                    formatted_row.append(f" {formatted:>{col_widths[i]}} ")
+                else:
                     formatted_row.append(f" {str(cell):>{col_widths[i]}} ")
             table += "│" + "│".join(formatted_row) + "│\n"
         
-        # Summary stats row
-        values = [float(row[value_col]) for row in rows 
-                 if row[value_col] not in ['N/A', None, 'nan'] and 'nan' not in str(row[value_col]).lower()]
-        if values:
-            stats_row = ["Count", f"{len(values)}"]
-            stats_row.extend(["" for _ in range(len(headers) - 2)])
+        # Calculate statistics for each numeric column
+        numeric_cols = {i: [] for i in col_formats.keys() if col_formats[i] in ['fx', 'vix']}
+        
+        for row in rows:
+            for col_idx in numeric_cols.keys():
+                try:
+                    val = float(row[col_idx])
+                    if not (val != val):  # Skip NaN
+                        numeric_cols[col_idx].append(val)
+                except (ValueError, TypeError):
+                    pass
+        
+        if numeric_cols and any(numeric_cols.values()):
+            table += separator + "\n"
+            
+            # Count row
+            count_row = ["Count"] + ["" for _ in range(len(headers) - 1)]
+            for col_idx, values in numeric_cols.items():
+                if values:
+                    count_row[col_idx] = str(len(values))
             formatted_row = []
-            for i, cell in enumerate(stats_row):
+            for i, cell in enumerate(count_row):
                 if i == 0:
                     formatted_row.append(f" {str(cell):<{col_widths[i]}} ")
                 else:
                     formatted_row.append(f" {str(cell):>{col_widths[i]}} ")
-            
-            table += separator + "\n" + "│" + "│".join(formatted_row) + "│\n"
+            table += "│" + "│".join(formatted_row) + "│\n"
             
             # Min row
-            min_val = min(values)
-            table += f"│ {'Min':<{col_widths[0]}} │ {min_val:>{col_widths[1]}.2f} │\n"
+            min_row = ["Min"] + ["" for _ in range(len(headers) - 1)]
+            for col_idx, values in numeric_cols.items():
+                if values:
+                    min_val = min(values)
+                    if col_formats[col_idx] == 'fx':
+                        min_row[col_idx] = f"{min_val:,.0f}"
+                    else:
+                        min_row[col_idx] = f"{min_val:.2f}"
+            formatted_row = []
+            for i, cell in enumerate(min_row):
+                if i == 0:
+                    formatted_row.append(f" {str(cell):<{col_widths[i]}} ")
+                else:
+                    formatted_row.append(f" {str(cell):>{col_widths[i]}} ")
+            table += "│" + "│".join(formatted_row) + "│\n"
             
             # Max row
-            max_val = max(values)
-            table += f"│ {'Max':<{col_widths[0]}} │ {max_val:>{col_widths[1]}.2f} │\n"
+            max_row = ["Max"] + ["" for _ in range(len(headers) - 1)]
+            for col_idx, values in numeric_cols.items():
+                if values:
+                    max_val = max(values)
+                    if col_formats[col_idx] == 'fx':
+                        max_row[col_idx] = f"{max_val:,.0f}"
+                    else:
+                        max_row[col_idx] = f"{max_val:.2f}"
+            formatted_row = []
+            for i, cell in enumerate(max_row):
+                if i == 0:
+                    formatted_row.append(f" {str(cell):<{col_widths[i]}} ")
+                else:
+                    formatted_row.append(f" {str(cell):>{col_widths[i]}} ")
+            table += "│" + "│".join(formatted_row) + "│\n"
             
             # Avg row
-            avg_val = sum(values) / len(values)
-            table += f"│ {'Avg':<{col_widths[0]}} │ {avg_val:>{col_widths[1]}.2f} │\n"
+            avg_row = ["Avg"] + ["" for _ in range(len(headers) - 1)]
+            for col_idx, values in numeric_cols.items():
+                if values:
+                    avg_val = sum(values) / len(values)
+                    if col_formats[col_idx] == 'fx':
+                        avg_row[col_idx] = f"{avg_val:,.0f}"
+                    else:
+                        avg_row[col_idx] = f"{avg_val:.2f}"
+            formatted_row = []
+            for i, cell in enumerate(avg_row):
+                if i == 0:
+                    formatted_row.append(f" {str(cell):<{col_widths[i]}} ")
+                else:
+                    formatted_row.append(f" {str(cell):>{col_widths[i]}} ")
+            table += "│" + "│".join(formatted_row) + "│\n"
             
             # Std row
-            if len(values) > 1:
-                mean_val = avg_val
-                variance = sum((x - mean_val) ** 2 for x in values) / (len(values) - 1)
-                std_val = variance ** 0.5
-                table += f"│ {'Std':<{col_widths[0]}} │ {std_val:>{col_widths[1]}.2f} │\n"
+            std_row = ["Std"] + ["" for _ in range(len(headers) - 1)]
+            for col_idx, values in numeric_cols.items():
+                if values and len(values) > 1:
+                    mean_val = sum(values) / len(values)
+                    variance = sum((x - mean_val) ** 2 for x in values) / (len(values) - 1)
+                    std_val = variance ** 0.5
+                    if col_formats[col_idx] == 'fx':
+                        std_row[col_idx] = f"{std_val:,.0f}"
+                    else:
+                        std_row[col_idx] = f"{std_val:.2f}"
+            formatted_row = []
+            for i, cell in enumerate(std_row):
+                if i == 0:
+                    formatted_row.append(f" {str(cell):<{col_widths[i]}} ")
+                else:
+                    formatted_row.append(f" {str(cell):>{col_widths[i]}} ")
+            table += "│" + "│".join(formatted_row) + "│\n"
         
         table += "└" + "┴".join("─" * (w + 2) for w in col_widths) + "┘"
         return table
@@ -126,11 +242,11 @@ class MacroDataFormatter:
         for _, row in df.iterrows():
             rows.append([
                 row['date'].strftime('%d %b %Y'),
-                f"{row['idrusd']:.2f}"
+                row['idrusd']
             ])
         
         return "💱 **IDR/USD Exchange Rate**\n```\n" + \
-               self._format_economist_table(rows, ['Date', 'IDR/USD'], value_col=1) + \
+               self._format_economist_table(rows, ['Date', 'IDR/USD'], {1: 'fx'}) + \
                "\n```"
     
     def format_vix_table(self, start_date: str, end_date: str) -> str:
@@ -154,11 +270,11 @@ class MacroDataFormatter:
         for _, row in df.iterrows():
             rows.append([
                 row['date'].strftime('%d %b %Y'),
-                f"{row['vix_index']:.2f}"
+                row['vix_index']
             ])
         
         return "📊 **VIX Volatility Index**\n```\n" + \
-               self._format_economist_table(rows, ['Date', 'VIX'], value_col=1) + \
+               self._format_economist_table(rows, ['Date', 'VIX'], {1: 'vix'}) + \
                "\n```"
     
     def format_macro_combined_table(self, start_date: str, end_date: str) -> str:
@@ -182,12 +298,12 @@ class MacroDataFormatter:
         for _, row in df.iterrows():
             rows.append([
                 row['date'].strftime('%d %b %Y'),
-                f"{row['idrusd']:.2f}",
-                f"{row['vix_index']:.2f}"
+                row['idrusd'],
+                row['vix_index']
             ])
         
         return "🌍 **Macroeconomic Indicators: Currency & Volatility**\n```\n" + \
-               self._format_economist_table(rows, ['Date', 'IDR/USD', 'VIX'], value_col=1) + \
+               self._format_economist_table(rows, ['Date', 'IDR/USD', 'VIX'], {1: 'fx', 2: 'vix'}) + \
                "\n```"
 
 
