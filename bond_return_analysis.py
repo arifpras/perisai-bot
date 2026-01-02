@@ -64,6 +64,10 @@ class ReturnDecomposition:
             (df_bond['date'] <= self.end_date)
         ].sort_values('date').reset_index(drop=True)
         
+        # Forward-fill NaN values in bond data (market closures)
+        self.bond_data['price'] = self.bond_data['price'].ffill()
+        self.bond_data['yield'] = self.bond_data['yield'].ffill()
+        
         # Load FX data
         fx_file = os.path.join(db_path, '20260102_daily01.csv')
         if not os.path.exists(fx_file):
@@ -76,6 +80,9 @@ class ReturnDecomposition:
             (df_fx['date'] >= self.start_date) &
             (df_fx['date'] <= self.end_date)
         ].sort_values('date').reset_index(drop=True)
+        
+        # Forward-fill NaN values in FX data (market closures)
+        self.fx_data['idrusd'] = self.fx_data['idrusd'].ffill()
 
     def calculate_modified_duration(self, price: float, yield_pct: float, 
                                      tenor_years: float) -> float:
