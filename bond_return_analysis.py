@@ -176,25 +176,25 @@ class ReturnDecomposition:
 {self.start_date.strftime('%d %b %Y')} – {self.end_date.strftime('%d %b %Y')} ({m['days_held']} days)
 
 RETURN DECOMPOSITION (IDR-based):
-┌─────────────────────────────────────────┐
-│ Component          │     Return │    %  │
-├─────────────────────────────────────────┤
-│ Carry              │ Rp {results['carry_idr']:>7.2f} │ {results['carry_pct']:>4.2f}% │
-│ Duration Effect    │ Rp {results['duration_idr']:>7.2f} │ {results['duration_pct']:>4.2f}% │
-│ Roll-Down          │ Rp {results['rolldown_idr']:>7.2f} │ {results['rolldown_pct']:>4.2f}% │
-├─────────────────────────────────────────┤
-│ Total (IDR)        │           │ {results['total_idr_pct']:>4.2f}% │
-│ FX Impact (IDR dep)│           │ {results['fx_depreciation']:>4.2f}% │
-├─────────────────────────────────────────┤
-│ Total (USD)        │           │ {results['usd_return_pct']:>4.2f}% │
-└─────────────────────────────────────────┘
+┌──────────────────┬────────────┬────────┐
+│ Component        │    Return  │   %    │
+├──────────────────┼────────────┼────────┤
+│ Carry            │ Rp {results['carry_idr']:>7.2f}  │ {results['carry_pct']:>5.2f}% │
+│ Duration Effect  │ Rp {results['duration_idr']:>7.2f}  │ {results['duration_pct']:>5.2f}% │
+│ Roll-Down        │ Rp {results['rolldown_idr']:>7.2f}  │ {results['rolldown_pct']:>5.2f}% │
+├──────────────────┼────────────┼────────┤
+│ Total (IDR)      │            │ {results['total_idr_pct']:>5.2f}% │
+│ FX Impact (dep)  │            │ {results['fx_depreciation']:>5.2f}% │
+├──────────────────┼────────────┼────────┤
+│ Total (USD)      │            │ {results['usd_return_pct']:>5.2f}% │
+└──────────────────┴────────────┴────────┘
 
 KEY METRICS:
-  Price:           {m['start_price']} → {m['end_price']} (Δ {round(m['end_price'] - m['start_price'], 3)})
-  Yield:           {m['start_yield']:.2f}% → {m['end_yield']:.2f}% (Δ {m['yield_move_bp']:.0f} bp)
+  Price:            {m['start_price']} → {m['end_price']} (Δ {round(m['end_price'] - m['start_price'], 3)})
+  Yield:            {m['start_yield']:.2f}% → {m['end_yield']:.2f}% (Δ {m['yield_move_bp']:.0f} bp)
   Modified Duration: {m['modified_duration']:.2f}
-  Coupon:          {m['coupon']:.3f}%
-  IDR/USD:         {int(m['start_fx'])} → {int(m['end_fx'])} (IDR weakened {results['fx_depreciation']:.1f}%)
+  Coupon:           {m['coupon']:.3f}%
+  IDR/USD:          {int(m['start_fx'])} → {int(m['end_fx'])} (IDR weakened {results['fx_depreciation']:.1f}%)
 
 INTERPRETATION:
 """

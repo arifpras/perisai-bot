@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0372 (as of 2026-01-02)
+**Version:** Perisai v.0373 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -319,18 +319,18 @@ Kei can decompose bond returns into constituent components using actual market d
 02 Jan 2023 – 31 Dec 2025 (1,094 days)
 
 RETURN DECOMPOSITION (IDR-based):
-┌────────────────────────────────────┐
-│ Component      │    Return │    % │
-├────────────────────────────────────┤
-│ Carry          │ Rp 18.56  │ 1.85%│
-│ Duration Effect│ Rp  3.24  │ 0.32%│
-│ Roll-Down      │ Rp -1.42  │-0.14%│
-├────────────────────────────────────┤
-│ Total (IDR)    │           │ 2.03%│
-│ FX Impact      │           │-4.65%│
-├────────────────────────────────────┤
-│ Total (USD)    │           │-2.78%│
-└────────────────────────────────────┘
+┌──────────────────┬────────────┬────────┐
+│ Component        │    Return  │   %    │
+├──────────────────┼────────────┼────────┤
+│ Carry            │ Rp  18.56  │  1.85% │
+│ Duration Effect  │ Rp   3.24  │  0.32% │
+│ Roll-Down        │ Rp  -1.42  │ -0.14% │
+├──────────────────┼────────────┼────────┤
+│ Total (IDR)      │            │  2.03% │
+│ FX Impact (dep)  │            │ -4.65% │
+├──────────────────┼────────────┼────────┤
+│ Total (USD)      │            │ -2.78% │
+└──────────────────┴────────────┴────────┘
 
 KEY METRICS:
   Price: 99.45 → 100.78 (Δ 1.33)
