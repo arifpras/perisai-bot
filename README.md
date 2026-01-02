@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0364 (as of 2026-01-02)
+**Version:** Perisai v.0365 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -174,19 +174,41 @@ See [examples/bond_tables.md](examples/bond_tables.md) for sample outputs.
 
 Incoming and awarded auction bids over historical and forecast periods.
 
-**Data Sources:**
-- Historical (2015–2024): `auction_train.csv` (incoming + awarded)
-- Forecast (2025–2026): `20251224_auction_forecast.csv` (incoming only)
+**Supported:**
+- **Auction types:** Incoming bids, awarded bids (historical only)
+- **Periods:** Historical (2015–2024), Forecast (2025–2026)
+- **Ranges:** "from X to Y" auto-expands (e.g., 2022 to 2024 → all years)
+- **Values:** Shown in Rp Trillions with Count/Min/Max/Avg/Std statistics
 
-Tables auto-expand ranges. Values shown in Rp Trillions. See [examples/auction_tables.md](examples/auction_tables.md).
+**Data Sources:**
+- Historical (2015–2024): `database/auction_train.csv` (incoming + awarded)
+- Forecast (2025–2026): `database/20251224_auction_forecast.csv` (incoming only)
+- Ensemble forecast: `database/20251224_auction_forecast_ensemble.csv`
+
+See [examples/auction_tables.md](examples/auction_tables.md) for sample outputs.
 
 ## Bond Data Sources
 
-- File: `20251215_priceyield.csv` — Indonesian domestic government bonds (INDOGB) price and yield time series for FR-series (e.g., FR95–FR104) across supported tenors (5Y/10Y, etc.).
-- Columns: `date`, `series` (e.g., FR100), `tenor` (e.g., `10_year`), `price`, `yield`.
-- **Data coverage:** 2015–2025 (1,536 rows after holiday cleanup)
-- **Data quality:** Jan 1 entries removed (public holiday, markets closed) to prevent ambiguity
-- **Usage:** Loaded by the app via DuckDB; extra columns are ignored. Do not add comment lines to the CSV header.
+**Primary Data File:**
+- Path: `database/20251215_priceyield.csv`
+- Description: Indonesian domestic government bonds (INDOGB) price and yield time series
+- Securities: FR-series (FR95–FR104) across supported tenors (5Y, 10Y, 15Y, 20Y, 30Y)
+
+**Data Structure:**
+- Columns: `date`, `series` (e.g., FR100), `tenor` (e.g., `10_year`), `price`, `yield`
+- Format: CSV with header row (no comment lines)
+- Coverage: 2015–2025 (1,536 rows after holiday cleanup)
+
+**Data Quality Assurance:**
+- ✅ Jan 1 entries removed (public holiday, markets closed) to prevent ambiguity
+- ✅ All weekend and Indonesian holiday dates validated
+- ✅ Missing values handled by `/check` command with business day detection
+
+**Loading & Usage:**
+- Primary: Loaded via DuckDB for efficient querying
+- Fallback: Direct CSV parsing if DuckDB unavailable
+- Extra columns: Ignored by the app
+- Performance: Supports multi-tenor queries with automatic range expansion
 
 ## Yield Forecasting & Backtesting
 
