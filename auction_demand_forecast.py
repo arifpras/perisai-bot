@@ -8,6 +8,8 @@ Key Features:
 - Trains on historical auction data (train_sbn sheet)
 - Uses 6 macroeconomic and auction-specific features
 - Provides ensemble predictions with model uncertainty
+- Hyperparameters tuned via GridSearchCV (see 20251208_podem2026_sbn_v01.ipynb)
+- Generates monthly forecasts for 2026 with 4-model ensemble average
 - Generates monthly forecasts for 2026
 """
 
@@ -81,7 +83,27 @@ class AuctionDemandForecaster:
         X_train_scaled = pd.DataFrame(X_train_scaled, index=X_train.index, columns=self.FEATURE_COLUMNS)
         X_test_scaled = pd.DataFrame(X_test_scaled, index=X_test.index, columns=self.FEATURE_COLUMNS)
         
-        # Define models with hyperparameters
+        # Define hyperparameter grids (from notebook GridSearchCV tuning)
+        param_grids = {
+            "Random Forest": {
+                'n_estimators': [100, 200, 300],
+                'max_depth': [10, 20, None],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 4]
+            },
+            "Gradient Boosting": {
+                'n_estimators': [100, 150, 200],
+                'learning_rate': [0.01, 0.1, 0.2],
+                'max_depth': [3, 5, 7],
+                'subsample': [0.8, 1.0]
+            },
+            "AdaBoost": {
+                'n_estimators': [50, 100, 150],
+                'learning_rate': [0.01, 0.1, 1.0]
+            },
+        }
+        
+        # Define models with hyperparameters using best values from GridSearchCV
         models_config = {
             "Random Forest": RandomForestRegressor(
                 n_estimators=200, max_depth=20, min_samples_split=5, 
