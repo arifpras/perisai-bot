@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0390 (as of 2026-01-02)
+**Version:** Perisai v.0391 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -504,9 +504,9 @@ RETURN DECOMPOSITION (IDR-based):
 ┌──────────────────┬────────────┬────────┐
 │ Component        │    Return  │   %    │
 ├──────────────────┼────────────┼────────┤
-│ Carry            │ Rp    0.07 │  0.07% │
-│ Duration Effect  │ Rp    0.05 │  5.27% │
-│ Roll-Down        │ Rp    6.73 │  6.85% │
+│ Carry            │ Rp    0.07  │  0.07% │
+│ Duration Effect  │ Rp    0.05  │  5.27% │
+│ Roll-Down        │ Rp    6.73  │  6.85% │
 ├──────────────────┼────────────┼────────┤
 │ Total (IDR)      │            │  6.97% │
 │ FX Impact (dep)  │            │  3.87% │
