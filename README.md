@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0367 (as of 2026-01-02)
+**Version:** Perisai v.0368 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -8,11 +8,12 @@ Indonesian government bond analysis via Telegram with dual AI personas: **Kei** 
 - **Bond data:** Historical yields & prices (2015–2025), forecasts (2025–2026)
 - **Auction data:** Incoming & awarded bids (2015 onwards, historical + forecast)
 - **Economist-style tables:** Right-aligned numbers, summary stats (Count/Min/Max/Avg/Std), two-decimal precision
-- **Multi-tenor queries:** Compare 5Y, 10Y, 15Y, 20Y, 30Y bonds side-by-side
+- **Multi-tenor queries:** Compare 5Y, 10Y bonds side-by-side
 - **Professional plots:** Multi-tenor curves with single 🌍 headline (HL-CU format: Kei summary + Kin paragraphs, no INDOGB prefix)
 - **Business day detection:** `/check` automatically identifies weekends and Indonesian holidays
 - **Personal AI personas:** Kei (quantitative partner, hands-on with data) and Kin (macro storyteller, strategic insights) with conversational, first-person responses
 - **Fixed personalities:** Kei and Kin have immutable core identities—attempts to override their personalities are rejected
+- **Quantitative return analysis:** Decompose bond returns into carry, duration, roll-down, and FX components using actual market data (5Y/10Y yields, prices, IDR/USD rates)
 - **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk+Drift, Monte Carlo for forecasts
   - **Walk-forward backtesting:** Precision validation on historical data (see [Backtest Guide](BACKTEST_GUIDE.md))
   - **Real results:** 1-day forecasts ±1.6 bp error, 5-day forecasts ±3.1 bp error
@@ -109,6 +110,12 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 /check price 5 year 6 Dec 2024
 /check yield 5 and 10 year 2025-12-06  # Shows "Saturday — markets closed"
 
+# Bond return decomposition (quantitative)
+/kei analyze indonesia 5 year bond returns
+/kei analyze indonesia 10 year bond returns
+/kei bond return attribution 2023 to 2025
+/kei what drove 5 year yields in 2024
+
 # Indonesia economic development (general knowledge)
 /kei What is Indonesia's GDP growth forecast for 2025?
 /kei Tell me about Indonesia's Nusantara capital city project
@@ -122,6 +129,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 
 **Response Formats:**
 - **Kei (tables):** Economist-style borders, right-aligned numbers, Count/Min/Max/Avg/Std rows
+- **Kei (return decomposition):** Attribution table (carry, duration, roll-down, FX) with metrics (prices, yields, modified duration, IDR/USD) and interpretation
 - **Kei (general knowledge):** Grounded in comprehensive SEC filing data on Indonesia's economy, policy, infrastructure, and recent developments
 - **Kin (plots):** Professional curves, single 🌍 headline (HL-CU format), 3 paragraphs max
 - **Both (dual):** Kei table → Kin strategic analysis (clean single headline, no INDOGB prefix duplication)
@@ -133,7 +141,11 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 **Kei** — _"I'm Kei. I work at the intersection of markets and data."_
 - **Background:** CFA charterholder, MIT-style quantitative training
 - **Focus:** Precision and evidence—what the numbers show, why they matter, where the risks lie
-- **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks; also provides rigorous analysis of Indonesia's economy, policy, infrastructure, and recent developments grounded in comprehensive SEC filing data
+- **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks; quantitative return decomposition (carry, duration, roll-down, FX attribution); also provides rigorous analysis of Indonesia's economy, policy, infrastructure, and recent developments grounded in comprehensive SEC filing data
+- **Quantitative Capabilities:** 
+  - **Return Attribution:** Decomposes bond returns into carry (coupon income), duration (yield moves), roll-down (curve positioning), and FX effects
+  - **Data-Driven Analysis:** Calculates modified duration, yield sensitivity, and currency impact on actual market data
+  - **Examples:** `/kei analyze indonesia 5 year bond returns` → quantitative decomposition with actual yields, prices, and FX from 2023–2026
 - **Knowledge Base:** Access to detailed information on Indonesia's GDP growth, inflation, trade relationships, infrastructure projects (Nusantara capital city, PSNs, renewable energy), government policies (Asta Cita, JETP, fiscal policy), financial system, and foreign relations (ASEAN, BRICS, OECD)
 - **Style:** Hands-on with numbers, tests assumptions, walks you through data clearly
 - **Fixed identity:** Kei's personality is immutable; requests to change it (e.g., "pretend you're a creative writer") are firmly declined
@@ -259,6 +271,61 @@ bt.backtest_one_step_ahead(test_window=50)"
 ```
 
 See [BACKTEST_GUIDE.md](BACKTEST_GUIDE.md) for methodology, metrics interpretation, and performance benchmarks.
+
+## Quantitative Return Analysis
+
+Kei can decompose bond returns into constituent components using actual market data: bond yields & prices (5Y/10Y) plus daily IDR/USD exchange rates and VIX volatility.
+
+**Return Attribution Components:**
+- **Carry:** Coupon income accrued over the holding period
+- **Duration Effect:** Price change from yield moves (yield × modified duration sensitivity)
+- **Roll-Down:** Gains/losses from moving along the yield curve as maturity shortens
+- **FX Impact:** Currency depreciation/appreciation affecting USD-based returns
+
+**Example Query:**
+```bash
+/kei analyze indonesia 5 year bond returns
+# Returns: Attribution breakdown (Jan 2023–Dec 2025)
+# Output: Carry % | Duration % | Roll-Down % | Total IDR % | FX Effect % | Total USD %
+```
+
+**Technical Details:**
+- Modified duration estimated from bond prices and yields
+- Yield curve changes calculated from actual 5Y/10Y spreads
+- IDR/USD movements sourced from daily FX data
+- Decomposition uses cash flow and duration calculus: Total Return = Carry + Duration Effect + Roll-Down + FX
+
+**Data Used:**
+- `database/20251215_priceyield.csv` — 5Y & 10Y yields, prices, coupons (Feb 2023–Jan 2026)
+- `database/20260102_daily01.csv` — IDR/USD, VIX (Jan 2023–Dec 2025)
+
+**Example Output:**
+```
+📊 05_YEAR Bond Return Attribution
+02 Jan 2023 – 31 Dec 2025 (1,094 days)
+
+RETURN DECOMPOSITION (IDR-based):
+┌────────────────────────────────────┐
+│ Component      │    Return │    % │
+├────────────────────────────────────┤
+│ Carry          │ Rp 18.56  │ 1.85%│
+│ Duration Effect│ Rp  3.24  │ 0.32%│
+│ Roll-Down      │ Rp -1.42  │-0.14%│
+├────────────────────────────────────┤
+│ Total (IDR)    │           │ 2.03%│
+│ FX Impact      │           │-4.65%│
+├────────────────────────────────────┤
+│ Total (USD)    │           │-2.78%│
+└────────────────────────────────────┘
+
+KEY METRICS:
+  Price: 99.45 → 100.78 (Δ 1.33)
+  Yield: 6.25% → 6.10% (Δ -15 bp)
+  Modified Duration: 4.50
+  IDR/USD: 15,592 → 16,737 (IDR weakened 7.34%)
+```
+
+See [bond_return_analysis.py](bond_return_analysis.py) for implementation details.
 
 ## Output Examples
 
