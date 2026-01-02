@@ -234,6 +234,12 @@ class MacroDataFormatter:
         if df.empty:
             return "⚠️ No IDR/USD data found for the specified period."
         
+        # Filter out NaN values (holidays/missing data)
+        df = df.dropna(subset=['idrusd']).copy()
+        
+        if df.empty:
+            return "⚠️ No valid IDR/USD data found for the specified period (may be holiday)."
+        
         # Select every Nth row to limit table size (show ~20 rows max)
         step = max(1, len(df) // 20)
         df = df.iloc[::step].reset_index(drop=True)
@@ -245,7 +251,7 @@ class MacroDataFormatter:
                 row['idrusd']
             ])
         
-        return "💱 **IDR/USD Exchange Rate**\n```\n" + \
+        return "💱 IDR/USD Exchange Rate\n```\n" + \
                self._format_economist_table(rows, ['Date', 'IDR/USD'], {1: 'fx'}) + \
                "\n```"
     
@@ -262,6 +268,12 @@ class MacroDataFormatter:
         if df.empty:
             return "⚠️ No VIX data found for the specified period."
         
+        # Filter out NaN values (holidays/missing data)
+        df = df.dropna(subset=['vix_index']).copy()
+        
+        if df.empty:
+            return "⚠️ No valid VIX data found for the specified period (may be holiday)."
+        
         # Select every Nth row to limit table size (show ~20 rows max)
         step = max(1, len(df) // 20)
         df = df.iloc[::step].reset_index(drop=True)
@@ -273,7 +285,7 @@ class MacroDataFormatter:
                 row['vix_index']
             ])
         
-        return "📊 **VIX Volatility Index**\n```\n" + \
+        return "📊 VIX Volatility Index\n```\n" + \
                self._format_economist_table(rows, ['Date', 'VIX'], {1: 'vix'}) + \
                "\n```"
     
@@ -290,6 +302,12 @@ class MacroDataFormatter:
         if df.empty:
             return "⚠️ No macro data found for the specified period."
         
+        # Filter out rows with any NaN values (holidays/missing data)
+        df = df.dropna(subset=['idrusd', 'vix_index']).copy()
+        
+        if df.empty:
+            return "⚠️ No valid macro data found for the specified period (may be holiday)."
+        
         # Select every Nth row to limit table size (show ~20 rows max)
         step = max(1, len(df) // 20)
         df = df.iloc[::step].reset_index(drop=True)
@@ -302,7 +320,7 @@ class MacroDataFormatter:
                 row['vix_index']
             ])
         
-        return "🌍 **Macroeconomic Indicators: Currency & Volatility**\n```\n" + \
+        return "🌍 Macroeconomic Indicators: Currency & Volatility\n```\n" + \
                self._format_economist_table(rows, ['Date', 'IDR/USD', 'VIX'], {1: 'fx', 2: 'vix'}) + \
                "\n```"
 

@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0377 (as of 2026-01-02)
+**Version:** Perisai v.0378 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -105,10 +105,15 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 /kin plot yield 5 year with vix from 2023 to 2025
 /kin plot yield 10 year with fx and vix from 2023 to 2025
 
-# Macroeconomic data (FX & VIX tables)
+# Macroeconomic data (FX & VIX tables) — Multiple range styles
 /kei tab idrusd from 2023 to 2025
+/kei tab idrusd from jan 2023 to dec 2025
+/kei tab idrusd in 2025                         # Single year
 /kei tab vix in 2025
-/kei tab both from q1 2024 to q4 2025
+/kei tab vix from q1 2024 to q4 2025           # Quarterly range
+/kei tab vix from jan 2024 to mar 2024         # Monthly range
+/kei tab usdider vix from q1 2024 to q4 2025   # Combined FX + VIX
+/kei tab usdider vix from 2023 to 2025         # Combined full range
 
 # Dual analysis (Kei table → Kin Perplexity insight)
 /both compare yield 5 and 10 year 2024 vs 2025
@@ -408,9 +413,15 @@ Kei can display IDR/USD and VIX data as economist-style tables using `/kei tab` 
 
 | Query | Output | Use Case |
 |-------|--------|----------|
-| `/kei tab idrusd from 2023 to 2025` | IDR/USD table with summary statistics | Monitor currency trends and volatility |
-| `/kei tab vix in 2025` | VIX table with summary statistics | Track global risk sentiment changes |
-| `/kei tab both from q1 2024 to q4 2025` | Combined IDR/USD + VIX table | Analyze macro drivers holistically |
+| `/kei tab idrusd from 2023 to 2025` | IDR/USD table with summary statistics | Monitor currency trends across years |
+| `/kei tab idrusd from jan 2023 to dec 2025` | IDR/USD with daily data | Track month-to-month and daily changes |
+| `/kei tab idrusd in 2025` | IDR/USD for single year | Full-year currency analysis |
+| `/kei tab idrusd from q1 2024 to q4 2024` | IDR/USD quarterly breakdown | Quarterly patterns within a year |
+| `/kei tab vix in 2025` | VIX table with summary statistics | Track global risk sentiment in 2025 |
+| `/kei tab vix from q1 2024 to q4 2025` | VIX quarterly breakdown | Multi-year quarterly volatility patterns |
+| `/kei tab vix from jan 2024 to mar 2024` | VIX monthly breakdown | Monthly risk sentiment tracking |
+| `/kei tab usdider vix from q1 2024 to q4 2025` | Combined IDR/USD + VIX table | Analyze currency + volatility together (quarterly) |
+| `/kei tab usdider vix from 2023 to 2025` | Combined macro indicators | Full-range currency and volatility analysis |
 | `/kei tab fx from jan 2023 to dec 2024` | IDR/USD table (alias: fx) | Same as idrusd metric |
 
 **Table Features:**
@@ -418,6 +429,7 @@ Kei can display IDR/USD and VIX data as economist-style tables using `/kei tab` 
 - **Summary statistics:** Count, Min, Max, Avg, Std for each metric
 - **Date range support:** All standard period formats (years, quarters, months, ISO dates)
 - **Data downsampling:** Large date ranges automatically downsampled to ~20 rows for readability
+- **Holiday filtering:** NaN values (weekends, Indonesian holidays) automatically excluded
 
 **Example Output:**
 ```
