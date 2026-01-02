@@ -1517,14 +1517,70 @@ def parse_bond_return_query(q: str) -> Optional[Dict]:
     - '/kei analyze indonesia 5 year bond returns'
     - '/kei analyze indonesia 10 year bond returns'
     - '/kei analyze indonesia [5|10] year bond returns from 2023 to 2025'
+    - '/kei analyze indonesia [5|10] year bond returns in q1 2025'
+    - '/kei analyze indonesia [5|10] year bond returns in jan 2023'
+    - '/kei analyze indonesia [5|10] year bond returns from q1 2023 to q4 2025'
+    - '/kei analyze indonesia [5|10] year bond returns from jan 2023 to dec 2025'
     - '/kei bond return attribution 2023 to 2025'
     - '/kei what drove [5|10] year yields in 2024'
     
     Returns Dict with tenor and optional date range, or None if no match.
     """
-    # Pattern 1: "analyze [country] [tenor] bond returns [from X to Y]"
+    month_map = {
+        'jan': 1, 'january': 1,
+        'feb': 2, 'february': 2,
+        'mar': 3, 'march': 3,
+        'apr': 4, 'april': 4,
+        'may': 5,
+        'jun': 6, 'june': 6,
+        'jul': 7, 'july': 7,
+        'aug': 8, 'august': 8,
+        'sep': 9, 'september': 9,
+        'oct': 10, 'october': 10,
+        'nov': 11, 'november': 11,
+        'dec': 12, 'december': 12,
+    }
+    
+    def parse_period_spec(spec):
+        """Parse period specification: YYYY, YYYY-MM-DD, Q[1-4] YYYY, Month YYYY"""
+        spec = spec.strip().lower()
+        
+        # Year only: 2025
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            return date(year, 1, 1), date(year, 12, 31)
+        
+        # Quarter: q1 2025, Q1 2025
+        q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_match:
+            quarter = int(q_match.group(1))
+            year = int(q_match.group(2))
+            start_month = 1 + (quarter - 1) * 3
+            start = date(year, start_month, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        
+        # Month year: jan 2023, january 2023
+        m_match = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_match:
+            month_str = m_match.group(1)
+            year = int(m_match.group(2))
+            if month_str in month_map:
+                month = month_map[month_str]
+                start = date(year, month, 1)
+                end = start + relativedelta(months=1) - timedelta(days=1)
+                return start, end
+        
+        # ISO date: 2025-01-02
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', spec):
+            d = datetime.strptime(spec, '%Y-%m-%d').date()
+            return d, d
+        
+        return None
+    
+    # Pattern 1: "analyze [country] [tenor] bond returns [from X to Y | in X]"
     analyze_match = re.search(
-        r'analyze\s+\w+\s+(5|10)\s+year\s+bond\s+returns(?:\s+from\s+(.+?)\s+to\s+(.+))?',
+        r'analyze\s+\w+\s+(5|10)\s+year\s+bond\s+returns(?:\s+(?:from\s+(.+?)\s+to\s+(.+)|in\s+(.+)))?$',
         q
     )
     if analyze_match:
@@ -1532,43 +1588,26 @@ def parse_bond_return_query(q: str) -> Optional[Dict]:
         tenor = f'{tenor_num:0>2}_year'  # Pad to 2 digits: "05" or "10"
         from_spec = analyze_match.group(2)
         to_spec = analyze_match.group(3)
+        in_spec = analyze_match.group(4)
         
         if from_spec and to_spec:
-            # Parse date range
-            month_map = {
-                'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-                'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
-            }
-            
-            def parse_spec(spec):
-                spec = spec.strip().lower()
-                # Year only
-                if re.match(r'^\d{4}$', spec):
-                    year = int(spec)
-                    return date(year, 1, 1), date(year, 12, 31)
-                # Month year
-                m_match = re.match(r'(\w+)\s+(\d{4})', spec)
-                if m_match:
-                    month_str = m_match.group(1)
-                    year = int(m_match.group(2))
-                    if month_str in month_map:
-                        month = month_map[month_str]
-                        start = date(year, month, 1)
-                        end = start + relativedelta(months=1) - timedelta(days=1)
-                        return start, end
-                # ISO date
-                if re.match(r'^\d{4}-\d{2}-\d{2}$', spec):
-                    return datetime.strptime(spec, '%Y-%m-%d').date(), \
-                           datetime.strptime(spec, '%Y-%m-%d').date()
-                return None
-            
-            from_res = parse_spec(from_spec)
-            to_res = parse_spec(to_spec)
+            # "from X to Y" pattern
+            from_res = parse_period_spec(from_spec)
+            to_res = parse_period_spec(to_spec)
             if from_res and to_res:
                 return {
                     'tenor': tenor,
                     'start_date': from_res[0],
                     'end_date': to_res[1],
+                }
+        elif in_spec:
+            # "in X" pattern
+            period_res = parse_period_spec(in_spec)
+            if period_res:
+                return {
+                    'tenor': tenor,
+                    'start_date': period_res[0],
+                    'end_date': period_res[1],
                 }
         else:
             # No date range specified - use default (2023-01-02 to 2025-12-31)
