@@ -398,7 +398,7 @@ def get_db(csv_path: str = "database/20251215_priceyield.csv") -> BondDB:
         _db_cache[csv_path] = BondDB(csv_path)
     return _db_cache[csv_path]
 
-def get_auction_db(csv_path: str = "database/20251224_auction_forecast.csv"):
+def get_auction_db(csv_path: str = "database/20251224_auction_forecast_ensemble.csv"):
     """Get or create a cached AuctionDB instance."""
     cache_key = f"auction_{csv_path}"
     if cache_key not in _db_cache:
@@ -756,8 +756,8 @@ def parse_auction_table_query(q: str) -> Optional[Dict]:
     
     q = q.lower()
     # Allow queries with or without 'tab' keyword
-    # But require either 'tab' keyword OR 'from' connector for range queries
-    if 'tab' not in q and 'from' not in q:
+    # But require either 'tab' keyword OR 'from' connector OR 'demand trends' for range queries
+    if 'tab' not in q and 'from' not in q and 'demand trends' not in q:
         return None
     # Metrics
     metrics = []

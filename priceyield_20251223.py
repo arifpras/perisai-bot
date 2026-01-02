@@ -480,7 +480,34 @@ class BondDB:
 class AuctionDB:
     def __init__(self, csv):
         self.con = duckdb.connect(":memory:")
-        # Load auction forecast data
+        # Load auction forecast data - handle both standard and ensemble column names
+        # First, load raw CSV
+        self.con.execute(f"""
+            CREATE TEMPORARY VIEW raw_auction AS
+            SELECT * FROM read_csv_auto('{csv}', header=True)
+        """)
+        
+        # Check if ensemble column exists
+        try:
+            self.con.execute("SELECT incoming_billions_ensemble FROM raw_auction LIMIT 1")
+            has_ensemble = True
+        except:
+            has_ensemble = False
+        
+        # Create view with proper column mapping
+        # Note: incoming_billions_ensemble stores values that need to be divided by 1000 to get trillions
+        # incoming_billions from standard CSV is already in billions, divide by 1000 to get trillions
+        if has_ensemble:
+            incoming_col = "TRY_CAST(incoming_billions_ensemble AS DOUBLE) / 1000.0"
+        else:
+            incoming_col = "TRY_CAST(incoming_billions AS DOUBLE) / 1000.0"
+        
+        # For awarded, similar logic
+        if has_ensemble:
+            awarded_col = "TRY_CAST(awarded_billions AS DOUBLE) / 1000.0"
+        else:
+            awarded_col = "TRY_CAST(awarded_billions AS DOUBLE) / 1000.0"
+        
         self.con.execute(f"""
             CREATE VIEW auction_forecast AS
             SELECT
@@ -493,13 +520,13 @@ class AuctionDB:
                 TRY_CAST(yield10_ibpa AS DOUBLE) AS yield10_ibpa,
                 TRY_CAST(inflation_rate AS DOUBLE) AS inflation_rate,
                 TRY_CAST(idprod_rate AS DOUBLE) AS idprod_rate,
-                TRY_CAST(incoming_billions AS DOUBLE) AS incoming_billions,
-                TRY_CAST(awarded_billions AS DOUBLE) AS awarded_billions,
+                {incoming_col} AS incoming_billions,
+                {awarded_col} AS awarded_billions,
                 TRY_CAST(bid_to_cover AS DOUBLE) AS bid_to_cover,
                 TRY_CAST(number_series AS INTEGER) AS number_series,
                 TRY_CAST(move AS DOUBLE) AS move,
                 TRY_CAST(forh_avg AS DOUBLE) AS forh_avg
-            FROM read_csv_auto('{csv}', header=True)
+            FROM raw_auction
         """)
 
     def query_forecast(self, intent: Intent):
