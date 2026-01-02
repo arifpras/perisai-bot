@@ -117,7 +117,7 @@ class SanityCheck:
             from app_fastapi import get_db
             
             # Check CSV file exists
-            csv_file = '20251215_priceyield.csv'
+            csv_file = 'database/20251215_priceyield.csv'
             if not Path(csv_file).exists():
                 self.log_check("CSV file", False, [f"{csv_file} not found"])
                 return False
@@ -186,7 +186,7 @@ class SanityCheck:
         try:
             from app_fastapi import _plot_range_to_png, get_db
             
-            db = get_db('20251215_priceyield.csv')
+            db = get_db('database/20251215_priceyield.csv')
             
             # Test single tenor plot
             png_data = _plot_range_to_png(
@@ -354,8 +354,8 @@ class SanityCheck:
         print(f"\n{BOLD}{BLUE}8. CHECKING DATA FILES{RESET}")
         
         required_files = [
-            '20251215_priceyield.csv',
-            '20251224_auction_forecast.csv'
+            'database/20251215_priceyield.csv',
+            'database/20251224_auction_forecast.csv'
         ]
         
         for filename in required_files:

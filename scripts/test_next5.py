@@ -5,7 +5,7 @@ sys.path.append(str(Path('/workspaces/perisai-bot')))
 from priceyield_20251223 import BondDB, forecast_tenor_next_days
 
 def main():
-    db = BondDB('20251215_priceyield.csv')
+    db = BondDB('database/20251215_priceyield.csv')
     res = forecast_tenor_next_days(db, '10_year', days=5, last_obs_count=5, series=None)
 
     print('Latest 5 observations:')

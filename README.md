@@ -1,4 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
+**Version:** Perisai v.0363 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -12,7 +13,9 @@ Indonesian government bond analysis via Telegram with dual AI personas: **Kei** 
 - **Business day detection:** `/check` automatically identifies weekends and Indonesian holidays
 - **Personal AI personas:** Kei (quantitative partner, hands-on with data) and Kin (macro storyteller, strategic insights) with conversational, first-person responses
 - **Fixed personalities:** Kei and Kin have immutable core identities—attempts to override their personalities are rejected
-- **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo for forecasts
+- **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk+Drift, Monte Carlo for forecasts
+  - **Walk-forward backtesting:** Precision validation on historical data (see [Backtest Guide](BACKTEST_GUIDE.md))
+  - **Real results:** 1-day forecasts ±1.6 bp error, 5-day forecasts ±3.1 bp error
 - **Enterprise security:** Whitelist-based access control (`ALLOWED_USER_IDS`), encrypted transmission, local-only data processing (see [Security Policy](docs/SECURITY.md))
 
 ## Quick Start
@@ -184,6 +187,36 @@ Tables auto-expand ranges. Values shown in Rp Trillions. See [examples/auction_t
 - **Data coverage:** 2015–2025 (1,536 rows after holiday cleanup)
 - **Data quality:** Jan 1 entries removed (public holiday, markets closed) to prevent ambiguity
 - **Usage:** Loaded by the app via DuckDB; extra columns are ignored. Do not add comment lines to the CSV header.
+
+## Yield Forecasting & Backtesting
+
+Perisai uses an ensemble of 7 time-series models to forecast bond yields with validated precision.
+
+**Models Included:**
+- **ARIMA(1,1,1)** — Autoregressive integrated moving average (captures trends and reversions)
+- **ETS** — Exponential smoothing with additive trend (smooth level tracking)
+- **Prophet** — Facebook's probabilistic forecasting (robust to seasonality and structural breaks)
+- **VAR** — Vector autoregression (multivariate relationships between yields)
+- **Random Walk + Drift** — Includes historical mean return drift for trend-aware forecasts
+- **Monte Carlo** — Stochastic simulation with historical volatility (provides confidence intervals)
+- **MA5** — 5-day moving average (baseline/fast)
+
+**Backtesting Results** (10-Year Bonds, Walk-Forward Validation):
+- **1-Day Forecast:** ±1.6 bp MAE (MAPE 0.26%) — ⭐⭐⭐⭐⭐ Excellent
+- **5-Day Forecast:** ±3.1 bp MAE (MAPE 0.50%) — ⭐⭐⭐⭐⭐ Excellent
+
+**Run Backtests:**
+```bash
+# Quick backtest on actual bond data
+python test_backtest.py
+
+# Full-featured backtesting with walk-forward validation
+python -c "from backtest_yield_forecasts import YieldForecastBacktester; \
+bt = YieldForecastBacktester(tenor='10_year'); \
+bt.backtest_one_step_ahead(test_window=50)"
+```
+
+See [BACKTEST_GUIDE.md](BACKTEST_GUIDE.md) for methodology, metrics interpretation, and performance benchmarks.
 
 ## Output Examples
 

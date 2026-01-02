@@ -114,66 +114,124 @@ def is_business_day(d: date) -> tuple[bool, str]:
     if d.weekday() == 6:
         return False, "Sunday"
     
-    # Major Indonesian public holidays 2024-2026 (when bond markets are closed)
-    # Source: Bank Indonesia official holidays
+    # Major Indonesian public holidays 2023-2026 (when bond markets are closed)
+    # Source: Bank Indonesia official holidays (SKB Tiga Menteri decrees)
     indonesian_holidays = {
-        # 2024
-        date(2024, 1, 1),   # New Year
-        date(2024, 2, 8),   # Isra & Mi'raj
-        date(2024, 2, 10),  # Commemorative holiday for Isra & Mi'raj
-        date(2024, 2, 14),  # Joint leave
-        date(2024, 3, 11),  # Nyepi
-        date(2024, 3, 29),  # Good Friday
-        date(2024, 3, 31),  # Easter
-        date(2024, 4, 10),  # Eid al-Fitr (Joint leave)
-        date(2024, 4, 11),  # Eid al-Fitr (Joint leave)
-        date(2024, 4, 12),  # Eid al-Fitr (Cuti Bersama)
-        date(2024, 4, 15),  # Eid al-Fitr (Cuti Bersama)
-        date(2024, 4, 16),  # Eid al-Fitr (Joint leave)
-        date(2024, 5, 1),   # Labor Day
-        date(2024, 5, 23),  # Ascension Day
-        date(2024, 6, 1),   # Eid al-Adha
-        date(2024, 6, 17),  # Islamic New Year
-        date(2024, 8, 17),  # Independence Day
-        date(2024, 9, 16),  # Mawlid (Joint leave)
-        date(2024, 12, 25), # Christmas
-        date(2024, 12, 26), # Joint leave
-        # 2025
-        date(2025, 1, 1),   # New Year
-        date(2025, 1, 29),  # Isra & Mi'raj
-        date(2025, 3, 1),   # Nyepi
-        date(2025, 4, 18),  # Good Friday
-        date(2025, 4, 20),  # Easter
-        date(2025, 4, 21),  # Eid al-Fitr (Joint leave)
-        date(2025, 4, 22),  # Eid al-Fitr (Joint leave)
-        date(2025, 4, 23),  # Eid al-Fitr (Cuti Bersama)
-        date(2025, 4, 24),  # Eid al-Fitr (Cuti Bersama)
-        date(2025, 4, 25),  # Eid al-Fitr (Cuti Bersama)
-        date(2025, 5, 1),   # Labor Day
-        date(2025, 5, 2),   # Joint leave
-        date(2025, 6, 2),   # Ascension Day
-        date(2025, 6, 7),   # Eid al-Adha
-        date(2025, 6, 23),  # Islamic New Year
-        date(2025, 8, 17),  # Independence Day
-        date(2025, 9, 4),   # Mawlid (Joint leave)
-        date(2025, 12, 25), # Christmas
-        date(2025, 12, 26), # Joint leave
-        # 2026
-        date(2026, 1, 1),   # New Year
-        date(2026, 2, 18),  # Isra & Mi'raj
-        date(2026, 3, 21),  # Nyepi
-        date(2026, 4, 10),  # Good Friday
-        date(2026, 4, 12),  # Easter
-        date(2026, 4, 9),   # Eid al-Fitr (Joint leave)
-        date(2026, 4, 10),  # Eid al-Fitr (Joint leave)
-        date(2026, 4, 13),  # Eid al-Fitr (Cuti Bersama)
-        date(2026, 5, 1),   # Labor Day
-        date(2026, 5, 26),  # Ascension Day
-        date(2026, 5, 27),  # Eid al-Adha
-        date(2026, 6, 12),  # Islamic New Year
-        date(2026, 8, 17),  # Independence Day
-        date(2026, 8, 25),  # Mawlid
-        date(2026, 12, 25), # Christmas
+        # 2023 - Official list from SKB Tiga Menteri (Government Decree)
+        # National Holidays (15 days)
+        date(2023, 1, 1),   # Tahun Baru 2023 Masehi (New Year)
+        date(2023, 1, 22),  # Tahun Baru Imlek 2574 Kongzili (Chinese New Year)
+        date(2023, 2, 18),  # Isra Mikraj Nabi Muhammad SAW
+        date(2023, 3, 22),  # Hari Suci Nyepi Tahun Baru Saka 1945
+        date(2023, 4, 7),   # Wafat Isa Almasih (Good Friday)
+        date(2023, 4, 22),  # Hari Raya Idul Fitri 1444 H
+        date(2023, 4, 23),  # Hari Raya Idul Fitri 1444 H
+        date(2023, 5, 1),   # Hari Buruh Internasional (Labor Day)
+        date(2023, 5, 18),  # Kenaikan Isa Almasih (Ascension Day)
+        date(2023, 6, 1),   # Hari Lahir Pancasila
+        date(2023, 6, 4),   # Hari Raya Waisak 2567 BE (Vesak Day)
+        date(2023, 6, 29),  # Hari Raya Idul Adha 1444 H
+        date(2023, 7, 19),  # Tahun Baru Islam 1445 H (Islamic New Year)
+        date(2023, 8, 17),  # Hari Kemerdekaan RI (Independence Day)
+        date(2023, 9, 28),  # Maulid Nabi Muhammad SAW (Mawlid)
+        date(2023, 12, 25), # Hari Raya Natal (Christmas)
+        # Joint Leave Days - Cuti Bersama (8 days)
+        date(2023, 1, 23),  # Cuti Bersama Tahun Baru Imlek 2574 Kongzili
+        date(2023, 3, 23),  # Cuti Bersama Hari Suci Nyepi Tahun Baru Saka 1945
+        date(2023, 4, 21),  # Cuti Bersama Idul Fitri 1444 H
+        date(2023, 4, 24),  # Cuti Bersama Idul Fitri 1444 H
+        date(2023, 4, 25),  # Cuti Bersama Idul Fitri 1444 H
+        date(2023, 4, 26),  # Cuti Bersama Idul Fitri 1444 H
+        date(2023, 6, 2),   # Cuti Bersama Hari Raya Waisak 2567 BE
+        date(2023, 12, 26), # Cuti Bersama Hari Raya Natal
+        # 2024 - Official list from SKB Tiga Menteri (Government Decree)
+        # National Holidays (17 days)
+        date(2024, 1, 1),   # Tahun Baru 2024 Masehi (New Year)
+        date(2024, 2, 8),   # Isra Mikraj Nabi Muhammad SAW
+        date(2024, 2, 10),  # Tahun Baru Imlek 2575 Kongzili (Chinese New Year)
+        date(2024, 3, 11),  # Hari Suci Nyepi Tahun Baru Saka 1946
+        date(2024, 3, 29),  # Wafat Isa Almasih (Good Friday)
+        date(2024, 3, 31),  # Hari Paskah (Easter)
+        date(2024, 4, 10),  # Hari Raya Idul Fitri 1445H
+        date(2024, 4, 11),  # Hari Raya Idul Fitri 1445H
+        date(2024, 5, 1),   # Hari Buruh Internasional (Labor Day)
+        date(2024, 5, 9),   # Kenaikan Yesus Kristus (Ascension Day)
+        date(2024, 5, 23),  # Hari Raya Waisak 2568 BE (Vesak Day)
+        date(2024, 6, 1),   # Hari Lahir Pancasila
+        date(2024, 6, 17),  # Hari Raya Idul Adha 1445H
+        date(2024, 7, 7),   # Tahun Baru Islam 1446H (Islamic New Year)
+        date(2024, 8, 17),  # Hari Kemerdekaan RI (Independence Day)
+        date(2024, 9, 16),  # Maulid Nabi Muhammad SAW (Mawlid)
+        date(2024, 12, 25), # Hari Raya Natal (Christmas)
+        # Joint Leave Days - Cuti Bersama (10 days)
+        date(2024, 2, 9),   # Cuti Bersama Tahun Baru Imlek 2575 Kongzili
+        date(2024, 3, 12),  # Cuti Bersama Hari Suci Nyepi Tahun Baru Saka 1946
+        date(2024, 4, 8),   # Cuti Bersama Idul Fitri 1445H
+        date(2024, 4, 9),   # Cuti Bersama Idul Fitri 1445H
+        date(2024, 4, 12),  # Cuti Bersama Idul Fitri 1445H
+        date(2024, 4, 15),  # Cuti Bersama Idul Fitri 1445H
+        date(2024, 5, 10),  # Cuti Bersama Kenaikan Yesus Kristus
+        date(2024, 5, 24),  # Cuti Bersama Hari Raya Waisak 2568 BE
+        date(2024, 6, 18),  # Cuti Bersama Idul Adha 1445H
+        date(2024, 12, 26), # Cuti Bersama Hari Raya Natal
+        # 2025 - Official list from SKB Tiga Menteri (Government Decree)
+        # National Holidays (17 days)
+        date(2025, 1, 1),   # Tahun Baru 2025 Masehi (New Year)
+        date(2025, 1, 27),  # Isra Mikraj Nabi Muhammad SAW
+        date(2025, 1, 29),  # Tahun Baru Imlek 2576 Kongzili (Chinese New Year)
+        date(2025, 3, 29),  # Hari Suci Nyepi (Tahun Baru Saka 1947)
+        date(2025, 3, 31),  # Idul Fitri 1446 Hijriah
+        date(2025, 4, 1),   # Idul Fitri 1446 Hijriah
+        date(2025, 4, 18),  # Wafat Yesus Kristus (Good Friday)
+        date(2025, 4, 20),  # Kebangkitan Yesus Kristus (Paskah/Easter)
+        date(2025, 5, 1),   # Hari Buruh Internasional (Labor Day)
+        date(2025, 5, 12),  # Hari Raya Waisak 2569 BE (Vesak Day)
+        date(2025, 5, 29),  # Kenaikan Yesus Kristus (Ascension Day)
+        date(2025, 6, 1),   # Hari Lahir Pancasila
+        date(2025, 6, 6),   # Idul Adha 1446 Hijriah
+        date(2025, 6, 27),  # 1 Muharam Tahun Baru Islam 1447 Hijriah
+        date(2025, 8, 17),  # Proklamasi Kemerdekaan (Independence Day)
+        date(2025, 9, 5),   # Maulid Nabi Muhammad SAW (Mawlid)
+        date(2025, 12, 25), # Kelahiran Yesus Kristus (Hari Natal/Christmas)
+        # Joint Leave Days - Cuti Bersama (10 days)
+        date(2025, 1, 28),  # Cuti Bersama Tahun Baru Imlek 2576 Kongzili
+        date(2025, 3, 28),  # Cuti Bersama Hari Suci Nyepi
+        date(2025, 4, 2),   # Cuti Bersama Idul Fitri 1446 Hijriah
+        date(2025, 4, 3),   # Cuti Bersama Idul Fitri 1446 Hijriah
+        date(2025, 4, 4),   # Cuti Bersama Idul Fitri 1446 Hijriah
+        date(2025, 4, 7),   # Cuti Bersama Idul Fitri 1446 Hijriah
+        date(2025, 5, 13),  # Cuti Bersama Hari Raya Waisak 2569 BE
+        date(2025, 5, 30),  # Cuti Bersama Kenaikan Yesus Kristus
+        date(2025, 6, 9),   # Cuti Bersama Idul Adha 1446 Hijriah
+        date(2025, 12, 26), # Cuti Bersama Kelahiran Yesus Kristus (Hari Natal)
+        # 2026 - Official list from SKB Tiga Menteri (Government Decree)
+        # National Holidays (17 days)
+        date(2026, 1, 1),   # Tahun Baru Masehi (New Year)
+        date(2026, 1, 16),  # Isra & Mi'raj Nabi Muhammad SAW
+        date(2026, 2, 17),  # Tahun Baru Imlek 2577 Kongzili (Chinese New Year)
+        date(2026, 3, 19),  # Hari Suci Nyepi
+        date(2026, 3, 21),  # Hari Raya Idul Fitri 1447 H
+        date(2026, 3, 22),  # Hari Raya Idul Fitri 1447 H
+        date(2026, 4, 3),   # Wafat Yesus Kristus (Good Friday)
+        date(2026, 4, 5),   # Paskah (Easter)
+        date(2026, 5, 1),   # Hari Buruh Internasional (Labor Day)
+        date(2026, 5, 14),  # Kenaikan Yesus Kristus (Ascension Day)
+        date(2026, 5, 27),  # Idul Adha 1447 H
+        date(2026, 5, 31),  # Hari Raya Waisak 2570 BE (Vesak Day)
+        date(2026, 6, 1),   # Hari Lahir Pancasila
+        date(2026, 6, 16),  # Tahun Baru Islam 1448 H (Islamic New Year)
+        date(2026, 8, 17),  # Hari Kemerdekaan RI (Independence Day)
+        date(2026, 8, 25),  # Maulid Nabi Muhammad SAW (Mawlid)
+        date(2026, 12, 25), # Hari Raya Natal (Christmas)
+        # Joint Leave Days - Cuti Bersama (8 days)
+        date(2026, 2, 16),  # Cuti Bersama Tahun Baru Imlek
+        date(2026, 3, 18),  # Cuti Bersama Hari Suci Nyepi
+        date(2026, 3, 20),  # Cuti Bersama Idul Fitri 1447 H
+        date(2026, 3, 23),  # Cuti Bersama Idul Fitri 1447 H
+        date(2026, 3, 24),  # Cuti Bersama Idul Fitri 1447 H
+        date(2026, 5, 15),  # Cuti Bersama Kenaikan Yesus Kristus
+        date(2026, 5, 28),  # Cuti Bersama Idul Adha 1447 H
+        date(2026, 12, 24), # Cuti Bersama Natal
     }
     
     if d in indonesian_holidays:
@@ -200,9 +258,13 @@ def html_quote_signature(text: str) -> str:
 
     Removes all duplicate signatures (plain text and blockquote format) and ensures
     exactly one blockquote signature at the end. Handles '~ Kei', '~ Kin', or '~ Kei x Kin'.
+    Also removes markdown bold formatting (**text**) to ensure plain text output.
     """
     if not isinstance(text, str) or not text:
         return text
+    
+    # Remove markdown bold formatting (**text** → text) to comply with "no markdown" rules
+    text = text.replace('**', '')
     
     # Detect which signature should be used (prioritize 'Kei x Kin' for dual mode)
     signature_type = None
@@ -257,7 +319,8 @@ def convert_markdown_code_fences_to_html(text: str) -> str:
 
 def clean_kin_output(text: str) -> str:
     """Remove leading persona titles to avoid duplicate headers in /both responses.
-    Also ensures blank line before [Sources: ...] line."""
+    Also ensures blank line before [Sources: ...] line.
+    Removes markdown bold formatting (**text**) to ensure plain text output."""
     if not isinstance(text, str):
         return text
 
@@ -288,7 +351,7 @@ def clean_kin_output(text: str) -> str:
         while lines and not lines[0].strip():
             lines.pop(0)
     
-    # Ensure blank line before [Sources: ...] line
+    # Ensure blank line before [Sources: ...] line and remove markdown bold (**text**)
     result_lines = []
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -297,6 +360,8 @@ def clean_kin_output(text: str) -> str:
             # If previous line is not blank, add blank line
             if result_lines and result_lines[-1].strip():
                 result_lines.append('')
+        # Remove markdown bold formatting (**text** → text)
+        line = line.replace('**', '')
         result_lines.append(line)
     
     return "\n".join(result_lines).strip()
@@ -323,13 +388,13 @@ def is_user_authorized(user_id: int) -> bool:
         return True
 
 
-def get_db(csv_path: str = "20251215_priceyield.csv") -> BondDB:
+def get_db(csv_path: str = "database/20251215_priceyield.csv") -> BondDB:
     """Get or create a cached BondDB instance."""
     if csv_path not in _db_cache:
         _db_cache[csv_path] = BondDB(csv_path)
     return _db_cache[csv_path]
 
-def get_auction_db(csv_path: str = "20251224_auction_forecast.csv"):
+def get_auction_db(csv_path: str = "database/20251224_auction_forecast.csv"):
     """Get or create a cached AuctionDB instance."""
     cache_key = f"auction_{csv_path}"
     if cache_key not in _db_cache:
@@ -338,9 +403,9 @@ def get_auction_db(csv_path: str = "20251224_auction_forecast.csv"):
 
 
 def get_historical_auction_data(year: int, quarter: int) -> Optional[Dict]:
-    """Load historical auction data from auction_train.csv for a specific quarter."""
+    """Load historical auction data from database/auction_train.csv for a specific quarter."""
     try:
-        df = pd.read_csv('auction_train.csv')
+        df = pd.read_csv('database/auction_train.csv')
         
         # Map quarter to months
         quarter_months = {1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12]}
@@ -389,9 +454,9 @@ def get_historical_auction_data(year: int, quarter: int) -> Optional[Dict]:
 
 
 def get_historical_auction_month_data(year: int, month: int) -> Optional[Dict]:
-    """Load historical auction data from auction_train.csv for a specific month."""
+    """Load historical auction data from database/auction_train.csv for a specific month."""
     try:
-        df = pd.read_csv('auction_train.csv')
+        df = pd.read_csv('database/auction_train.csv')
         mask = (df['auction_year'] == year) & (df['auction_month'] == month)
         month_data = df[mask]
         if month_data.empty:
@@ -428,9 +493,9 @@ def get_historical_auction_month_data(year: int, month: int) -> Optional[Dict]:
 
 
 def get_historical_auction_year_data(year: int) -> Optional[Dict]:
-    """Load historical auction data from auction_train.csv for a year (sum of months)."""
+    """Load historical auction data from database/auction_train.csv for a year (sum of months)."""
     try:
-        df = pd.read_csv('auction_train.csv')
+        df = pd.read_csv('database/auction_train.csv')
         year_df = df[df['auction_year'] == year]
         if year_df.empty:
             return None
@@ -955,7 +1020,7 @@ def format_auction_comparison(hist_data: Dict, forecast_data: Dict) -> str:
 
 
 def format_auction_historical_multi_year(start_year: int, end_year: int, dual_mode: bool = False) -> str:
-    """Format historical auction data from auction_train.csv for multiple years (e.g., 2010-2024).
+    """Format historical auction data from database/auction_train.csv for multiple years (e.g., 2010-2024).
     Returns Economist-style table with incoming, awarded bids, and bid-to-cover ratio.
     
     Args:
@@ -964,7 +1029,7 @@ def format_auction_historical_multi_year(start_year: int, end_year: int, dual_mo
         dual_mode: If True, use "Kei x Kin" signature (for /both command)
     """
     try:
-        df = pd.read_csv('auction_train.csv')
+        df = pd.read_csv('database/auction_train.csv')
         df['date'] = pd.to_datetime(df['date'], errors='coerce')
         df['year'] = df['date'].dt.year
         
@@ -3137,6 +3202,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
+        "<b>Perisai v.0363 (as of 2026-01-02)</b>\n"
         f"© Arif P. Sulistiono {datetime.now().year}\n\n"
         "<b>Three Personas</b>\n"
         "<b>/kei</b> — Kei: Quantitative partner (CFA, MIT-style); tables, stats, modeling\n"
@@ -3146,7 +3212,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>/check</b> — Quick single-date lookup (with business day info)\n"
         "<b>/examples</b> — Full query syntax reference\n\n"
         "<b>Quick Examples</b>\n"
-        "• /kei tab yield 5 and 10 year from q3 2023 to q2 2024\n"
+        "• /kei tab yield 5 and 10 year from dec 2023 to jan 2024\n"
         "• /kei tab incoming bid from 2020 to 2024\n"
         "• /kin plot yield 5 year from oct 2024 to mar 2025\n"
         "• /both auction demand in 2026\n"
@@ -3156,12 +3222,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Tables:</b> Economist-style with Min/Max/Avg statistics\n"
         "<b>Plots:</b> Multi-tenor curves with single clean headline\n"
         "<b>Dual:</b> Kei table + Kin analysis (strategic, via Perplexity)\n"
-        "<b>Pantun:</b> Kin creates 4-line ABAB rhyme poetry (verified automatically)\n"
-        "<b>Business days:</b> Automatic detection (weekends, holidays)\n\n"
-        "<b>� Persona Integrity</b>\n"
-        "Kei and Kin have fixed personalities. Attempts to change their character are rejected—they stay true to themselves!\n\n"
-        "<b>💡 Try asking:</b> /kei who are you? · /kin buatkan pantun · /both what matters?\n"
-        "<i>INDOGB data 2015–2025 · Auctions 2015–2026 (forecast) · Updates daily</i>"
+        "<b>💡 Try asking:</b> /kin who are you? · /kei buatkan pantun · /both what matters?\n\n"
+        "<b>📊 Data Coverage</b>\n"
+        "• <b>Bond Prices & Yields:</b> 2023–2026 (INDOGB, FR-series, 5Y/10Y/15Y/20Y/30Y tenors)\n"
+        "• <b>Auction Historical:</b> 2010–2025 (incoming + awarded bids)\n"
+        "• <b>Auction Forecast:</b> 2025–2026 (incoming bids)\n"
+        "• <b>Updates:</b> Daily (weekdays only, excluding Indonesian public holidays)"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
 
@@ -3180,10 +3246,10 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Complete Query Examples</b>\n\n"
         
         "<b>1. Bond Tables (Economist-style, Min/Max/Avg)</b>\n"
-        "• /kei tab yield 5 and 10 year from q3 2023 to q2 2024\n"
-        "• /kei tab price 5 year from oct 2024 to mar 2025\n"
+        "• /kei tab yield 5 and 10 year from dec 2023 to jan 2024\n"
+        "• /kei tab price 5 year from oct 2024 to nov 2024\n"
         "• /kei tab yield and price 5 year in feb 2025\n"
-        "• /kei tab yield 5 and 10 year from 2023 to 2024\n\n"
+        "• /kei tab yield 5 and 10 year in dec 2024\n\n"
         
         "<b>2. Auction Tables (Incoming bid, awarded bid)</b>\n"
         "• /kei tab incoming bid from 2020 to 2024\n"
@@ -3219,10 +3285,8 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         "<b>Output Formats Explained</b>\n"
         "<u>Tables:</u> Economist-style borders, right-aligned numbers, summary stats\n"
-        "<u>Plots:</u> Professional styling, multi-tenor overlays, single 🌍 headline\n"
-        "<u>Dual:</u> Kei table → Kin strategic analysis (clean single headline, no INDOGB prefix)\n"
-        "<u>Pantun:</u> 4-line ABAB rhyme with automatic verification\n"
-        "<u>Lookup:</u> Quick results; includes business day status if no data\n\n"
+        "<u>Plots:</u> Professional styling, multi-tenor overlays\n"
+        "<u>Dual:</u> Kei table → Kin strategic analysis\n\n"
         
         "<b>Date Formats Supported</b>\n"
         "• ISO: 2025-12-08 or 1 dec 2023 (day month year)\n"
@@ -3232,17 +3296,15 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Single years: in 2026 OR just 2026 (both work)\n\n"
         
         "<b>Tenors Available</b>\n"
-        "5 year, 10 year, 15 year, 20 year, 30 year\n\n"
+        "5 year, 10 year\n\n"
         
         "<b>Tips & Tricks</b>\n"
         "• /kei: Tables only, strict quantitative analysis\n"
         "• /kin: Plots + macro context, Perplexity web search enabled\n"
-        "• /both: Chains Kei (numbers) → Kin (strategy) with verified single headline\n"
+        "• /both: Chains Kei (numbers) → Kin (strategy)\n"
         "• Date ranges auto-expand (q3 2023 to q2 2024 = 4 quarters)\n"
         "• Forecast detection automatic (2026+ periods show as projections)\n"
         "• /check shows business day status automatically\n"
-        "• /both: Response has clean single headline (INDOGB prefix removed)\n"
-        "• Pantun requests verified for ABAB rhyme: mimpi/impian (A), siang/terang (B)\n"
         "• Ask 'who are you?' to learn each persona's genuine approach!\n\n"
         
         "<b>🔒 Personality Integrity (Important!)</b>\n"
@@ -3255,7 +3317,7 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Each persona will firmly but politely decline and reaffirm who they are.\n\n"
         
         "<b>Data Coverage</b>\n"
-        "Bonds: 2015–2025 (historical) · Auctions: 2015–2026 (forecast) · Updates daily"
+        "Bonds: 2023–2025 (historical) · Auctions: 2010–2026 (forecast) · Updates daily"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
 

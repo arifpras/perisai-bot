@@ -10,7 +10,7 @@ import pandas as pd
 
 print("🔍 Debugging multi-tenor data\n")
 
-db = get_db("20251215_priceyield.csv")
+db = get_db("database/20251215_priceyield.csv")
 start_date = date(2024, 1, 1)
 end_date = date(2024, 12, 31)
 metric = 'yield'

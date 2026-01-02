@@ -47,8 +47,8 @@ print("Loading and training models...")
 print("="*60)
 
 # Load training data
-df_train = pd.read_excel('20251207_db01.xlsx', sheet_name='train_sbn')
-df_predict = pd.read_excel('20251207_db01.xlsx', sheet_name='predict_sbn')
+df_train = pd.read_excel('database/20251207_db01.xlsx', sheet_name='train_sbn')
+df_predict = pd.read_excel('database/20251207_db01.xlsx', sheet_name='predict_sbn')
 
 # Feature selection (from notebook)
 features = ['number_series', 'dpk_bio_log', 'move', 'auction_month', 'long_holiday', 'inflation_rate']
@@ -126,7 +126,7 @@ df_export['awarded_billions'] = np.exp(df_predict['awarded_bio_log'])
 df_export['date'] = pd.to_datetime(df_export['date']).dt.strftime('%Y-%m-%d')
 
 # Save to CSV
-output_file = '20251224_auction_forecast_ensemble.csv'
+output_file = 'database/20251224_auction_forecast_ensemble.csv'
 df_export.to_csv(output_file, index=False)
 
 print(f"\n✓ Exported {len(df_export)} forecasts to {output_file}")

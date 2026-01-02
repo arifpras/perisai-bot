@@ -16,7 +16,7 @@ def approx_equal(a, b, tol=1e-2):
 
 
 def test_q2_2026_forecast_totals_and_btc():
-    db = AuctionDB('20251224_auction_forecast.csv')
+    db = AuctionDB('database/20251224_auction_forecast.csv')
 
     # Collect rows for Q2 2026
     months = [4, 5, 6]

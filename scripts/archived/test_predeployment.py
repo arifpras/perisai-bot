@@ -127,7 +127,7 @@ except Exception as e:
 validator.section("3. DATA VALIDATION")
 
 # Check CSV file
-csv_path = Path('/workspaces/perisai-bot/20251215_priceyield.csv')
+csv_path = Path('/workspaces/perisai-bot/database/20251215_priceyield.csv')
 if csv_path.exists():
     validator.log_pass("CSV data file", f"{csv_path.name} exists")
     try:
@@ -142,7 +142,7 @@ else:
 # Check database
 try:
     from priceyield_20251223 import BondDB
-    csv_path = '/workspaces/perisai-bot/20251215_priceyield.csv'
+    csv_path = '/workspaces/perisai-bot/database/20251215_priceyield.csv'
     db = BondDB(csv_path)
     
     # Test a simple query

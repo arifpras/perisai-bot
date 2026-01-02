@@ -85,28 +85,76 @@ def forecast_prophet(series, forecast_date):
     # Clamp to zero to avoid negative yield forecasts from Prophet noise
     return float(max(yhat, 0.0))
 
-# --- Random Walk ---
+# --- Random Walk with Drift ---
 def forecast_random_walk(series, forecast_date):
-    # Simple random walk: use last observed value
-    return float(series.iloc[-1])
+    """Random walk with drift component calculated from ALL observations.
+    
+    Formula: forecast = last_value * (1 + drift)^steps
+    Drift = average daily change across all observations
+    """
+    if len(series) < 2:
+        return float(series.iloc[-1])
+    
+    # Calculate drift from ALL observations
+    changes = series.pct_change().dropna()
+    if changes.empty:
+        return float(series.iloc[-1])
+    
+    # Drift = average percentage change per period
+    drift = changes.mean()
+    last_val = series.iloc[-1]
+    
+    # Steps to forecast date
+    steps = max((pd.to_datetime(forecast_date) - series.index[-1]).days, 1)
+    
+    # Apply drift: forecast = last_value * (1 + drift)^steps
+    forecast = last_val * ((1 + drift) ** steps)
+    
+    # Clamp to reasonable range (avoid extreme negative yields)
+    return float(max(forecast, 0.0))
 
-# --- Monte Carlo (random walk on returns) ---
+# --- Monte Carlo (random walk with historical drift + volatility) ---
 def forecast_monte_carlo(series, forecast_date, sims=500, seed=42):
+    """Monte Carlo simulation using ALL historical returns for drift and volatility.
+    
+    Method:
+    1. Calculate drift from ALL observations (long-term trend)
+    2. Calculate volatility from ALL observations (risk measure)
+    3. Run 500 simulations of random walks with both drift and stochastic shocks
+    4. Return mean of final values
+    """
     import random
     np.random.seed(seed)
     random.seed(seed)
+    
+    if len(series) < 2:
+        return float(series.iloc[-1])
+    
+    # Calculate returns from ALL observations
     returns = series.pct_change().dropna()
     if returns.empty:
         return float(series.iloc[-1])
-    mu, sigma = returns.mean(), returns.std(ddof=0)
+    
+    # Drift and volatility from ALL observations
+    mu = returns.mean()      # Average return (long-term trend)
+    sigma = returns.std(ddof=0)  # Volatility (uncertainty)
     last_val = series.iloc[-1]
+    
+    # Calculate steps to forecast date
     steps = max((pd.to_datetime(forecast_date) - series.index[-1]).days, 1)
+    
+    # Run simulations using ALL historical information
     finals = []
     for _ in range(sims):
+        # Random shocks with drift included
         shocks = np.random.normal(mu, sigma, steps)
+        # Path = last_value * product(1 + each_shock)
         path = last_val * np.prod(1 + shocks)
         finals.append(path)
-    return float(np.mean(finals))
+    
+    # Return mean forecast, clamped to avoid negative yields
+    mean_forecast = float(np.mean(finals))
+    return max(mean_forecast, 0.0)
 
 # --- 5-day Moving Average ---
 def forecast_ma5(series, forecast_date):

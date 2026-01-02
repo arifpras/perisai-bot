@@ -20,7 +20,7 @@ import pandas as pd
 # -----------------------------
 app = typer.Typer(add_completion=False)
 console = Console()
-CSV_PATH_DEFAULT = "20251215_priceyield.csv"
+CSV_PATH_DEFAULT = "database/20251215_priceyield.csv"
 
 # -----------------------------
 # Intent model
