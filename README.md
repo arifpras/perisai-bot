@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0369 (as of 2026-01-02)
+**Version:** Perisai v.0370 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -101,6 +101,14 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 /kin plot price 10 year with fx from 2023 to 2025
 /kin plot price 5 year with vix from 2023 to 2025
 /kin plot price 10 year with fx and vix from 2023 to 2025
+/kin plot yield 10 year with fx from 2023 to 2025
+/kin plot yield 5 year with vix from 2023 to 2025
+/kin plot yield 10 year with fx and vix from 2023 to 2025
+
+# Macroeconomic data (FX & VIX tables)
+/kei tab idrusd from 2023 to 2025
+/kei tab vix in 2025
+/kei tab both from q1 2024 to q4 2025
 
 # Dual analysis (Kei table → Kin Perplexity insight)
 /both compare yield 5 and 10 year 2024 vs 2025
@@ -132,9 +140,11 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 
 **Response Formats:**
 - **Kei (tables):** Economist-style borders, right-aligned numbers, Count/Min/Max/Avg/Std rows
+- **Kei (macro tables):** IDR/USD and VIX data formatted as economist-style tables with summary statistics
 - **Kei (return decomposition):** Attribution table (carry, duration, roll-down, FX) with metrics (prices, yields, modified duration, IDR/USD) and interpretation
 - **Kei (general knowledge):** Grounded in comprehensive SEC filing data on Indonesia's economy, policy, infrastructure, and recent developments
-- **Kin (plots):** Professional curves, single 🌍 headline (HL-CU format), 3 paragraphs max
+- **Kin (plots):** Professional curves with Economist styling, single headline, 3 paragraphs max
+- **Kin (macro plots):** Multi-variable plots with bond prices/yields + FX/VIX overlays in Economist style; interpolated data; Indonesia holidays excluded
 - **Kin (macro plots with FX/VIX):** Dual-axis or triple-axis plots combining bond prices with IDR/USD exchange rates and/or VIX volatility index for macroeconomic context
 - **Both (dual):** Kei table → Kin strategic analysis (clean single headline, no INDOGB prefix duplication)
 - **Pantun:** 4-line ABAB rhyme scheme verified automatically (e.g., mimpi/impian, siang/terang)
@@ -347,23 +357,78 @@ Kin can create multi-variable plots that visualize bond prices alongside foreign
 - **Dual-axis plots (FX or VIX alone):** Bond price on left axis, FX/VIX on right axis with independent scales for clarity
 - **Triple-axis plots (FX + VIX combined):** Bond price primary, IDR/USD secondary, VIX tertiary with carefully positioned axes
 - **Data alignment:** All three data sources (bonds, FX, VIX) synchronized on business day calendar
-- **Professional styling:** Color-coded lines (blue for bonds, red for FX, orange for VIX), clear legends, date formatting
+- **Professional styling:** Economist-style colors (blue for bonds, red for FX, yellow for VIX), clear legends, date formatting
+
+**Supported Metrics:**
+- **Price plots with FX:** `/kin plot price 10 year with fx from 2023 to 2025`
+- **Price plots with VIX:** `/kin plot price 5 year with vix from 2023 to 2025`
+- **Yield plots with FX:** `/kin plot yield 10 year with fx from 2023 to 2025` ✨ NEW
+- **Yield plots with VIX:** `/kin plot yield 5 year with vix from 2023 to 2025` ✨ NEW
+- **Combined plots (both FX & VIX):** `/kin plot yield 10 year with fx and vix from 2023 to 2025` ✨ NEW
 
 **Data Requirements:**
-- **Bond Prices:** Historical yields/prices (5Y/10Y tenors, Feb 2023–Jan 2026)
+- **Bond Prices/Yields:** Historical data (5Y/10Y tenors, Feb 2023–Jan 2026)
 - **IDR/USD:** Daily exchange rates (Jan 2, 2023–Dec 31, 2025)
 - **VIX:** Daily closing levels (Jan 2, 2023–Dec 31, 2025)
-- All data sourced from `database/` directory
+- All data sourced from `database/` directory with automatic interpolation for missing values
+
+**Technical Enhancements:**
+- ✅ **Yield support:** Both price and yield metrics can be plotted with FX/VIX overlays
+- ✅ **Data interpolation:** Missing values automatically interpolated to ensure continuous lines
+- ✅ **Indonesia holidays:** Weekends and 40+ public holidays excluded from calendar alignment
+- ✅ **Economist styling:** Professional chart formatting with gray background, white gridlines, custom color palette
 
 **Example Analysis Insights:**
 - **FX Overlay:** When IDR weakens (IDR/USD rises), foreign-denominated bond returns compress even if IDR yields rise—shows currency risk dimension
 - **VIX Overlay:** Risk-off periods (VIX spikes) often coincide with bond spread widening—shows how global sentiment affects emerging market bonds
-- **Combined FX+VIX:** Reveals whether bond price moves are driven by currency moves, sentiment shifts, or both
+- **Combined FX+VIX:** Reveals whether bond price/yield moves are driven by currency moves, sentiment shifts, or both
 
 **Implementation:**
-- Module: [bond_macro_plots.py](bond_macro_plots.py) — `BondMacroPlotter` class with methods for each plot type
-- Integration: Telegram bot parser recognizes `with fx`, `with vix` keywords and routes to macro plotter
+- Module: [bond_macro_plots.py](bond_macro_plots.py) — `BondMacroPlotter` class with yield & price support, interpolation, Indonesia holidays
+- Integration: Telegram bot parser recognizes `with fx`, `with vix` keywords and routes to macro plotter with metric parameter
 - Fallback: If macro data unavailable, reverts to standard single-metric plot
+
+## Macroeconomic Data Tables (FX & VIX)
+
+Kei can display IDR/USD and VIX data as economist-style tables using `/kei tab` queries.
+
+**Supported Queries:**
+
+| Query | Output | Use Case |
+|-------|--------|----------|
+| `/kei tab idrusd from 2023 to 2025` | IDR/USD table with summary statistics | Monitor currency trends and volatility |
+| `/kei tab vix in 2025` | VIX table with summary statistics | Track global risk sentiment changes |
+| `/kei tab both from q1 2024 to q4 2025` | Combined IDR/USD + VIX table | Analyze macro drivers holistically |
+| `/kei tab fx from jan 2023 to dec 2024` | IDR/USD table (alias: fx) | Same as idrusd metric |
+
+**Table Features:**
+- **Economist-style formatting:** Border boxes, right-aligned numbers, professional spacing
+- **Summary statistics:** Count, Min, Max, Avg, Std for each metric
+- **Date range support:** All standard period formats (years, quarters, months, ISO dates)
+- **Data downsampling:** Large date ranges automatically downsampled to ~20 rows for readability
+
+**Example Output:**
+```
+💱 IDR/USD Exchange Rate
+┌─────────────┬──────────┐
+│    Date     │ IDR/USD  │
+├─────────────┼──────────┤
+│ 02 Jan 2023 │ 15592.00 │
+│ 23 Feb 2023 │ 15218.00 │
+│ ... (more dates) ...
+├─────────────┼──────────┤
+│ Count       │       21 │
+│ Min         │ 14853.00 │
+│ Max         │ 16677.00 │
+│ Avg         │ 15872.37 │
+│ Std         │   523.29 │
+└─────────────┴──────────┘
+```
+
+**Implementation:**
+- Module: [macro_data_tables.py](macro_data_tables.py) — `MacroDataFormatter` class for economist-style FX/VIX tables
+- Integration: `/kei tab` parser recognizes macro metrics and routes to formatter
+- Data source: `database/20260102_daily01.csv` (IDR/USD and VIX index)
 
 ## Output Examples
 

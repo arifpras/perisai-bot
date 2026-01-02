@@ -36,6 +36,7 @@ from economist_style import (
     apply_economist_style,
 )
 from bond_macro_plots import BondMacroPlotter
+from macro_data_tables import MacroDataFormatter
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -1443,6 +1444,108 @@ def parse_bond_plot_query(q: str) -> Optional[Dict]:
                 'end_date': period_res[1],
                 'include_fx': include_fx,
                 'include_vix': include_vix,
+            }
+    
+    return None
+
+
+def parse_macro_table_query(q: str) -> Optional[Dict]:
+    """Parse '/kei tab' macroeconomic data queries for FX/VIX.
+    Supported patterns:
+    - '/kei tab idrusd from 2023 to 2025'
+    - '/kei tab vix in 2025'
+    - '/kei tab fx from jan 2023 to dec 2025'
+    - '/kei tab both from q1 2023 to q4 2025'
+    
+    Returns dict: {'metric': 'idrusd'|'vix'|'both', 'start_date': date, 'end_date': date} or None
+    """
+    q = q.lower()
+    if 'tab' not in q:
+        return None
+    
+    # Extract metric: 'idrusd', 'fx', 'vix', or 'both'
+    metric = None
+    if 'idrusd' in q or 'fx' in q:
+        metric = 'idrusd'
+    elif 'vix' in q and 'idrusd' not in q and 'fx' not in q:
+        metric = 'vix'
+    elif 'both' in q or ('idrusd' in q and 'vix' in q) or ('fx' in q and 'vix' in q):
+        metric = 'both'
+    else:
+        return None
+    
+    # Helper function for date parsing
+    month_map = {
+        'jan':1, 'january':1, 'feb':2, 'february':2, 'mar':3, 'march':3,
+        'apr':4, 'april':4, 'may':5, 'jun':6, 'june':6, 'jul':7, 'july':7,
+        'aug':8, 'august':8, 'sep':9, 'sept':9, 'september':9, 'oct':10,
+        'october':10, 'nov':11, 'november':11, 'dec':12, 'december':12
+    }
+    
+    def parse_period_spec(spec: str) -> Optional[tuple]:
+        spec = spec.strip().lower()
+        
+        # ISO date pattern: 2024-12-01
+        iso_match = re.match(r'^(\d{4})-(\d{2})-(\d{2})$', spec)
+        if iso_match:
+            year, month, day = map(int, iso_match.groups())
+            try:
+                d = date(year, month, day)
+                return d, d
+            except ValueError:
+                return None
+        
+        q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_match:
+            q_num = int(q_match.group(1))
+            year = int(q_match.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        
+        m_match = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_match:
+            month_str = m_match.group(1)
+            year = int(m_match.group(2))
+            if month_str in month_map:
+                month = month_map[month_str]
+                start = date(year, month, 1)
+                end = start + relativedelta(months=1) - timedelta(days=1)
+                return start, end
+        
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            start = date(year, 1, 1)
+            end = date(year, 12, 31)
+            return start, end
+        
+        return None
+    
+    # "from X to Y" pattern
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q)
+    if from_match:
+        start_spec = from_match.group(1).strip()
+        end_spec = from_match.group(2).strip()
+        start_res = parse_period_spec(start_spec)
+        end_res = parse_period_spec(end_spec)
+        if start_res and end_res:
+            return {
+                'metric': metric,
+                'start_date': start_res[0],
+                'end_date': end_res[1],
+            }
+    
+    # "in X" pattern (single period)
+    in_match = re.search(r'in\s+(.+)$', q)
+    if in_match:
+        period_spec = in_match.group(1).strip()
+        period_res = parse_period_spec(period_spec)
+        if period_res:
+            return {
+                'metric': metric,
+                'start_date': period_res[0],
+                'end_date': period_res[1],
             }
     
     return None
@@ -3534,6 +3637,40 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Detect 'tab' bond metric queries (yield/price data across periods)
     lower_q = question.lower()
+    
+    # First, check for macro data table queries (FX/VIX)
+    macro_tab_req = parse_macro_table_query(lower_q)
+    if macro_tab_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            formatter = MacroDataFormatter()
+            metric = macro_tab_req['metric']
+            start_date = macro_tab_req['start_date'].isoformat()
+            end_date = macro_tab_req['end_date'].isoformat()
+            
+            if metric == 'idrusd':
+                table_text = formatter.format_idrusd_table(start_date, end_date)
+            elif metric == 'vix':
+                table_text = formatter.format_vix_table(start_date, end_date)
+            else:  # 'both' or 'combined'
+                table_text = formatter.format_macro_combined_table(start_date, end_date)
+            
+            full_response = table_text + "\n\n<blockquote>~ Kei</blockquote>"
+            rendered = convert_markdown_code_fences_to_html(full_response)
+            await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "macro_tab", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing macro table query: {e}")
+            await update.message.reply_text(f"❌ Error formatting macro table: {e}")
+            response_time = time.time() - start_time
+            metrics.log_error(user_id, username, question, "macro_tab", response_time, str(e), "kei")
+        return
+    
+    # Then check for bond table queries
     bond_tab_req = parse_bond_table_query(lower_q)
     if bond_tab_req:
         try:
@@ -4322,11 +4459,13 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     try:
                         # Use first tenor for macro plot (single tenor at a time)
                         tenor = bond_plot_req['tenors'][0]
+                        metric = bond_plot_req['metric']
                         
                         plotter = BondMacroPlotter(
                             tenor,
                             bond_plot_req['start_date'].isoformat(),
-                            bond_plot_req['end_date'].isoformat()
+                            bond_plot_req['end_date'].isoformat(),
+                            metric=metric
                         )
                         
                         if bond_plot_req.get('include_fx') and bond_plot_req.get('include_vix'):
