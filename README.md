@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0366 (as of 2026-01-02)
+**Version:** Perisai v.0367 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -209,6 +209,26 @@ See [examples/auction_tables.md](examples/auction_tables.md) for sample outputs.
 - Primary: Loaded via DuckDB for efficient querying
 - Fallback: Direct CSV parsing if DuckDB unavailable
 - Performance: Supports multi-tenor (5Y, 10Y) queries with automatic range expansion
+
+## External Macroeconomic Data
+
+**Daily Market Indicators:**
+- Path: `database/20260102_daily01.csv` (version date: Jan 2, 2026)
+- Description: Daily macroeconomic indicators for Indonesia and global markets
+- **Metrics:** IDR/USD exchange rate, VIX volatility index
+- **Coverage:** Jan 2, 2023 – Dec 31, 2025 (775 business days)
+- **Update Frequency:** Daily on business days
+- **Date Format:** dd/mm/yyyy (e.g., 02/01/2023 = Jan 2, 2023)
+
+**Data Structure:**
+- Columns: `date`, `idrusd` (IDR per USD, e.g., 15,592), `vix_index` (VIX volatility %, e.g., 21.67)
+- Format: CSV with header row
+- **Usage:** Optional context for enhanced yield forecasting and macroeconomic analysis
+
+**Context for Analysis:**
+- **IDR/USD:** Currency risk exposure for foreign investors; inverse correlation with bond yields (stronger rupiah → lower yields)
+- **VIX:** Global equity volatility proxy (risk sentiment); higher VIX → portfolio risk aversion → potential bond spread widening
+- **Applications:** Correlations with bond yields, forecasting model enhancements, macroeconomic shock detection
 
 ## Yield Forecasting & Backtesting
 
