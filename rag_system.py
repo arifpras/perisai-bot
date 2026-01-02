@@ -182,30 +182,66 @@ class RAGIntegration:
     def enhance_kei_prompt(self, question: str, system_prompt: str) -> str:
         """
         Inject relevant knowledge into Kei's system prompt.
+        Prioritizes SEC filing content for Indonesia-related questions.
         
         Args:
             question: User's query
             system_prompt: Original system prompt
         
         Returns:
-            Enhanced system prompt with RAG context
+            Enhanced system prompt with RAG context from SEC filings and recent developments
         """
-        context = self.kb.get_context(question, top_k=2)
+        # Check if this is an Indonesia question
+        indonesia_keywords = ['indonesia', 'jetp', 'nusantara', 'asta cita', 'BI rate', 'IDR', 'rupiah', 'jakarta', 'indo', 'jakarta', 'jawa', 'sumatra']
+        is_indonesia_q = any(kw.lower() in question.lower() for kw in indonesia_keywords)
+        
+        if is_indonesia_q:
+            # For Indonesia questions, prioritize SEC filing content
+            context_items = self.kb.search(question, top_k=3)
+            # Boost SEC filing document in results
+            sec_filing_results = [item for item in context_items if 'sec_filings' in item['id'].lower()]
+            other_results = [item for item in context_items if 'sec_filings' not in item['id'].lower()]
+            
+            # SEC filing first, then other results
+            sorted_results = sec_filing_results + other_results
+            context = self._format_context_with_attribution(sorted_results)
+        else:
+            # General knowledge questions
+            context = self.kb.get_context(question, top_k=2)
         
         if not context:
             return system_prompt
         
-        # Insert before data access section
-        insertion_point = system_prompt.find("Data access:")
+        # Insert context before signature section
+        insertion_point = system_prompt.find("Signature:")
         if insertion_point > 0:
             enhanced = (
                 system_prompt[:insertion_point] +
+                "INJECTED KNOWLEDGE BASE CONTEXT:\n" +
                 context + "\n\n" +
                 system_prompt[insertion_point:]
             )
             return enhanced
         
         return system_prompt + "\n\n" + context
+    
+    def _format_context_with_attribution(self, results: List[Dict[str, Any]]) -> str:
+        """Format search results with explicit source attribution."""
+        if not results:
+            return ""
+        
+        context_lines = ["📄 PRIMARY SOURCE: Indonesia SEC Form 18-K/A Filing (July 25, 2025 + Oct 8, 2025 Amendment)"]
+        
+        for i, result in enumerate(results, 1):
+            source_name = result['filename'].replace('_', ' ').replace('.md', '')
+            context_lines.append(f"\n[{source_name}]")
+            content = result['content']
+            # Limit to first 800 chars to avoid excessive context length
+            if len(content) > 800:
+                content = content[:800] + "..."
+            context_lines.append(content)
+        
+        return "\n".join(context_lines)
     
     def enhance_kin_prompt(self, question: str, system_prompt: str) -> str:
         """

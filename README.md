@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0376 (as of 2026-01-02)
+**Version:** Perisai v.0377 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -142,7 +142,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 - **Kei (tables):** Economist-style borders, right-aligned numbers, Count/Min/Max/Avg/Std rows
 - **Kei (macro tables):** IDR/USD and VIX data formatted as economist-style tables with summary statistics
 - **Kei (return decomposition):** Attribution table (carry, duration, roll-down, FX) with metrics (prices, yields, modified duration, IDR/USD) and interpretation
-- **Kei (general knowledge):** Grounded in comprehensive SEC filing data on Indonesia's economy, policy, infrastructure, and recent developments
+- **Kei (general knowledge):** Cites Indonesia SEC Form 18-K/A filing (July 2025 + Oct 2025 Amendment) with specific data on GDP, inflation, infrastructure (Nusantara, PSN, JETP), policies (Asta Cita, fiscal/monetary), public debt, trade relationships, and economic forecasts through 2029
 - **Kin (plots):** Professional curves with Economist styling, single headline, 3 paragraphs max
 - **Kin (macro plots):** Multi-variable plots with bond prices/yields + FX/VIX overlays in Economist style; interpolated data; Indonesia holidays excluded
 - **Kin (macro plots with FX/VIX):** Dual-axis or triple-axis plots combining bond prices with IDR/USD exchange rates and/or VIX volatility index for macroeconomic context
@@ -155,27 +155,27 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 **Kei** — _"I'm Kei. I work at the intersection of markets and data."_
 - **Background:** CFA charterholder, MIT-style quantitative training
 - **Focus:** Precision and evidence—what the numbers show, why they matter, where the risks lie
-- **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks; quantitative return decomposition (carry, duration, roll-down, FX attribution); also provides rigorous analysis of Indonesia's economy, policy, infrastructure, and recent developments grounded in comprehensive official data (IMF, World Bank, Indonesian government, SEC filings)
+- **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks; quantitative return decomposition (carry, duration, roll-down, FX attribution); substantive analysis of Indonesia's economy, policy, infrastructure grounded in authoritative SEC Form 18-K/A filing (July 25, 2025 + Oct 8, 2025 Amendment, data current as of Jan 2, 2026)
 - **Quantitative Capabilities:** 
   - **Return Attribution:** Decomposes bond returns into carry (coupon income), duration (yield moves), roll-down (curve positioning), and FX effects
   - **Data-Driven Analysis:** Calculates modified duration, yield sensitivity, and currency impact on actual market data
   - **Time-Series Granularity:** Analyzes Indonesian bonds across yearly, quarterly, monthly periods with explicit FX impact decomposition
   - **Examples:** `/kei analyze indonesia 5 year bond returns` → quantitative decomposition with actual yields, prices, FX from 2023–2026
-- **Knowledge Base (Indonesia):** 
-  - **Macroeconomic Data:** GDP growth, inflation, employment, trade balances (IMF, World Bank, Indonesian Central Bureau of Statistics)
-  - **Infrastructure Projects:** Nusantara capital city (IKN), toll roads (PSN), renewable energy (JETP), ports, airports, rail networks with budgets and timelines
-  - **Government Policies:** Asta Cita (8 aspirations), Medium-Term Development Plans (2020-2024, 2025-2029), monetary policy (BI rate), fiscal policy, tax reform
-  - **Financial System:** Banking health, public debt management, SUN bonds, foreign reserves, capital flows
-  - **Trade & Relations:** ASEAN role, bilateral relationships (US/China/Japan/EU), BRICS membership, regional integration
-  - **Current Data:** Updated through 2025 with official forecasts through 2029
-- **Knowledge Usage:** Provides concrete numbers, dates, and mechanisms (not generic statements). Grounds claims in authoritative sources (IMF, World Bank, Indonesian government, SEC filings). Links macro developments to market implications.
-- **Examples:** 
-  - `/kei What is Indonesia's GDP growth forecast for 2025?` → Provides specific forecast ranges with assumptions
-  - `/kei Tell me about Indonesia's Nusantara capital city project` → Details on budget, timeline, capacity, macroeconomic impact
-  - `/kei How much has Indonesia invested in renewable energy through JETP?` → Quantifies investment commitment with climate targets
-- **Style:** Hands-on with numbers, tests assumptions, walks you through data clearly
+- **Indonesia Knowledge Base (SEC Form 18-K/A Primary Source):** 
+  - **Macroeconomic Data:** GDP growth forecasts, inflation targets, employment trends, trade balances (detailed through 2029)
+  - **Infrastructure Projects:** Nusantara capital city (IKN) with budgets/timelines, toll roads (PSN), renewable energy (JETP commitment + budget), ports, airports, rail networks
+  - **Government Policies:** Asta Cita (8 aspirations), Medium-Term Development Plans (2020-2024, 2025-2029), monetary policy (BI rate decisions, transmission mechanisms), fiscal policy (revenue enhancement, subsidy management, tax reform)
+  - **Financial System:** Banking oversight, public debt management, SUN bond issuance programs, foreign exchange reserves, capital flow management
+  - **Trade & Relations:** ASEAN role, bilateral relationships (US/China/Japan/EU with trade volumes), BRICS membership implications, regional integration
+  - **Debt Management:** Domestic & foreign public debt, debt-to-GDP ratios, issuance schedules through 2029
+- **Knowledge Usage:** For Indonesia questions, Kei **cites the SEC Form 18-K/A filing explicitly**, provides specific numbers (budgets in Rp Trillions, timeline dates, forecast ranges), explains policy mechanisms, and links to market implications.
+- **Example Responses:**
+  - `/kei What is Indonesia's GDP growth forecast for 2025?` → "According to Indonesia's Form 18-K/A filing (July 2025), GDP growth is forecast at X%. This reflects assumptions on [details]..."
+  - `/kei Tell me about Nusantara capital city project` → "Indonesia's Form 18-K/A details the Nusantara (IKN) project: [budget in Rp T], timeline [2025-2045], capacity [X million people], macroeconomic impact [details]..."
+  - `/kei How much has Indonesia invested in renewable energy through JETP?` → "According to Form 18-K/A, the Just Energy Transition Partnership commitment is $[X] billion for renewable energy development, with allocation breakdown [sectors]..."
+- **Style:** Hands-on with numbers, tests assumptions, walks you through data clearly, cites sources properly (Form 18-K/A, IMF, World Bank, Indonesian government publications)
 - **Fixed identity:** Kei's personality is immutable; requests to change it (e.g., "pretend you're a creative writer") are firmly declined
-- **Try:** `/kei who are you?` for a personal introduction, or `/kei What is Indonesia's GDP growth forecast?` for substantive economic analysis
+- **Try:** `/kei who are you?` for personal introduction, or `/kei What is Indonesia's GDP growth forecast?` for substantive SEC filing-grounded economic analysis
 
 **Kin** — _"I'm Kin. I work at the intersection of macroeconomics, policy, and markets."_
 - **Background:** CFA charterholder, Harvard PhD
