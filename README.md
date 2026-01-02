@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0365 (as of 2026-01-02)
+**Version:** Perisai v.0366 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -160,30 +160,28 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 
 ## Bond Data & Queries
 
-Yields and prices over any historical or forecast period with multi-tenor and multi-metric support.
+Yields and prices over historical (2023–2026) and forecast periods with multi-tenor and multi-metric support.
 
 **Supported:**
-- **Tenors:** 5, 10, 15, 20, 30 year
+- **Tenors:** 5 year (05_year), 10 year (10_year) — see [examples/bond_tables.md](examples/bond_tables.md) for sample outputs
 - **Metrics:** yield, price (single or combined)
-- **Periods:** month names/numbers (jan, feb, 1, 2), quarters (q1–q4), years (2023)
-- **Ranges:** "from X to Y" auto-expands (e.g., q3 2023 to q2 2024 → all 4 quarters)
-
-See [examples/bond_tables.md](examples/bond_tables.md) for sample outputs.
+- **Periods:** month names/numbers (jan, feb, 1, 2), quarters (q1–q4), years (2023–2026)
+- **Ranges:** "from X to Y" auto-expands (e.g., q1 2023 to q4 2024 → all 4 quarters)
 
 ## Auction Data & Queries
 
-Incoming and awarded auction bids over historical and forecast periods.
+Incoming and awarded auction bids over historical (2010–2025) and forecast (2026) periods.
 
 **Supported:**
-- **Auction types:** Incoming bids, awarded bids (historical only)
-- **Periods:** Historical (2015–2024), Forecast (2025–2026)
-- **Ranges:** "from X to Y" auto-expands (e.g., 2022 to 2024 → all years)
+- **Auction types:** Incoming bids, awarded bids (historical only, 2010–2025)
+- **Periods:** Historical (2010–2025), Forecast (2026)
+- **Ranges:** "from X to Y" auto-expands (e.g., 2020 to 2025 → all years)
 - **Values:** Shown in Rp Trillions with Count/Min/Max/Avg/Std statistics
 
 **Data Sources:**
-- Historical (2015–2024): `database/auction_train.csv` (incoming + awarded)
-- Forecast (2025–2026): `database/20251224_auction_forecast.csv` (incoming only)
-- Ensemble forecast: `database/20251224_auction_forecast_ensemble.csv`
+- Historical (2010–2025): `database/auction_train.csv` (incoming + awarded bids)
+- Forecast (2026): `database/20251224_auction_forecast.csv` (incoming bids only)
+- Ensemble forecast: `database/20251224_auction_forecast_ensemble.csv` (ensemble incoming forecast)
 
 See [examples/auction_tables.md](examples/auction_tables.md) for sample outputs.
 
@@ -192,23 +190,25 @@ See [examples/auction_tables.md](examples/auction_tables.md) for sample outputs.
 **Primary Data File:**
 - Path: `database/20251215_priceyield.csv`
 - Description: Indonesian domestic government bonds (INDOGB) price and yield time series
-- Securities: FR-series (FR95–FR104) across supported tenors (5Y, 10Y, 15Y, 20Y, 30Y)
+- Securities: FR-series (e.g., FR95, FR100, FR103, FR108) with CUSIP identifiers
+- **Available Tenors:** 5-year (05_year), 10-year (10_year)
 
 **Data Structure:**
-- Columns: `date`, `series` (e.g., FR100), `tenor` (e.g., `10_year`), `price`, `yield`
+- Columns: `date`, `cusip`, `series`, `coupon`, `maturity_date`, `price`, `yield`, `tenor`
 - Format: CSV with header row (no comment lines)
-- Coverage: 2015–2025 (1,536 rows after holiday cleanup)
+- **Coverage:** Feb 2023 – Jan 2026 (1,786 rows)
+- **Update Frequency:** Daily on business days
 
 **Data Quality Assurance:**
 - ✅ Jan 1 entries removed (public holiday, markets closed) to prevent ambiguity
 - ✅ All weekend and Indonesian holiday dates validated
 - ✅ Missing values handled by `/check` command with business day detection
+- ✅ Price range: 98–106, Yield range: 4.0–7.2%
 
 **Loading & Usage:**
 - Primary: Loaded via DuckDB for efficient querying
 - Fallback: Direct CSV parsing if DuckDB unavailable
-- Extra columns: Ignored by the app
-- Performance: Supports multi-tenor queries with automatic range expansion
+- Performance: Supports multi-tenor (5Y, 10Y) queries with automatic range expansion
 
 ## Yield Forecasting & Backtesting
 
