@@ -3403,7 +3403,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
-        "<b>Perisai v.0363 (as of 2026-01-02)</b>\n"
+        "<b>Perisai v.0387 (as of 2026-01-02)</b>\n"
         f"© Arif P. Sulistiono {datetime.now().year}\n\n"
         "<b>Three Personas</b>\n"
         "<b>/kei</b> — Kei: Quantitative partner (CFA, MIT-style); tables, stats, modeling\n"
@@ -3415,6 +3415,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Quick Examples</b>\n"
         "• /kei tab yield 5 and 10 year from dec 2023 to jan 2024\n"
         "• /kei tab incoming bid from 2020 to 2024\n"
+        "• /kei auction demand 2026 (ML forecast: 3,361.8 T)\n"
         "• /kin plot yield 5 year from oct 2024 to mar 2025\n"
         "• /both auction demand in 2026\n"
         "• /both compare yield 5 and 10 year 2024 vs 2025\n"
@@ -3427,7 +3428,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>📊 Data Coverage</b>\n"
         "• <b>Bond Prices & Yields:</b> 2023–2026 (INDOGB, FR-series, 5Y/10Y/15Y/20Y/30Y tenors)\n"
         "• <b>Auction Historical:</b> 2010–2025 (incoming + awarded bids)\n"
-        "• <b>Auction Forecast:</b> 2025–2026 (incoming bids)\n"
+        "• <b>Auction Forecast 2026:</b> ML Ensemble (4 models, 3,361.8 T annual)\n"
+        "  - Random Forest (R²=0.7753) | Gradient Boosting (R²=0.7548) | AdaBoost (R²=0.7697) | Stepwise (R²=0.7588)\n"
         "• <b>Updates:</b> Daily (weekdays only, excluding Indonesian public holidays)"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
