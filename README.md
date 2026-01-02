@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0363 (as of 2026-01-02)
+**Version:** Perisai v.0364 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -319,7 +319,31 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-**Current Version:** `v2025.12.31-clean-headlines-pantun-verification`
+**Current Version:** `Perisai v.0363 (as of 2026-01-02)`
+
+**Updates (Jan 2, 2026):**
+
+**Phase 8: Comprehensive Backtesting Framework & Documentation** (Current)
+- ✅ **Walk-forward backtesting implementation:**
+  - Created complete backtesting suite with 4 implementations (test_backtest.py, backtest_yield_forecasts.py, backtest_simple.py, backtest_yield.py)
+  - Walk-forward validation on actual Indonesian bond data (779-781 observations per tenor)
+  - Real-world performance validated: 1-day forecasts ±1.6 bp MAE, 5-day forecasts ±3.1 bp MAE
+  - All 7 ensemble models tested and benchmarked
+- ✅ **Comprehensive documentation created:**
+  - [BACKTEST_GUIDE.md](BACKTEST_GUIDE.md) — Methodology, metrics explanation, performance benchmarks
+  - [docs/YIELD_FORECAST_MODELS.md](docs/YIELD_FORECAST_MODELS.md) — All 7 models, data usage patterns, backtesting results
+  - [docs/TESTING_VALIDATION.md](docs/TESTING_VALIDATION.md) — Complete testing framework, unit tests, stress tests, continuous monitoring, debugging guide
+- ✅ **Model enhancements:**
+  - Random Walk now uses drift calculation from all 779+ observations (previously only last value)
+  - Monte Carlo clarified to use all observations for volatility statistics
+  - All models now documented with actual data usage patterns
+- ✅ **Database reorganization:**
+  - Moved historical CSV files to database/ directory for cleaner workspace structure
+  - Maintains backward compatibility with existing data pipelines
+- ✅ **Updated README:**
+  - Added backtesting results and links to comprehensive guides
+  - Added "Yield Forecasting & Backtesting" section with model list and run instructions
+  - Quick reference to [BACKTEST_GUIDE.md](BACKTEST_GUIDE.md) for validation methodology
 
 **Updates (Dec 31, 2025):**
 
