@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0389 (as of 2026-01-02)
+**Version:** Perisai v.0390 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -491,6 +491,39 @@ Kei can display IDR/USD and VIX data as economist-style tables using `/kei tab` 
 │ 2023           |   Rp 1,648.67T |     Rp 583.06T│
 │ 2024           |   Rp 1,734.87T |     Rp 770.38T│
 └─────────────────────────────────────────────────┘
+```
+
+**Bond Return Attribution (Quantitative Analysis):**
+```
+/kei analyze indonesia 10 year bond returns
+
+📊 10_YEAR Bond Return Attribution
+02 Jan 2025 – 31 Dec 2025 (363 days)
+
+RETURN DECOMPOSITION (IDR-based):
+┌──────────────────┬────────────┬────────┐
+│ Component        │    Return  │   %    │
+├──────────────────┼────────────┼────────┤
+│ Carry            │ Rp    0.07 │  0.07% │
+│ Duration Effect  │ Rp    0.05 │  5.27% │
+│ Roll-Down        │ Rp    6.73 │  6.85% │
+├──────────────────┼────────────┼────────┤
+│ Total (IDR)      │            │  6.97% │
+│ FX Impact (dep)  │            │  3.87% │
+├──────────────────┼────────────┼────────┤
+│ Total (USD)      │            │  2.99% │
+└──────────────────┴────────────┴────────┘
+
+KEY METRICS:
+  Price:            98.245 → 105.027 (Δ 6.782)
+  Yield:            6.99% → 6.05% (Δ -94 bp)
+  Modified Duration: 5.61
+  Coupon:           6.750%
+  IDR/USD:          16157 → 16782 (IDR weakened 3.9%)
+
+INTERPRETATION:
+  ✓ Positive IDR return of 6.97% driven by yield compression
+  ⚠ FX headwind: IDR depreciation of 3.9% reduced USD returns from 6.97% to 2.99%
 ```
 
 More in [examples/](examples/).

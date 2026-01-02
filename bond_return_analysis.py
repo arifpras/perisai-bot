@@ -70,7 +70,7 @@ class ReturnDecomposition:
             raise FileNotFoundError(f"FX data not found: {fx_file}")
         
         df_fx = pd.read_csv(fx_file)
-        df_fx['date'] = pd.to_datetime(df_fx['date'], format='%d/%m/%Y')
+        df_fx['date'] = pd.to_datetime(df_fx['date'], format='%Y/%m/%d')
         
         self.fx_data = df_fx[
             (df_fx['date'] >= self.start_date) &

@@ -38,6 +38,7 @@ from economist_style import (
 from bond_macro_plots import BondMacroPlotter
 from macro_data_tables import MacroDataFormatter
 from auction_demand_forecast import AuctionDemandForecaster
+from bond_return_analysis import analyze_bond_returns
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -1506,6 +1507,103 @@ def parse_bond_plot_query(q: str) -> Optional[Dict]:
                 'include_fx': include_fx,
                 'include_vix': include_vix,
             }
+    
+    return None
+
+
+def parse_bond_return_query(q: str) -> Optional[Dict]:
+    """Parse bond return attribution queries.
+    Supported patterns:
+    - '/kei analyze indonesia 5 year bond returns'
+    - '/kei analyze indonesia 10 year bond returns'
+    - '/kei analyze indonesia [5|10] year bond returns from 2023 to 2025'
+    - '/kei bond return attribution 2023 to 2025'
+    - '/kei what drove [5|10] year yields in 2024'
+    
+    Returns Dict with tenor and optional date range, or None if no match.
+    """
+    # Pattern 1: "analyze [country] [tenor] bond returns [from X to Y]"
+    analyze_match = re.search(
+        r'analyze\s+\w+\s+(5|10)\s+year\s+bond\s+returns(?:\s+from\s+(.+?)\s+to\s+(.+))?',
+        q
+    )
+    if analyze_match:
+        tenor_num = analyze_match.group(1)
+        tenor = f'{tenor_num:0>2}_year'  # Pad to 2 digits: "05" or "10"
+        from_spec = analyze_match.group(2)
+        to_spec = analyze_match.group(3)
+        
+        if from_spec and to_spec:
+            # Parse date range
+            month_map = {
+                'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+                'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+            }
+            
+            def parse_spec(spec):
+                spec = spec.strip().lower()
+                # Year only
+                if re.match(r'^\d{4}$', spec):
+                    year = int(spec)
+                    return date(year, 1, 1), date(year, 12, 31)
+                # Month year
+                m_match = re.match(r'(\w+)\s+(\d{4})', spec)
+                if m_match:
+                    month_str = m_match.group(1)
+                    year = int(m_match.group(2))
+                    if month_str in month_map:
+                        month = month_map[month_str]
+                        start = date(year, month, 1)
+                        end = start + relativedelta(months=1) - timedelta(days=1)
+                        return start, end
+                # ISO date
+                if re.match(r'^\d{4}-\d{2}-\d{2}$', spec):
+                    return datetime.strptime(spec, '%Y-%m-%d').date(), \
+                           datetime.strptime(spec, '%Y-%m-%d').date()
+                return None
+            
+            from_res = parse_spec(from_spec)
+            to_res = parse_spec(to_spec)
+            if from_res and to_res:
+                return {
+                    'tenor': tenor,
+                    'start_date': from_res[0],
+                    'end_date': to_res[1],
+                }
+        else:
+            # No date range specified - use default (2023-01-02 to 2025-12-31)
+            return {
+                'tenor': tenor,
+                'start_date': date(2023, 1, 2),
+                'end_date': date(2025, 12, 31),
+            }
+    
+    # Pattern 2: "bond return attribution YYYY to YYYY"
+    attr_match = re.search(
+        r'bond\s+return\s+attribution\s+(\d{4})\s+to\s+(\d{4})',
+        q
+    )
+    if attr_match:
+        start_year = int(attr_match.group(1))
+        end_year = int(attr_match.group(2))
+        # Default to 10-year tenor if not specified
+        return {
+            'tenor': '10_year',
+            'start_date': date(start_year, 1, 1),
+            'end_date': date(end_year, 12, 31),
+        }
+    
+    # Pattern 3: "what drove [5|10] year yields in YYYY"
+    drove_match = re.search(r'what\s+drove\s+(5|10)\s+year\s+yields\s+in\s+(\d{4})', q)
+    if drove_match:
+        tenor_num = drove_match.group(1)
+        tenor = f'{tenor_num:0>2}_year'  # Pad to 2 digits: "05" or "10"
+        year = int(drove_match.group(2))
+        return {
+            'tenor': tenor,
+            'start_date': date(year, 1, 1),
+            'end_date': date(year, 12, 31),
+        }
     
     return None
 
@@ -3403,9 +3501,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
-        "<b>Perisai v.0387 (as of 2026-01-02)</b>\n"
-        f"© Arif P. Sulistiono {datetime.now().year}\n\n"
-        "<b>Three Personas</b>\n"
+        "<b>v.0387 (as of 2026-01-02)</b>\n"
+        f"© Arif P. Sulistiono\n\n"
+        "<b>Two Personas</b>\n"
         "<b>/kei</b> — Kei: Quantitative partner (CFA, MIT-style); tables, stats, modeling\n"
         "<b>/kin</b> — Kin: Macro storyteller (CFA, Harvard PhD); plots, context, strategy\n"
         "<b>/both</b> — Dual analysis: Kei table → Kin strategic insight (clean single headline)\n\n"
@@ -3414,21 +3512,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>/examples</b> — Full query syntax reference\n\n"
         "<b>Quick Examples</b>\n"
         "• /kei tab yield 5 and 10 year from dec 2023 to jan 2024\n"
-        "• /kei tab incoming bid from 2020 to 2024\n"
-        "• /kei auction demand 2026 (ML forecast: 3,361.8 T)\n"
+        "• /kei tab incoming bid from 2020 to 2024\n"        
         "• /kin plot yield 5 year from oct 2024 to mar 2025\n"
         "• /both auction demand in 2026\n"
         "• /both compare yield 5 and 10 year 2024 vs 2025\n"
         "• /check 2025-12-08 5 and 10 year\n\n"
         "<b>Response Format</b>\n"
         "<b>Tables:</b> Economist-style with Min/Max/Avg statistics\n"
-        "<b>Plots:</b> Multi-tenor curves with single clean headline\n"
+        "<b>Plots:</b> Multi-tenor curves\n"
         "<b>Dual:</b> Kei table + Kin analysis (strategic, via Perplexity)\n"
         "<b>💡 Try asking:</b> /kin who are you? · /kei buatkan pantun · /both what matters?\n\n"
         "<b>📊 Data Coverage</b>\n"
-        "• <b>Bond Prices & Yields:</b> 2023–2026 (INDOGB, FR-series, 5Y/10Y/15Y/20Y/30Y tenors)\n"
+        "• <b>Bond Prices & Yields:</b> 2023–2026 (INDOGB, FR-series, 5Y/10Y tenors)\n"
         "• <b>Auction Historical:</b> 2010–2025 (incoming + awarded bids)\n"
-        "• <b>Auction Forecast 2026:</b> ML Ensemble (4 models, 3,361.8 T annual)\n"
+        "• <b>Auction Forecast 2026:</b> ML Ensemble (4 models)\n"
         "  - Random Forest (R²=0.7753) | Gradient Boosting (R²=0.7548) | AdaBoost (R²=0.7697) | Stepwise (R²=0.7588)\n"
         "• <b>Updates:</b> Daily (weekdays only, excluding Indonesian public holidays)"
     )
@@ -3722,6 +3819,31 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     override_warning = detect_personality_override_attempt(question, "kei")
     if override_warning:
         await update.message.reply_text(override_warning)
+        return
+    
+    # Detect bond return attribution queries
+    lower_q = question.lower()
+    bond_return_req = parse_bond_return_query(lower_q)
+    if bond_return_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            tenor = bond_return_req['tenor']
+            start_date = bond_return_req['start_date'].strftime('%Y-%m-%d')
+            end_date = bond_return_req['end_date'].strftime('%Y-%m-%d')
+            
+            analysis_text = analyze_bond_returns(tenor, start_date, end_date)
+            rendered = convert_markdown_code_fences_to_html(analysis_text)
+            await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "bond_return", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing bond return query: {e}")
+            await update.message.reply_text(f"❌ Error analyzing bond returns: {e}")
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "bond_return", response_time, False, str(e), "kei")
         return
     
     # Detect 'tab' bond metric queries (yield/price data across periods)
