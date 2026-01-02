@@ -3534,9 +3534,31 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Check if any periods are forecasts (after today)
         from datetime import datetime
-        current_year = datetime.now().year
         current_date = datetime.now().date()
-        forecast_periods = [p for p in tab_req['periods'] if p['year'] > current_year]
+        
+        # Determine if a period is in the future
+        def is_forecast_period(p):
+            if p['type'] == 'year':
+                # For year periods, check if year >= current year AND year is in the future
+                period_date = datetime(p['year'], 12, 31).date()
+            elif p['type'] == 'quarter':
+                # For quarters, use the last day of the quarter
+                q = p['quarter']
+                month = q * 3  # Q1->3, Q2->6, Q3->9, Q4->12
+                if month == 12:
+                    period_date = datetime(p['year'], 12, 31).date()
+                else:
+                    period_date = datetime(p['year'], month, 1).date() + timedelta(days=-1)
+            else:  # month
+                # For months, use the last day of the month
+                if p['month'] == 12:
+                    period_date = datetime(p['year'] + 1, 1, 1).date() + timedelta(days=-1)
+                else:
+                    period_date = datetime(p['year'], p['month'] + 1, 1).date() + timedelta(days=-1)
+            
+            return period_date > current_date
+        
+        forecast_periods = [p for p in tab_req['periods'] if is_forecast_period(p)]
         forecast_note = ""
         if forecast_periods:
             forecast_note = f"\n\n<i>⚠️ Note: All numbers referring to dates, months, quarters, or years after today ({current_date.strftime('%b %d, %Y')}) are FORECAST/PROJECTIONS.</i>"

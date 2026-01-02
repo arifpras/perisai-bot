@@ -1,0 +1,15 @@
+# Optional dependencies for file upload handling
+# Add these to your main requirements.txt when enabling file upload features
+
+# OCR for image text extraction
+pytesseract>=0.3.10
+Pillow>=9.0.0
+
+# PDF text extraction
+PyPDF2>=3.0.0
+
+# Excel file processing
+openpyxl>=3.8.0
+
+# Optional: For advanced image analysis (uses Claude Vision API)
+# python-multipart>=0.0.5  # For multipart form handling if needed

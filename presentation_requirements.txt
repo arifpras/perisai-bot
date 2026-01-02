@@ -1,0 +1,11 @@
+# Optional dependencies for presentation generation
+# Add these to your main requirements.txt when enabling PDF/PPTX generation
+
+# PDF generation with professional formatting
+reportlab>=4.0.0
+
+# PowerPoint (PPTX) file generation
+python-pptx>=0.6.21
+
+# Optional: For advanced document features
+# pillow>=9.0.0  # For image embedding in PDFs

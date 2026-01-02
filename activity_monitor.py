@@ -28,21 +28,24 @@ class ActivityMonitor:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
-                    CREATE TABLE IF NOT EXISTS metrics (
-                        id INTEGER PRIMARY KEY,
-                        timestamp TEXT NOT NULL,
-                        user_id INTEGER,
-                        username TEXT,
+                    CREATE TABLE IF NOT EXISTS events (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        ts TEXT NOT NULL,
+                        persona TEXT,
                         query_type TEXT,
-                        response_time REAL,
-                        success BOOLEAN,
-                        details TEXT,
-                        persona TEXT
+                        success INTEGER,
+                        latency_ms REAL,
+                        user_hash TEXT,
+                        username TEXT,
+                        error TEXT,
+                        raw_query TEXT
                     )
                 ''')
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_events_persona ON events(persona);")
                 conn.commit()
         except sqlite3.OperationalError as e:
-            logger.warning(f"Could not initialize metrics table: {e}")
+            logger.warning(f"Could not initialize events table: {e}")
     
     def health_check(self) -> Dict[str, Any]:
         """Get health metrics for last 24h and 7d.
@@ -60,10 +63,10 @@ class ActivityMonitor:
                     SELECT 
                         COUNT(*) as total,
                         SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful,
-                        AVG(response_time) as avg_latency,
-                        COUNT(DISTINCT user_id) as unique_users
-                    FROM metrics
-                    WHERE timestamp > ?
+                        AVG(latency_ms) as avg_latency,
+                        COUNT(DISTINCT user_hash) as unique_users
+                    FROM events
+                    WHERE ts > ?
                 ''', (cutoff_24h,)).fetchone()
                 
                 # Last 7d
@@ -72,10 +75,10 @@ class ActivityMonitor:
                     SELECT 
                         COUNT(*) as total,
                         SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful,
-                        AVG(response_time) as avg_latency,
-                        COUNT(DISTINCT user_id) as unique_users
-                    FROM metrics
-                    WHERE timestamp > ?
+                        AVG(latency_ms) as avg_latency,
+                        COUNT(DISTINCT user_hash) as unique_users
+                    FROM events
+                    WHERE ts > ?
                 ''', (cutoff_7d,)).fetchone()
                 
                 def _format_metrics(row):
@@ -126,8 +129,8 @@ class ActivityMonitor:
                         query_type,
                         COUNT(*) as count,
                         SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful
-                    FROM metrics
-                    WHERE timestamp > ?
+                    FROM events
+                    WHERE ts > ?
                     GROUP BY query_type
                     ORDER BY count DESC
                     LIMIT ?
@@ -164,8 +167,8 @@ class ActivityMonitor:
                         persona,
                         COUNT(*) as count,
                         SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful
-                    FROM metrics
-                    WHERE timestamp > ? AND persona IS NOT NULL
+                    FROM events
+                    WHERE ts > ? AND persona IS NOT NULL
                     GROUP BY persona
                     ORDER BY count DESC
                 ''', (cutoff,)).fetchall()
@@ -191,7 +194,7 @@ class ActivityMonitor:
             limit: Maximum number of users to return
             
         Returns:
-            List of dicts with user_id, username, query_count, success_rate
+            List of dicts with user_hash, username, query_count, success_rate
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -199,23 +202,23 @@ class ActivityMonitor:
                 
                 rows = conn.execute('''
                     SELECT 
-                        user_id,
+                        user_hash,
                         username,
                         COUNT(*) as count,
                         SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful
-                    FROM metrics
-                    WHERE timestamp > ? AND user_id IS NOT NULL
-                    GROUP BY user_id
+                    FROM events
+                    WHERE ts > ? AND user_hash IS NOT NULL AND user_hash != 'anon'
+                    GROUP BY user_hash
                     ORDER BY count DESC
                     LIMIT ?
                 ''', (cutoff, limit)).fetchall()
                 
                 users = []
-                for user_id, username, count, successful in rows:
+                for user_hash, username, count, successful in rows:
                     success_rate = (successful / count * 100) if count > 0 else 0
                     users.append({
-                        'user_id': user_id,
-                        'username': username or f'user_{user_id}',
+                        'user_hash': user_hash,
+                        'username': username or f'user_{user_hash}',
                         'query_count': count,
                         'success_rate': success_rate
                     })
@@ -241,11 +244,11 @@ class ActivityMonitor:
                 
                 rows = conn.execute('''
                     SELECT 
-                        details,
+                        error,
                         COUNT(*) as count
-                    FROM metrics
-                    WHERE timestamp > ? AND success = 0 AND details IS NOT NULL
-                    GROUP BY details
+                    FROM events
+                    WHERE ts > ? AND success = 0 AND error IS NOT NULL AND error != ''
+                    GROUP BY error
                     ORDER BY count DESC
                     LIMIT ?
                 ''', (cutoff, limit)).fetchall()
@@ -277,11 +280,11 @@ class ActivityMonitor:
                 
                 rows = conn.execute('''
                     SELECT 
-                        substr(timestamp, 1, 13) as hour,
+                        substr(ts, 1, 13) as hour,
                         COUNT(*) as total,
                         SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful
-                    FROM metrics
-                    WHERE timestamp > ?
+                    FROM events
+                    WHERE ts > ?
                     GROUP BY hour
                     ORDER BY hour DESC
                 ''', (cutoff,)).fetchall()
