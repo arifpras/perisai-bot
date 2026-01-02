@@ -21,15 +21,16 @@ The **Auction Demand Forecasting** system predicts incoming bids (auction demand
 
 ## Architecture
 
-### Models in Ensemble
+### Models in Ensemble (4 Core Models)
 
-| Model | Type | Strengths |
-|-------|------|-----------|
-| **Random Forest** | Tree Ensemble | Captures non-linear patterns, robust to outliers |
-| **Gradient Boosting** | Sequential Ensemble | Best predictive accuracy, handles interactions |
-| **AdaBoost** | Adaptive Boosting | Focuses on difficult predictions, stable |
-| **Linear Regression** | Parametric | Interpretability, baseline performance |
-| **Stepwise Regression** | Statistical Feature Selection | Identifies minimal sufficient feature set |
+| Model | Type | R² Score | 2026 Total (T) |
+|-------|------|----------|----------------|
+| **Stepwise Regression** | Statistical | **0.7588** | **3,510.558** ⭐ |
+| **Random Forest** | Tree Ensemble | 0.7581 | 3,348.689 |
+| **Gradient Boosting** | Sequential | 0.6997 | 3,442.524 |
+| **AdaBoost** | Adaptive Boosting | 0.7229 | 2,933.791 |
+
+**Ensemble Average**: R² ≈ 0.7399 | **Total: 3,285.718 T**
 
 ### Input Features
 

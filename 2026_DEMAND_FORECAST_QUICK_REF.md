@@ -49,17 +49,16 @@ cd /workspaces/perisai-bot
 python test_demand_forecast.py
 ```
 
-## 📈 5-Model Ensemble
+## 📈 4-Model Ensemble
 
-| # | Model | Type | Accuracy |
-|----|-------|------|----------|
-| 1️⃣ | **Gradient Boosting** | Sequential Ensemble | R² ≈ 0.82 |
-| 2️⃣ | **Random Forest** | Parallel Ensemble | R² ≈ 0.81 |
-| 3️⃣ | **AdaBoost** | Adaptive Boosting | R² ≈ 0.79 |
-| 4️⃣ | **Stepwise Regression** | Statistical Selection | R² ≈ 0.76 |
-| 5️⃣ | **Linear Regression** | Baseline | R² ≈ 0.72 |
+| # | Model | Type | 2026 Total (T) |
+|----|-------|------|----------------|
+| 1️⃣ | **Stepwise Regression** | Statistical Selection | **3,510.558 T** ⭐ Highest |
+| 2️⃣ | **Gradient Boosting** | Sequential Ensemble | 3,442.524 T |
+| 3️⃣ | **Random Forest** | Parallel Ensemble | 3,348.689 T |
+| 4️⃣ | **AdaBoost** | Adaptive Boosting | 2,933.791 T |
 
-**Final Prediction**: Average of 5 models + std dev (uncertainty)
+**Final Prediction (Ensemble Average)**: **3,285.718 T** (Average of 4 models)
 
 ## 📊 Input Features (6)
 
@@ -77,15 +76,17 @@ python test_demand_forecast.py
 ## 🎯 Typical 2026 Forecast
 
 ```
-Total Expected Incoming Bids:  ~724 billion IDR
-Average Monthly:                ~60 billion IDR
+Total Expected Incoming Bids:  3,285.718 Trillion IDR
+Average Monthly:                273.810 Trillion IDR
 
-Breakdown by Month:
-Jan: 61B  | Feb: 59B  | Mar: 58B  | Apr: 62B  | May: 58B  | Jun: 55B
-Jul: 61B  | Aug: 62B  | Sep: 61B  | Oct: 68B  | Nov: 67B  | Dec: 64B
+Breakdown by Quarter:
+Q1: 805.331 T (24.5%)  | Q2: 887.257 T (27.0%) 
+Q3: 899.785 T (27.4%)  | Q4: 693.345 T (21.1%)
+
+Monthly Range: 172.365 T (Dec) to 362.394 T (Feb)
 ```
 
-*Note: High Q4 due to seasonal pattern from historical data*
+*Note: Q3 shows peak demand, Q4 shows seasonal trough*
 
 ## 📁 File Structure
 

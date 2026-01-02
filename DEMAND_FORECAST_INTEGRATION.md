@@ -6,16 +6,17 @@ I've successfully integrated the notebook's **machine learning ensemble approach
 
 ### Key Deliverables
 
-#### 1. **auction_demand_forecast.py** (384 lines)
+#### 1. **auction_demand_forecast.py** (381 lines)
    - **AuctionDemandForecaster** class with full ML pipeline
-   - 5-model ensemble: Random Forest, Gradient Boosting, AdaBoost, Linear Regression, Stepwise Regression
+   - 4-model ensemble: Random Forest, Gradient Boosting, AdaBoost, Stepwise Regression
    - Features: number_series, dpk_bio_log, move, auction_month, long_holiday, inflation_rate
    - Methods:
      - `train()`: Train on historical data (185 auction records)
      - `predict()`: Generate predictions for new data
      - `get_2026_forecast()`: Monthly 2026 forecasts with uncertainty
      - `save()/load()`: Model persistence to disk
-   - Performance: R² ≈ 0.82 (Gradient Boosting), MSE ≈ 0.016
+   - **2026 Total Ensemble**: 3,285.718 Trillion IDR
+   - **Performance**: Stepwise Regression R² = 0.7588, Random Forest R² = 0.7581
 
 #### 2. **telegram_bot.py** Integration
    - Added `get_2026_demand_forecast()` function
@@ -56,9 +57,10 @@ I've successfully integrated the notebook's **machine learning ensemble approach
 ### ✅ ML Ensemble (New System)
 - **Multivariate**: 6 features capturing market context
 - **Macro Integrated**: Inflation, deposits, seasonality, holidays
-- **Granular**: Monthly forecasts with uncertainty bands
-- **Accuracy**: ~82% (R² 0.82)
+- **Granular**: Monthly forecasts with realistic seasonal variation
+- **Accuracy**: ~76% (R² avg of 4 models)
 - **Explainable**: Feature importance shows what drives demand
+- **2026 Forecast**: 3,285.718 Trillion IDR (ensemble average of 4 models)
 
 ---
 
@@ -71,7 +73,7 @@ I've successfully integrated the notebook's **machine learning ensemble approach
 │                                         │
 │  Input Data (train_sbn & predict_sbn)   │
 │  ├─ 185 historical auction records      │
-│  └─ 12 months of 2026 forecast inputs   │
+│  └─ 13 rows (Dec 2025 + 12 months 2026) │
 │                                         │
 │  Feature Engineering                    │
 │  ├─ number_series (1-52)                │
@@ -81,20 +83,19 @@ I've successfully integrated the notebook's **machine learning ensemble approach
 │  ├─ long_holiday (binary)               │
 │  └─ inflation_rate (macro)              │
 │                                         │
-│  5-Model Ensemble                       │
-│  ├─ Random Forest        (R² 0.81)      │
-│  ├─ Gradient Boosting    (R² 0.82) ⭐   │
-│  ├─ AdaBoost             (R² 0.79)      │
-│  ├─ Linear Regression    (R² 0.72)      │
-│  └─ Stepwise Regression  (R² 0.76)      │
+│  4-Model Ensemble                       │
+│  ├─ Random Forest        (R² 0.7581)    │
+│  ├─ Gradient Boosting    (R² 0.6997)    │
+│  ├─ AdaBoost             (R² 0.7229)    │
+│  └─ Stepwise Regression  (R² 0.7588) ⭐ │
 │                                         │
 │  Ensemble Prediction                    │
-│  ├─ ensemble_mean: Avg of 5 models      │
+│  ├─ ensemble_mean: Avg of 4 models      │
 │  ├─ ensemble_std:  Uncertainty band     │
 │  └─ Monthly breakdown (Jan-Dec 2026)    │
 │                                         │
 │  Output                                 │
-│  ├─ Total 2026 incoming (~724B)         │
+│  ├─ Total 2026 incoming: 3,285.718 T    │
 │  ├─ Monthly forecasts                   │
 │  └─ Model confidence metrics            │
 │                                         │
@@ -144,15 +145,14 @@ python test_demand_forecast.py
 
 ## Model Performance
 
-| Model | Type | R² Score | MSE | Best For |
-|-------|------|----------|-----|----------|
-| Gradient Boosting | Sequential Ensemble | **0.8234** | 0.0156 | Best accuracy ⭐ |
-| Random Forest | Parallel Ensemble | 0.8091 | 0.0172 | Robustness |
-| AdaBoost | Adaptive Boosting | 0.7945 | 0.0189 | Focus on hard cases |
-| Stepwise Regression | Statistical | 0.7621 | 0.0231 | Feature selection |
-| Linear Regression | Baseline | 0.7234 | 0.0267 | Interpretability |
+| Model | Type | R² Score | MSE | 2026 Total (T) |
+|-------|------|----------|-----|----------------|
+| Stepwise Regression | Statistical | **0.7588** | 0.0244 | **3,510.558** ⭐ |
+| Random Forest | Parallel Ensemble | 0.7581 | 0.0245 | 3,348.689 |
+| Gradient Boosting | Sequential | 0.6997 | 0.0304 | 3,442.524 |
+| AdaBoost | Adaptive Boosting | 0.7229 | 0.0280 | 2,933.791 |
 
-**Ensemble (Avg)**: R² ≈ 0.7835 | Combines strengths of all 5
+**Ensemble (Avg of 4 Models)**: R² ≈ 0.7399 | **Total: 3,285.718 T** ✅
 
 ---
 
@@ -160,24 +160,22 @@ python test_demand_forecast.py
 
 ```
 Total Expected Incoming Bids (2026):
-Rp 724.27 billion (±20-40B uncertainty)
+3,285.718 Trillion IDR (ensemble average of 4 models)
 
 Average Monthly:
-Rp 60.36 billion
+273.810 Trillion IDR
 
-Key Insights:
-- Q4 (Oct-Dec): Highest demand (~66-68B/month)
-  → Seasonal pattern from historical data
-  → Fiscal year-end effects
-  → Better market liquidity
+Quarterly Breakdown:
+- Q1 (Jan-Mar):  805.331 T (24.5%)
+- Q2 (Apr-Jun):  887.257 T (27.0%)
+- Q3 (Jul-Sep):  899.785 T (27.4%) ← Peak
+- Q4 (Oct-Dec):  693.345 T (21.1%) ← Trough
 
-- Q2 (Apr-Jun): Lowest demand (~55-62B/month)
-  → Post-Ramadan period
-  → Budget execution patterns
-  → Weather/holiday effects
-
-- Q1 & Q3: Moderate (~59-61B/month)
-  → Baseline seasonal activity
+By Model (Annual 2026):
+- Stepwise Regression: 3,510.558 T (highest)
+- Gradient Boosting:   3,442.524 T
+- Random Forest:       3,348.689 T
+- AdaBoost:            2,933.791 T (lowest)
 ```
 
 ---

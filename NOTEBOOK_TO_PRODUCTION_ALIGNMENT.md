@@ -31,10 +31,11 @@
     'total_2026_billions': 3285718,
     'average_monthly_billions': 273810,
     'total_by_model': {
-        'AdaBoost': 2933791,
-        'Stepwise Regression': 3510558,
-        'Gradient Boosting': 3442524,
-        'Random Forest': 3348689,
+        'AdaBoost': 2933.791,          # T (Trillions IDR)
+        'Stepwise Regression': 3510.558,  # T (Trillions IDR)
+        'Gradient Boosting': 3442.524,    # T (Trillions IDR)
+        'Random Forest': 3348.689,        # T (Trillions IDR)
+        'Ensemble Average': 3285.718,     # T (Trillions IDR)
     },
     'metrics': {
         'Linear Regression': {'mse': 0.0244, 'r2': 0.7588},
@@ -89,16 +90,16 @@
 ### Annual Total (Ensemble Average)
 | Year | Total | Monthly Average | Quarterly Avg |
 |------|-------|-----------------|---------------|
-| **2026** | **3.29T IDR** | **273.8B IDR** | **821.4B IDR** |
+| **2026** | **3,285.718 T** | **273.810 T** | **821.429 T** |
 
 ### Quarterly Breakdown
 
 | Quarter | Total | Q% | Best Month | Worst Month |
 |---------|-------|-----|------------|------------|
-| **Q1 2026** | 805.3B | 24.5% | Jan (304.8B) | Mar (203.1B) |
-| **Q2 2026** | 887.3B | 27.0% | Jun (324.9B) | Apr (278.1B) |
-| **Q3 2026** | 899.8B | 27.4% | Sep (306.8B) | Aug (295.1B) |
-| **Q4 2026** | 693.4B | 21.1% | Oct (262.2B) | Dec (172.4B) |
+| **Q1 2026** | 805.331 T | 24.5% | Jan (304.809 T) | Mar (203.108 T) |
+| **Q2 2026** | 887.257 T | 27.0% | Jun (324.933 T) | Apr (278.121 T) |
+| **Q3 2026** | 899.785 T | 27.4% | Sep (306.750 T) | Aug (295.086 T) |
+| **Q4 2026** | 693.345 T | 21.1% | Oct (262.172 T) | Dec (172.365 T) |
 
 ### Key Observations
 
@@ -257,4 +258,14 @@ The production system now uses the **exact same ML ensemble approach** as define
 - ✅ Same ensemble methodology (mean of 4 models)
 - ✅ Stepwise Regression predictions match **99.97%** accuracy
 
-The 2026 forecast is **3.29 trillion IDR total** with realistic monthly variation, integrated into the Telegram bot for querying.
+The 2026 forecast is **3,285.718 trillion IDR total** with realistic monthly variation, integrated into the Telegram bot for querying.
+
+### Final Model Totals (2026, in Trillions IDR)
+
+| Model | Total |
+|-------|-------|
+| AdaBoost | 2,933.791 T |
+| Stepwise Regression | 3,510.558 T |
+| Gradient Boosting | 3,442.524 T |
+| Random Forest | 3,348.689 T |
+| **Ensemble Average** | **3,285.718 T** |
