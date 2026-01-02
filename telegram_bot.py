@@ -35,6 +35,7 @@ from economist_style import (
     add_economist_caption,
     apply_economist_style,
 )
+from bond_macro_plots import BondMacroPlotter
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -1302,7 +1303,7 @@ def parse_bond_table_query(q: str) -> Optional[Dict]:
 def parse_bond_plot_query(q: str) -> Optional[Dict]:
     """Parse '/kin plot' bond plot queries.
     Same patterns as parse_bond_table_query but for plots.
-    Returns dict with 'metrics', 'tenors', 'start_date', 'end_date' or None.
+    Returns dict with 'metrics', 'tenors', 'start_date', 'end_date', 'include_fx', 'include_vix' or None.
     """
     q = q.lower()
     if 'plot' not in q:
@@ -1314,6 +1315,10 @@ def parse_bond_plot_query(q: str) -> Optional[Dict]:
     if plot_idx == -1:
         return None
     q_after_plot = q[plot_idx + 4:].strip()  # Everything after "plot"
+    
+    # Extract macro overlays: 'with fx', 'with vix'
+    include_fx = 'with fx' in q_after_plot or 'with fxusd' in q_after_plot or 'with idrusd' in q_after_plot
+    include_vix = 'with vix' in q_after_plot
     
     # Extract metrics: 'yield', 'price'
     metrics = []
@@ -1403,6 +1408,8 @@ def parse_bond_plot_query(q: str) -> Optional[Dict]:
                 'tenors': tenors,
                 'start_date': start_res[0],
                 'end_date': end_res[1],
+                'include_fx': include_fx,
+                'include_vix': include_vix,
             }
 
     # "X to Y" pattern (without explicit 'from')
@@ -1419,6 +1426,8 @@ def parse_bond_plot_query(q: str) -> Optional[Dict]:
                 'tenors': tenors,
                 'start_date': start_res[0],
                 'end_date': end_res[1],
+                'include_fx': include_fx,
+                'include_vix': include_vix,
             }
     
     # "in X" pattern (single period)
@@ -1432,6 +1441,8 @@ def parse_bond_plot_query(q: str) -> Optional[Dict]:
                 'tenors': tenors,
                 'start_date': period_res[0],
                 'end_date': period_res[1],
+                'include_fx': include_fx,
+                'include_vix': include_vix,
             }
     
     return None
@@ -4305,14 +4316,49 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             parse_mode=ParseMode.HTML
                         )
                         return
-                png = generate_plot(
-                    db,
-                    bond_plot_req['start_date'],
-                    bond_plot_req['end_date'],
-                    metric=bond_plot_req['metric'],
-                    tenors=bond_plot_req['tenors']
-                )
-                await update.message.reply_photo(photo=io.BytesIO(png))
+                
+                # Use macro plotter if FX/VIX overlays requested
+                if bond_plot_req.get('include_fx') or bond_plot_req.get('include_vix'):
+                    try:
+                        # Use first tenor for macro plot (single tenor at a time)
+                        tenor = bond_plot_req['tenors'][0]
+                        
+                        plotter = BondMacroPlotter(
+                            tenor,
+                            bond_plot_req['start_date'].isoformat(),
+                            bond_plot_req['end_date'].isoformat()
+                        )
+                        
+                        if bond_plot_req.get('include_fx') and bond_plot_req.get('include_vix'):
+                            plotter.fig = plotter.plot_with_fx_vix()
+                        elif bond_plot_req.get('include_fx'):
+                            plotter.fig = plotter.plot_with_fx()
+                        else:
+                            plotter.fig = plotter.plot_with_vix()
+                        
+                        png_buffer = plotter.save_and_return_image()
+                        await update.message.reply_photo(photo=png_buffer)
+                    except Exception as e:
+                        logger.error(f"Macro plot generation failed: {e}")
+                        # Fallback to regular plot
+                        png = generate_plot(
+                            db,
+                            bond_plot_req['start_date'],
+                            bond_plot_req['end_date'],
+                            metric=bond_plot_req['metric'],
+                            tenors=bond_plot_req['tenors']
+                        )
+                        await update.message.reply_photo(photo=io.BytesIO(png))
+                else:
+                    # Regular single-metric plot
+                    png = generate_plot(
+                        db,
+                        bond_plot_req['start_date'],
+                        bond_plot_req['end_date'],
+                        metric=bond_plot_req['metric'],
+                        tenors=bond_plot_req['tenors']
+                    )
+                    await update.message.reply_photo(photo=io.BytesIO(png))
                 
                 # Generate Kin's analysis summary for the plot
                 params = [bond_plot_req['start_date'].isoformat(), bond_plot_req['end_date'].isoformat()]

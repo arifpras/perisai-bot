@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0368 (as of 2026-01-02)
+**Version:** Perisai v.0369 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -98,6 +98,9 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 # Bond plots (with macro analysis)
 /kin plot yield 5 and 10 year from oct 2024 to mar 2025
 /kin plot price 5 year from q3 2023 to q2 2024
+/kin plot price 10 year with fx from 2023 to 2025
+/kin plot price 5 year with vix from 2023 to 2025
+/kin plot price 10 year with fx and vix from 2023 to 2025
 
 # Dual analysis (Kei table → Kin Perplexity insight)
 /both compare yield 5 and 10 year 2024 vs 2025
@@ -132,6 +135,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 - **Kei (return decomposition):** Attribution table (carry, duration, roll-down, FX) with metrics (prices, yields, modified duration, IDR/USD) and interpretation
 - **Kei (general knowledge):** Grounded in comprehensive SEC filing data on Indonesia's economy, policy, infrastructure, and recent developments
 - **Kin (plots):** Professional curves, single 🌍 headline (HL-CU format), 3 paragraphs max
+- **Kin (macro plots with FX/VIX):** Dual-axis or triple-axis plots combining bond prices with IDR/USD exchange rates and/or VIX volatility index for macroeconomic context
 - **Both (dual):** Kei table → Kin strategic analysis (clean single headline, no INDOGB prefix duplication)
 - **Pantun:** 4-line ABAB rhyme scheme verified automatically (e.g., mimpi/impian, siang/terang)
 - **Check (lookup):** Quick data + business day status (if Saturday, Sunday, or Indonesian holiday)
@@ -326,6 +330,40 @@ KEY METRICS:
 ```
 
 See [bond_return_analysis.py](bond_return_analysis.py) for implementation details.
+
+## Macroeconomic Plotting with FX/VIX Overlays
+
+Kin can create multi-variable plots that visualize bond prices alongside foreign exchange rates (IDR/USD) and global equity volatility (VIX) to provide macroeconomic context for bond market analysis.
+
+**Supported Plot Types:**
+
+| Query | Overlay | Use Case |
+|-------|---------|----------|
+| `/kin plot price 5 year with fx from 2023 to 2025` | IDR/USD | Currency risk exposure: how bond prices correlate with rupiah weakness/strength |
+| `/kin plot price 10 year with vix from 2023 to 2025` | VIX | Risk sentiment: how bond prices move with global equity volatility |
+| `/kin plot price 10 year with fx and vix from 2023 to 2025` | IDR/USD + VIX | Full macro context: currency + risk sentiment drivers of bond performance |
+
+**Technical Features:**
+- **Dual-axis plots (FX or VIX alone):** Bond price on left axis, FX/VIX on right axis with independent scales for clarity
+- **Triple-axis plots (FX + VIX combined):** Bond price primary, IDR/USD secondary, VIX tertiary with carefully positioned axes
+- **Data alignment:** All three data sources (bonds, FX, VIX) synchronized on business day calendar
+- **Professional styling:** Color-coded lines (blue for bonds, red for FX, orange for VIX), clear legends, date formatting
+
+**Data Requirements:**
+- **Bond Prices:** Historical yields/prices (5Y/10Y tenors, Feb 2023–Jan 2026)
+- **IDR/USD:** Daily exchange rates (Jan 2, 2023–Dec 31, 2025)
+- **VIX:** Daily closing levels (Jan 2, 2023–Dec 31, 2025)
+- All data sourced from `database/` directory
+
+**Example Analysis Insights:**
+- **FX Overlay:** When IDR weakens (IDR/USD rises), foreign-denominated bond returns compress even if IDR yields rise—shows currency risk dimension
+- **VIX Overlay:** Risk-off periods (VIX spikes) often coincide with bond spread widening—shows how global sentiment affects emerging market bonds
+- **Combined FX+VIX:** Reveals whether bond price moves are driven by currency moves, sentiment shifts, or both
+
+**Implementation:**
+- Module: [bond_macro_plots.py](bond_macro_plots.py) — `BondMacroPlotter` class with methods for each plot type
+- Integration: Telegram bot parser recognizes `with fx`, `with vix` keywords and routes to macro plotter
+- Fallback: If macro data unavailable, reverts to standard single-metric plot
 
 ## Output Examples
 
