@@ -3316,7 +3316,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
-        "<b>Perisai v.0363 (as of 2026-01-02)</b>\n"
+        "<b>Perisai v.0371 (as of 2026-01-02)</b>\n"
         f"© Arif P. Sulistiono {datetime.now().year}\n\n"
         "<b>Three Personas</b>\n"
         "<b>/kei</b> — Kei: Quantitative partner (CFA, MIT-style); tables, stats, modeling\n"
@@ -3329,18 +3329,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /kei tab yield 5 and 10 year from dec 2023 to jan 2024\n"
         "• /kei tab incoming bid from 2020 to 2024\n"
         "• /kin plot yield 5 year from oct 2024 to mar 2025\n"
+        "• /kei tab both from 2023 to 2025 (FX + VIX with stats)\n"
         "• /both auction demand in 2026\n"
         "• /both compare yield 5 and 10 year 2024 vs 2025\n"
         "• /check 2025-12-08 5 and 10 year\n\n"
         "<b>Response Format</b>\n"
         "<b>Tables:</b> Economist-style with Min/Max/Avg statistics\n"
         "<b>Plots:</b> Multi-tenor curves with single clean headline\n"
+        "<b>Macro Tables:</b> IDR/USD (no decimals, thousand sep) + VIX (2 decimals) with multi-column stats\n"
         "<b>Dual:</b> Kei table + Kin analysis (strategic, via Perplexity)\n"
         "<b>💡 Try asking:</b> /kin who are you? · /kei buatkan pantun · /both what matters?\n\n"
         "<b>📊 Data Coverage</b>\n"
         "• <b>Bond Prices & Yields:</b> 2023–2026 (INDOGB, FR-series, 5Y/10Y/15Y/20Y/30Y tenors)\n"
         "• <b>Auction Historical:</b> 2010–2025 (incoming + awarded bids)\n"
         "• <b>Auction Forecast:</b> 2025–2026 (incoming bids)\n"
+        "• <b>Macro Indicators:</b> IDR/USD (Jan 2023–Dec 2025), VIX volatility index\n"
         "• <b>Updates:</b> Daily (weekdays only, excluding Indonesian public holidays)"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)

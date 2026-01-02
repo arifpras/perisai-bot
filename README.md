@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0371 (as of 2026-01-02)
+**Version:** Perisai v.0372 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -244,10 +244,10 @@ See [examples/auction_tables.md](examples/auction_tables.md) for sample outputs.
 - **Metrics:** IDR/USD exchange rate, VIX volatility index
 - **Coverage:** Jan 2, 2023 – Dec 31, 2025 (775 business days)
 - **Update Frequency:** Daily on business days
-- **Date Format:** dd/mm/yyyy (e.g., 02/01/2023 = Jan 2, 2023)
+- **Date Format:** yyyy/mm/dd (e.g., 2023/01/02 = Jan 2, 2023)
 
 **Data Structure:**
-- Columns: `date`, `idrusd` (IDR per USD, e.g., 15,592), `vix_index` (VIX volatility %, e.g., 21.67)
+- Columns: `date` (yyyy/mm/dd), `idrusd` (IDR per USD, e.g., 15,592), `vix_index` (VIX volatility %, e.g., 21.67)
 - Format: CSV with header row
 - **Usage:** Optional context for enhanced yield forecasting and macroeconomic analysis
 
@@ -410,19 +410,19 @@ Kei can display IDR/USD and VIX data as economist-style tables using `/kei tab` 
 **Example Output:**
 ```
 💱 IDR/USD Exchange Rate
-┌─────────────┬──────────┐
-│    Date     │ IDR/USD  │
-├─────────────┼──────────┤
-│ 02 Jan 2023 │ 15592.00 │
-│ 23 Feb 2023 │ 15218.00 │
+┌─────────────┬─────────┐
+│    Date     │ IDR/USD │
+├─────────────┼─────────┤
+│ 02 Jan 2023 │  15,592 │
+│ 23 Feb 2023 │  15,218 │
 │ ... (more dates) ...
-├─────────────┼──────────┤
-│ Count       │       21 │
-│ Min         │ 14853.00 │
-│ Max         │ 16677.00 │
-│ Avg         │ 15872.37 │
-│ Std         │   523.29 │
-└─────────────┴──────────┘
+├─────────────┼─────────┤
+│ Count       │      21 │
+│ Min         │  14,853 │
+│ Max         │  16,677 │
+│ Avg         │  15,872 │
+│ Std         │     523 │
+└─────────────┴─────────┘
 ```
 
 **Implementation:**
@@ -531,11 +531,26 @@ docker build -t bondbot:latest .
 docker compose up
 ```
 
-**Current Version:** `Perisai v.0363 (as of 2026-01-02)`
+**Current Version:** `Perisai v.0371 (as of 2026-01-02)`
 
 **Updates (Jan 2, 2026):**
 
-**Phase 8: Comprehensive Backtesting Framework & Documentation** (Current)
+**Phase 9: Data Format & Display Enhancements for Macro Tables** (Current)
+- ✅ **CSV date format standardization:**
+  - Converted `20260102_daily01.csv` from dd/mm/yyyy to yyyy/mm/dd (international standard)
+  - All 775 rows updated and verified
+  - Both `bond_macro_plots.py` and `macro_data_tables.py` updated to parse new format
+- ✅ **FX data formatting with thousand separators:**
+  - IDR/USD values now display as integers with comma separators (e.g., 15,592 not 15592.00)
+  - Refactored `_format_economist_table()` to support per-column format specifications
+  - FX: `{1: 'fx'}` → thousand separator, no decimals | VIX: `{2: 'vix'}` → 2 decimals
+- ✅ **Multi-column statistics for combined tables:**
+  - Combined macro tables (`/kei tab both`) now show Count/Min/Max/Avg/Std for BOTH IDR/USD and VIX simultaneously
+  - Each metric formatted correctly (FX: no decimals, VIX: 2 decimals)
+  - Example: IDR range 14,853–16,677 | VIX range 12.70–22.64 with proper stats for each
+- ✅ **All files compile without errors and ready for production**
+
+**Phase 8: Comprehensive Backtesting Framework & Documentation**
 - ✅ **Walk-forward backtesting implementation:**
   - Created complete backtesting suite with 4 implementations (test_backtest.py, backtest_yield_forecasts.py, backtest_simple.py, backtest_yield.py)
   - Walk-forward validation on actual Indonesian bond data (779-781 observations per tenor)
