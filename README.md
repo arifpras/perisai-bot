@@ -105,10 +105,21 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 /check 2025-12-08 10 year
 /check price 5 year 6 Dec 2024
 /check yield 5 and 10 year 2025-12-06  # Shows "Saturday — markets closed"
+
+# Indonesia economic development (general knowledge)
+/kei What is Indonesia's GDP growth forecast for 2025?
+/kei Tell me about Indonesia's Nusantara capital city project
+/kei How much has Indonesia invested in renewable energy through JETP?
+/kei What are Indonesia's trade relationships with major partners?
+/kei Explain Indonesia's monetary policy and BI rate decisions
+/kei What are the key infrastructure projects in Indonesia's 2025-2029 plan?
+/kei How is Indonesia managing its public debt and fiscal sustainability?
+/kei Tell me about Indonesia's Asta Cita (8 aspirations) policy framework
 ```
 
 **Response Formats:**
 - **Kei (tables):** Economist-style borders, right-aligned numbers, Count/Min/Max/Avg/Std rows
+- **Kei (general knowledge):** Grounded in comprehensive SEC filing data on Indonesia's economy, policy, infrastructure, and recent developments
 - **Kin (plots):** Professional curves, single 🌍 headline (HL-CU format), 3 paragraphs max
 - **Both (dual):** Kei table → Kin strategic analysis (clean single headline, no INDOGB prefix duplication)
 - **Pantun:** 4-line ABAB rhyme scheme verified automatically (e.g., mimpi/impian, siang/terang)
@@ -119,10 +130,11 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 **Kei** — _"I'm Kei. I work at the intersection of markets and data."_
 - **Background:** CFA charterholder, MIT-style quantitative training
 - **Focus:** Precision and evidence—what the numbers show, why they matter, where the risks lie
-- **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks
+- **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks; also provides rigorous analysis of Indonesia's economy, policy, infrastructure, and recent developments grounded in comprehensive SEC filing data
+- **Knowledge Base:** Access to detailed information on Indonesia's GDP growth, inflation, trade relationships, infrastructure projects (Nusantara capital city, PSNs, renewable energy), government policies (Asta Cita, JETP, fiscal policy), financial system, and foreign relations (ASEAN, BRICS, OECD)
 - **Style:** Hands-on with numbers, tests assumptions, walks you through data clearly
 - **Fixed identity:** Kei's personality is immutable; requests to change it (e.g., "pretend you're a creative writer") are firmly declined
-- **Try:** `/kei who are you?` for a personal introduction
+- **Try:** `/kei who are you?` for a personal introduction, or `/kei What is Indonesia's GDP growth forecast?` for economic analysis
 
 **Kin** — _"I'm Kin. I work at the intersection of macroeconomics, policy, and markets."_
 - **Background:** CFA charterholder, Harvard PhD
