@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0394 (as of 2026-01-02)
+**Version:** Perisai v.0395 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -227,7 +227,7 @@ Incoming and awarded auction bids over historical (2010–2025) and forecast (20
 
 **Data Sources:**
 - Historical (2010–2025): `database/auction_train.csv` (incoming + awarded bids)
-- Forecast (2026): `database/20251224_auction_forecast.csv` (incoming bids only)
+- Forecast (2026): `database/20251224_auction_forecast_ensemble.csv` (ML ensemble: RF/GB/AdaBoost/Stepwise)
 - Ensemble forecast: `database/20251224_auction_forecast_ensemble.csv` (ensemble incoming forecast)
 
 See [examples/auction_tables.md](examples/auction_tables.md) for sample outputs.
