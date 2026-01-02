@@ -103,39 +103,46 @@ class AuctionDemandForecaster:
             },
         }
         
-        # Define models with hyperparameters using best values from GridSearchCV
-        models_config = {
-            "Random Forest": RandomForestRegressor(
-                n_estimators=200, max_depth=20, min_samples_split=5, 
-                min_samples_leaf=2, random_state=random_state
-            ),
-            "Gradient Boosting": GradientBoostingRegressor(
-                n_estimators=200, learning_rate=0.1, max_depth=5, 
-                subsample=0.8, random_state=random_state
-            ),
-            "AdaBoost": AdaBoostRegressor(
-                n_estimators=100, learning_rate=0.1, random_state=random_state
-            ),
+        # Initialize base models (without hyperparameters)
+        base_models = {
+            "Random Forest": RandomForestRegressor(random_state=random_state),
+            "Gradient Boosting": GradientBoostingRegressor(random_state=random_state),
+            "AdaBoost": AdaBoostRegressor(random_state=random_state),
             "Linear Regression": LinearRegression(),
         }
         
-        # Train models
-        for model_name, model in models_config.items():
-            print(f"  Training {model_name}...", end=" ")
-            model.fit(X_train_scaled, y_train)
-            y_pred = model.predict(X_test_scaled)
+        # Train models with GridSearchCV tuning
+        for model_name, model in base_models.items():
+            if model_name in param_grids:
+                print(f"  Tuning {model_name}...", end=" ")
+                grid_search = GridSearchCV(
+                    model, 
+                    param_grids[model_name], 
+                    cv=5, 
+                    scoring='neg_mean_squared_error', 
+                    verbose=0
+                )
+                grid_search.fit(X_train_scaled, y_train)
+                tuned_model = grid_search.best_estimator_
+                self.models[model_name] = tuned_model
+                print(f"✓ Best params: {grid_search.best_params_}")
+            else:
+                print(f"  Training {model_name}...", end=" ")
+                model.fit(X_train_scaled, y_train)
+                self.models[model_name] = model
+                print(f"✓")
             
             # Calculate metrics
+            y_pred = self.models[model_name].predict(X_test_scaled)
             mse = mean_squared_error(y_test, y_pred)
             r2 = r2_score(y_test, y_pred)
-            self.models[model_name] = model
             self.metrics[model_name] = {'mse': mse, 'r2': r2}
             
             # Feature importance
-            if hasattr(model, 'feature_importances_'):
-                self.feature_importances[model_name] = model.feature_importances_
+            if hasattr(self.models[model_name], 'feature_importances_'):
+                self.feature_importances[model_name] = self.models[model_name].feature_importances_
             
-            print(f"✓ MSE={mse:.4f}, R²={r2:.4f}")
+            print(f"    MSE={mse:.4f}, R²={r2:.4f}")
         
         # Train Stepwise Regression
         print(f"  Training Stepwise Regression...", end=" ")
