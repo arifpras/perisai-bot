@@ -170,10 +170,14 @@ class AuctionDemandForecaster:
         for model_name, preds in predictions.items():
             results[model_name] = preds
         
-        # Add ensemble mean and std
-        all_predictions = np.column_stack([predictions[m] for m in predictions.keys()])
+        # Add ensemble mean and std (in log scale)
+        all_predictions = np.column_stack([predictions[m] for m in ['Random Forest', 'Gradient Boosting', 'AdaBoost', 'Stepwise Regression']])
         results['ensemble_mean'] = np.mean(all_predictions, axis=1)
         results['ensemble_std'] = np.std(all_predictions, axis=1)
+        
+        # Convert ensemble mean to billions
+        results['ensemble_mean_billions'] = self.convert_to_billions(results['ensemble_mean'])
+        results['ensemble_std_billions'] = results['ensemble_std']  # Std stays in log scale
         
         return results
     
@@ -185,43 +189,64 @@ class AuctionDemandForecaster:
         """
         Generate 2026 monthly forecast summary.
         
+        Generates predictions using all 4 models (AdaBoost, Stepwise Regression, 
+        Gradient Boosting, Random Forest) and computes ensemble average.
+        
         Args:
             forecast_data: DataFrame with 2026 monthly data (predict_sbn sheet)
         
         Returns:
-            Dictionary with monthly and total forecasts
+            Dictionary with monthly predictions from each model and ensemble mean
         """
         predictions_df = self.predict(forecast_data)
         
-        # Convert from log scale to billions
-        for col in ['Random Forest', 'Gradient Boosting', 'AdaBoost', 'Linear Regression', 'Stepwise Regression', 'ensemble_mean']:
+        # Convert from log scale to billions for all models
+        model_cols = ['Random Forest', 'Gradient Boosting', 'AdaBoost', 'Linear Regression', 'Stepwise Regression']
+        for col in model_cols:
             if col in predictions_df.columns:
                 predictions_df[f'{col}_billions'] = self.convert_to_billions(predictions_df[col])
         
-        # Create monthly summary
+        # Create monthly summary with predictions from each model
         months = pd.date_range(start='2026-01-01', end='2026-12-31', freq='M')
         monthly_forecast = []
         
+        # Extract only 2026 data (skip if Dec 2025 exists at index 0)
+        forecast_2026 = predictions_df
+        if len(forecast_2026) > 12 and 'date' in forecast_2026.columns:
+            forecast_2026 = forecast_2026[forecast_2026['date'].dt.year == 2026].reset_index(drop=True)
+        elif len(forecast_2026) > 12:
+            forecast_2026 = forecast_2026.iloc[-12:].reset_index(drop=True)
+        
         for idx, month in enumerate(months):
-            if idx < len(predictions_df):
-                row = predictions_df.iloc[idx]
+            if idx < len(forecast_2026):
+                row = forecast_2026.iloc[idx]
                 monthly_forecast.append({
                     'month': month.strftime('%B %Y'),
+                    'month_num': month.month,
                     'date': month.date(),
+                    'adaboost_billions': row.get('AdaBoost_billions', np.nan),
+                    'stepwise_billions': row.get('Stepwise Regression_billions', np.nan),
+                    'gradient_boosting_billions': row.get('Gradient Boosting_billions', np.nan),
+                    'random_forest_billions': row.get('Random Forest_billions', np.nan),
                     'ensemble_mean_billions': row.get('ensemble_mean_billions', np.nan),
-                    'ensemble_std_billions': row.get('ensemble_std_billions', np.nan),
-                    'rf_billions': row.get('Random Forest_billions', np.nan),
-                    'gb_billions': row.get('Gradient Boosting_billions', np.nan),
-                    'ada_billions': row.get('AdaBoost_billions', np.nan),
                 })
         
         # Calculate totals
+        model_forecasts = {
+            'AdaBoost': sum(m['adaboost_billions'] for m in monthly_forecast if not np.isnan(m['adaboost_billions'])),
+            'Stepwise Regression': sum(m['stepwise_billions'] for m in monthly_forecast if not np.isnan(m['stepwise_billions'])),
+            'Gradient Boosting': sum(m['gradient_boosting_billions'] for m in monthly_forecast if not np.isnan(m['gradient_boosting_billions'])),
+            'Random Forest': sum(m['random_forest_billions'] for m in monthly_forecast if not np.isnan(m['random_forest_billions'])),
+        }
+        
         total_ensemble = sum(m['ensemble_mean_billions'] for m in monthly_forecast if not np.isnan(m['ensemble_mean_billions']))
+        ensemble_avg = total_ensemble / len(monthly_forecast) if monthly_forecast else 0
         
         return {
             'monthly': monthly_forecast,
             'total_2026_billions': total_ensemble,
-            'average_monthly_billions': total_ensemble / len(monthly_forecast),
+            'average_monthly_billions': ensemble_avg,
+            'total_by_model': model_forecasts,
             'metrics': self.metrics
         }
     
