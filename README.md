@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0375 (as of 2026-01-02)
+**Version:** Perisai v.0376 (as of 2026-01-02)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -155,15 +155,27 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 **Kei** — _"I'm Kei. I work at the intersection of markets and data."_
 - **Background:** CFA charterholder, MIT-style quantitative training
 - **Focus:** Precision and evidence—what the numbers show, why they matter, where the risks lie
-- **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks; quantitative return decomposition (carry, duration, roll-down, FX attribution); also provides rigorous analysis of Indonesia's economy, policy, infrastructure, and recent developments grounded in comprehensive SEC filing data
+- **Expertise:** Valuation, risk analysis, forecasting, backtesting using asset-pricing and time-series frameworks; quantitative return decomposition (carry, duration, roll-down, FX attribution); also provides rigorous analysis of Indonesia's economy, policy, infrastructure, and recent developments grounded in comprehensive official data (IMF, World Bank, Indonesian government, SEC filings)
 - **Quantitative Capabilities:** 
   - **Return Attribution:** Decomposes bond returns into carry (coupon income), duration (yield moves), roll-down (curve positioning), and FX effects
   - **Data-Driven Analysis:** Calculates modified duration, yield sensitivity, and currency impact on actual market data
-  - **Examples:** `/kei analyze indonesia 5 year bond returns` → quantitative decomposition with actual yields, prices, and FX from 2023–2026
-- **Knowledge Base:** Access to detailed information on Indonesia's GDP growth, inflation, trade relationships, infrastructure projects (Nusantara capital city, PSNs, renewable energy), government policies (Asta Cita, JETP, fiscal policy), financial system, and foreign relations (ASEAN, BRICS, OECD)
+  - **Time-Series Granularity:** Analyzes Indonesian bonds across yearly, quarterly, monthly periods with explicit FX impact decomposition
+  - **Examples:** `/kei analyze indonesia 5 year bond returns` → quantitative decomposition with actual yields, prices, FX from 2023–2026
+- **Knowledge Base (Indonesia):** 
+  - **Macroeconomic Data:** GDP growth, inflation, employment, trade balances (IMF, World Bank, Indonesian Central Bureau of Statistics)
+  - **Infrastructure Projects:** Nusantara capital city (IKN), toll roads (PSN), renewable energy (JETP), ports, airports, rail networks with budgets and timelines
+  - **Government Policies:** Asta Cita (8 aspirations), Medium-Term Development Plans (2020-2024, 2025-2029), monetary policy (BI rate), fiscal policy, tax reform
+  - **Financial System:** Banking health, public debt management, SUN bonds, foreign reserves, capital flows
+  - **Trade & Relations:** ASEAN role, bilateral relationships (US/China/Japan/EU), BRICS membership, regional integration
+  - **Current Data:** Updated through 2025 with official forecasts through 2029
+- **Knowledge Usage:** Provides concrete numbers, dates, and mechanisms (not generic statements). Grounds claims in authoritative sources (IMF, World Bank, Indonesian government, SEC filings). Links macro developments to market implications.
+- **Examples:** 
+  - `/kei What is Indonesia's GDP growth forecast for 2025?` → Provides specific forecast ranges with assumptions
+  - `/kei Tell me about Indonesia's Nusantara capital city project` → Details on budget, timeline, capacity, macroeconomic impact
+  - `/kei How much has Indonesia invested in renewable energy through JETP?` → Quantifies investment commitment with climate targets
 - **Style:** Hands-on with numbers, tests assumptions, walks you through data clearly
 - **Fixed identity:** Kei's personality is immutable; requests to change it (e.g., "pretend you're a creative writer") are firmly declined
-- **Try:** `/kei who are you?` for a personal introduction, or `/kei What is Indonesia's GDP growth forecast?` for economic analysis
+- **Try:** `/kei who are you?` for a personal introduction, or `/kei What is Indonesia's GDP growth forecast?` for substantive economic analysis
 
 **Kin** — _"I'm Kin. I work at the intersection of macroeconomics, policy, and markets."_
 - **Background:** CFA charterholder, Harvard PhD
