@@ -37,6 +37,7 @@ from economist_style import (
 )
 from bond_macro_plots import BondMacroPlotter
 from macro_data_tables import MacroDataFormatter
+from auction_demand_forecast import AuctionDemandForecaster
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -627,6 +628,66 @@ def load_auction_period(period: Dict) -> Optional[Dict]:
         return None
     except Exception as e:
         logger.error(f"Error loading auction period {period}: {e}")
+        return None
+
+
+def get_2026_demand_forecast(use_cache: bool = True) -> Optional[Dict]:
+    """
+    Load or generate 2026 auction demand forecast using ML ensemble.
+    
+    Uses trained Random Forest, Gradient Boosting, AdaBoost, and Stepwise Regression models
+    to forecast incoming bids (auction demand) for each month of 2026.
+    
+    Args:
+        use_cache: If True, load pre-trained models from disk; if False, retrain.
+    
+    Returns:
+        Dictionary with monthly forecasts and totals, or None if error
+    """
+    try:
+        forecaster = AuctionDemandForecaster()
+        
+        # Try loading pre-trained models
+        if use_cache:
+            try:
+                forecaster.load("models")
+                logger.info("✓ Loaded pre-trained demand forecast models")
+            except Exception as e:
+                logger.warning(f"Could not load cached models: {e}. Will retrain.")
+                use_cache = False
+        
+        # Retrain if needed
+        if not use_cache or not forecaster.is_fitted:
+            try:
+                train_df = pd.read_excel('database/20251207_db01.xlsx', sheet_name='train_sbn')
+                forecaster.train(train_df)
+                forecaster.save("models")
+                logger.info("✓ Trained and saved demand forecast models")
+            except Exception as e:
+                logger.error(f"Could not train demand forecast model: {e}")
+                return None
+        
+        # Load forecast data
+        try:
+            forecast_df = pd.read_excel('database/20251207_db01.xlsx', sheet_name='predict_sbn')
+        except Exception as e:
+            logger.error(f"Could not load forecast data: {e}")
+            return None
+        
+        # Generate 2026 forecast
+        forecast_results = forecaster.get_2026_forecast(forecast_df)
+        
+        return {
+            'source': 'ML Ensemble (RF, GB, AdaBoost, Stepwise)',
+            'forecast_date': datetime.now().date(),
+            'total_2026_incoming_billions': forecast_results['total_2026_billions'],
+            'average_monthly_billions': forecast_results['average_monthly_billions'],
+            'monthly': forecast_results['monthly'],
+            'model_metrics': forecast_results['metrics']
+        }
+    
+    except Exception as e:
+        logger.error(f"Error generating 2026 demand forecast: {e}")
         return None
 
 
