@@ -35,7 +35,7 @@ try:
 except Exception:
     _HAS_SEABORN = False
 
-from economist_style import (
+from utils.economist_style import (
     ECONOMIST_COLORS,
     ECONOMIST_PALETTE,
     add_economist_caption,
@@ -58,7 +58,7 @@ BondDB = priceyield_mod.BondDB
 Intent = priceyield_mod.Intent
 
 # Import metrics
-from metrics import metrics
+from utils.metrics import metrics
 
 
 @asynccontextmanager
