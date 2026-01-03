@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Any
 
-import usage_store
+from utils import usage_store
 
 class BotMetrics:
     """Track bot activity and performance metrics."""
