@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0409 (as of 2026-01-03)
+**Version:** Perisai v.0410 (as of 2026-01-03)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -8,8 +8,6 @@ Indonesian government bond analysis via Telegram with dual AI personas: **Kei** 
 - **Bond data:** Historical yields & prices (2015–2025), forecasts (2025–2026)
 - **Auction data:** Incoming & awarded bids (2010–2025 historical, 2026 ML forecast) — all values in Rp Trillions
 - **2026 Auction Forecast:** ML ensemble (4 models: Random Forest, Gradient Boosting, AdaBoost, Stepwise Regression)
-  - **Total 2026:** 3.41 Trillion IDR (ensemble average)
-  - **Monthly range:** 146–325 Trillion IDR
 - **Economist-style tables:** Right-aligned numbers, summary stats (Count/Min/Max/Avg/Std), two-decimal precision
 - **Multi-tenor queries:** Compare 5Y, 10Y bonds side-by-side
 - **Professional plots:** Multi-tenor curves with macro overlays (FX/VIX) in Economist style

@@ -540,6 +540,20 @@ def _period_label(data: Dict) -> str:
     return f"{int(data['year'])}"
 
 
+def _get_forecast_note(periods_data: List[Dict]) -> str:
+    """Generate forecast note if data contains future/current year records."""
+    from datetime import datetime
+    current_date = datetime.now().date()
+    current_year = current_date.year
+    
+    # Check if any period is in current year or later
+    has_forecast = any(p.get('year', 0) >= current_year for p in periods_data)
+    
+    if has_forecast:
+        return f"\n\n⚠️ Note: All numbers referring to dates, months, quarters, or years after today ({current_date.strftime('%b %d, %Y')}) are FORECAST/PROJECTIONS."
+    return ""
+
+
 def load_auction_period(period: Dict) -> Optional[Dict]:
     """Load auction period data, preferring forecast (AuctionDB) and falling back to historical train CSV.
     period: {'type': 'month'|'quarter'|'year', 'year': int, 'month'?: int, 'quarter'?: int}
@@ -691,10 +705,15 @@ def get_2026_demand_forecast(use_cache: bool = True) -> Optional[Dict]:
         return None
 
 
-def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -> str:
+def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str], granularity: str = 'month') -> str:
     """Economist-style table for requested metrics across periods.
     Rows: periods (month/quarter/year labels)
     Columns: one or two of ['Incoming','Awarded'] in Rp T
+    
+    Args:
+        periods_data: List of period dictionaries with aggregated data
+        metrics: List of metrics to display ['incoming', 'awarded']
+        granularity: 'month', 'quarter', or 'year' - determines period label format
     
     Note: For forecast years (2026+), 'Awarded' column shows 'N/A' since actual 
     awarded amounts haven't been realized yet.
@@ -711,9 +730,17 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
     if not cols:
         cols = ['Incoming']
 
+    # Generate appropriate period header based on granularity
+    if granularity == 'month':
+        period_header = 'Month'
+    elif granularity == 'quarter':
+        period_header = 'Quarter'
+    else:  # year
+        period_header = 'Year'
+    
     # Compute widths to target a compact overall width
     # Enforce a minimum period label width of 9 and 13-char numeric columns.
-    label_width = max(9, max(len(_period_label(p)) for p in periods_data))
+    label_width = max(len(period_header), max(len(_period_label(p)) for p in periods_data))
     col_width = 13
     sep = " |"  # compact separator (2 chars)
     sep_len = len(sep)
@@ -722,7 +749,7 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
     border = '─' * total_width
 
     # Header
-    header = f"{'Period':<{label_width}}{sep}" + sep.join([f"{c:>{col_width}}" for c in cols])
+    header = f"{period_header:<{label_width}}{sep}" + sep.join([f"{c:>{col_width}}" for c in cols])
 
     # Rows
     rows = []
@@ -3561,7 +3588,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
-        "<b>v.0398 (as of 2026-01-03)</b>\n"
+        "<b>v.0410 (as of 2026-01-03)</b>\n"
         f"© Arif P. Sulistiono\n\n"
         "<b>Two Personas</b>\n"
         "<b>/kei</b> — Kei: Quantitative partner (CFA, MIT-style); tables, stats, modeling\n"
@@ -4196,11 +4223,12 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         )
                         missing_labels.append(label)
                 if periods_data:
-                    table = format_auction_metrics_table(periods_data, ['incoming', 'awarded'])
+                    table = format_auction_metrics_table(periods_data, ['incoming', 'awarded'], granularity='month')
                     note = ""
                     if missing_labels:
                         note = "\n\n⚠️ Missing data for: " + ", ".join(missing_labels)
-                    rendered = convert_markdown_code_fences_to_html(table + note + "\n\n<blockquote>~ Kei</blockquote>")
+                    forecast_note = _get_forecast_note(periods_data)
+                    rendered = convert_markdown_code_fences_to_html(table + note + forecast_note + "\n\n<blockquote>~ Kei</blockquote>")
                     await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "auction_range", response_time, True, "auction_month_range", "kei")
@@ -4240,11 +4268,12 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else:
                         missing_labels.append(f"Q{p['quarter']} {p['year']}")
                 if periods_data:
-                    table = format_auction_metrics_table(periods_data, ['incoming', 'awarded'])
+                    table = format_auction_metrics_table(periods_data, ['incoming', 'awarded'], granularity='quarter')
                     note = ""
                     if missing_labels:
                         note = "\n\n⚠️ Missing data for: " + ", ".join(missing_labels)
-                    rendered = convert_markdown_code_fences_to_html(table + note + "\n\n<blockquote>~ Kei</blockquote>")
+                    forecast_note = _get_forecast_note(periods_data)
+                    rendered = convert_markdown_code_fences_to_html(table + note + forecast_note + "\n\n<blockquote>~ Kei</blockquote>")
                     await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "auction_range", response_time, True, "auction_quarter_range", "kei")
@@ -4274,11 +4303,12 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         else:
                             missing_labels.append(str(p['year']))
                     if periods_data:
-                        table = format_auction_metrics_table(periods_data, ['incoming', 'awarded'])
+                        table = format_auction_metrics_table(periods_data, ['incoming', 'awarded'], granularity='year')
                         note = ""
                         if missing_labels:
                             note = "\n\n⚠️ Missing data for: " + ", ".join(missing_labels)
-                        rendered = convert_markdown_code_fences_to_html(table + note + "\n\n<blockquote>~ Kei</blockquote>")
+                        forecast_note = _get_forecast_note(periods_data)
+                        rendered = convert_markdown_code_fences_to_html(table + note + forecast_note + "\n\n<blockquote>~ Kei</blockquote>")
                         await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
                         response_time = time.time() - start_time
                         metrics.log_query(user_id, username, question, "auction_range", response_time, True, "auction_year_range", "kei")
