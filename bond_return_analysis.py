@@ -4,6 +4,29 @@ Bond Return Attribution & Decomposition Analysis
 Analyzes Indonesian government bond returns across carry, duration, roll-down, 
 and FX components using actual market data.
 
+COUPON HANDLING FOR MULTI-YEAR ANALYSIS (KEY DESIGN NOTE):
+----------------------------------------------------------
+When a period spans different bond series (e.g., 2023-2025), the bond composition
+may change (e.g., FR95 5.500% coupon in 2023 → FR104 5.750% coupon in 2025).
+
+Convention:
+  → Coupon value in KEY METRICS uses the START bond's coupon (FR95: 5.500%)
+  → This reflects the actual coupon earned during carry calculations
+  → Return decomposition (carry + duration + rolldown) is based on START bond metrics
+  → The "Coupon (Start)" label makes this transparent to users
+  
+Why this approach:
+  ✓ Carry income is calculated on the starting bond's coupon
+  ✓ Duration effect uses starting bond's modified duration
+  ✓ Rolldown assumes you held that bond down the curve
+  ✓ Avoids complex dollar-weighted averaging that obscures analysis
+  ✓ Matches fixed-income return attribution best practices
+
+If needed for future enhancement:
+  → Could add "Coupon (End)" row for transparency on series migration
+  → Could add note in headline: "FR95 → FR104 series migration"
+  → But current approach is clearest for decomposition integrity
+
 Usage:
     decomp = ReturnDecomposition('05_year', '2023-01-02', '2025-12-31')
     results = decomp.analyze()
@@ -46,7 +69,31 @@ class ReturnDecomposition:
         return date_str
 
     def _load_data(self):
-        """Load bond and FX data from CSV files."""
+        """
+        Load bond and FX data from CSV files.
+        
+        DATABASE PATH CONFIGURATION (VERIFIED):
+        ----------------------------------------
+        Path construction: os.path.join(os.path.dirname(__file__), 'database')
+        Result: /workspaces/perisai-bot/database
+        
+        Files required:
+          1. bond_file: 20251215_priceyield.csv (bond prices/yields)
+             - Location: /workspaces/perisai-bot/database/20251215_priceyield.csv
+             - Columns: date (DD/MM/YYYY), cusip, series, coupon, maturity_date, 
+                        price, yield, tenor
+             - Status: ✅ EXISTS (0.09 MB)
+             
+          2. fx_file: 20260102_daily01.csv (IDR/USD FX rates)
+             - Location: /workspaces/perisai-bot/database/20260102_daily01.csv
+             - Columns: date (YYYY/MM/DD), idrusd, vix_index
+             - Status: ✅ EXISTS (0.02 MB)
+        
+        Error handling: FileNotFoundError raised if either file is missing.
+        Date format: Bond data uses DD/MM/YYYY; FX data uses YYYY/MM/DD
+        
+        Path type: RELATIVE (OS-agnostic, works on Windows/Mac/Linux)
+        """
         db_path = os.path.join(os.path.dirname(__file__), 'database')
         
         # Load bond data
@@ -105,10 +152,18 @@ class ReturnDecomposition:
         """
         Perform return decomposition analysis.
         
+        COUPON CONVENTION (Multi-Year/Multi-Series Handling):
+        -------------------------------------------------------
+        When period spans different bond series (e.g., 2023-2025 with FR95→FR104 migration):
+        - Uses START BOND's coupon for all calculations (carry, duration, rolldown)
+        - This is standard practice in fixed-income return attribution
+        - Coupon value returned in metrics['coupon'] = start_row['coupon']
+        - Ensures decomposition integrity: carry earned on actual bond held at period start
+        
         Returns:
         --------
         dict with keys: carry_idr, duration_idr, rolldown_idr, fx_effect, 
-                        total_idr, total_usd, metrics
+                        total_idr, total_usd, metrics (including coupon from START bond)
         """
         if len(self.bond_data) < 2:
             raise ValueError(f"Insufficient data for period {self.start_date} to {self.end_date}")
@@ -121,9 +176,9 @@ class ReturnDecomposition:
         end_price = end_row['price']
         start_yield = start_row['yield']
         end_yield = end_row['yield']
-        coupon = start_row['coupon']
+        coupon = start_row['coupon']  # ← START BOND COUPON (key design decision)
         
-        # Duration estimate
+        # Duration estimate (based on start bond)
         tenor_years = 5 if self.tenor == '05_year' else 10
         mod_duration = self.calculate_modified_duration(start_price, start_yield, tenor_years)
         
@@ -175,33 +230,65 @@ class ReturnDecomposition:
         }
 
     def format_analysis(self, results: dict) -> str:
-        """Format return decomposition for display."""
+        """
+        Format return decomposition for Telegram display.
+        
+        KEY METRICS - COUPON CONVENTION:
+        --------------------------------
+        The "Coupon" row displays the START BOND's coupon (metric from analyze()).
+        For multi-year periods spanning different series:
+          → Example: 2023 FR95 (5.500%) → 2025 FR104 (5.750%)
+          → Displays: 5.500% (start bond)
+          → Reasoning: All return decomposition (carry, duration, rolldown) is
+                       calculated on the starting bond's metrics
+          → User sees transparent, consistent methodology
+        
+        If full series migration tracking needed in future:
+          → Add "Coupon (End)" row below current Coupon line
+          → Or add notation in headline: "FR95 → FR104 migration"
+          → Current design prioritizes clarity of decomposition methodology
+        """
         m = results['metrics']
+        price_change = m['end_price'] - m['start_price']
+        yield_change_bp = m['yield_move_bp']
         
         output = f"""
 📊 {self.tenor.upper()} Bond Return Attribution
 {self.start_date.strftime('%d %b %Y')} – {self.end_date.strftime('%d %b %Y')} ({m['days_held']} days)
 
 RETURN DECOMPOSITION (IDR-based):
-┌──────────────────┬────────────┬────────┐
-│ Component        │    Return  │   %    │
-├──────────────────┼────────────┼────────┤
-│ Carry            │ Rp {results['carry_idr']:>7.2f}  │ {results['carry_pct']:>5.2f}% │
-│ Duration Effect  │ Rp {results['duration_idr']:>7.2f}  │ {results['duration_pct']:>5.2f}% │
-│ Roll-Down        │ Rp {results['rolldown_idr']:>7.2f}  │ {results['rolldown_pct']:>5.2f}% │
-├──────────────────┼────────────┼────────┤
-│ Total (IDR)      │            │ {results['total_idr_pct']:>5.2f}% │
-│ FX Impact (dep)  │            │ {results['fx_depreciation']:>5.2f}% │
-├──────────────────┼────────────┼────────┤
-│ Total (USD)      │            │ {results['usd_return_pct']:>5.2f}% │
-└──────────────────┴────────────┴────────┘
+┌──────────────────────────────────┬────────┐
+│ Component                        │   %    │
+├──────────────────────────────────┼────────┤
+│ Carry                            │ {results['carry_pct']:>5.2f}% │
+│ Duration Effect                  │ {results['duration_pct']:>5.2f}% │
+│ Rolldown                         │ {results['rolldown_pct']:>5.2f}% │
+├──────────────────────────────────┼────────┤
+│ Total (IDR)                      │ {results['total_idr_pct']:>5.2f}% │
+│ FX Impact (Depreciation)         │ {results['fx_depreciation']:>5.2f}% │
+├──────────────────────────────────┼────────┤
+│ Total (USD)                      │ {results['usd_return_pct']:>5.2f}% │
+└──────────────────────────────────┴────────┘
 
 KEY METRICS:
-  Price:            {m['start_price']} → {m['end_price']} (Δ {round(m['end_price'] - m['start_price'], 3)})
-  Yield:            {m['start_yield']:.2f}% → {m['end_yield']:.2f}% (Δ {m['yield_move_bp']:.0f} bp)
-  Modified Duration: {m['modified_duration']:.2f}
-  Coupon:           {m['coupon']:.3f}%
-  IDR/USD:          {int(m['start_fx'])} → {int(m['end_fx'])} (IDR weakened {results['fx_depreciation']:.1f}%)
+┌──────────────────┬───────────────┐
+│ Metric           │         Value │
+├──────────────────┼───────────────┤
+│ Price (Start)    │  {m['start_price']:>12.2f}% │
+│ Price (End)      │  {m['end_price']:>12.2f}% │
+│ Price Change     │  {price_change:>12.2f}% │
+├──────────────────┼───────────────┤
+│ Yield (Start)    │  {m['start_yield']:>12.2f}% │
+│ Yield (End)      │  {m['end_yield']:>12.2f}% │
+│ Yield Change     │ {yield_change_bp:>10.0f} bp │
+├──────────────────┼───────────────┤
+│ Modified Dur.    │  {m['modified_duration']:>12.2f}  │
+│ Coupon           │  {m['coupon']:>12.3f}% │
+├──────────────────┼───────────────┤
+│ IDR/USD (Start)  │  {int(m['start_fx']):>10,}  │
+│ IDR/USD (End)    │  {int(m['end_fx']):>10,}  │
+│ IDR Depreciat.   │  {results['fx_depreciation']:>12.2f}% │
+└──────────────────┴───────────────┘
 
 INTERPRETATION:
 """

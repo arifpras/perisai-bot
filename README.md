@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0396 (as of 2026-01-03)
+**Version:** Perisai v.0397 (as of 2026-01-03)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -192,7 +192,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 - **Approach:** Connects dots across data, incentives, and policy constraints
 - **Style:** Translates complex signals into concise, usable stories for decision-makers
 - **Bonus:** Creates authentic Indonesian pantun (4-line ABAB rhyme with automatic verification)
-  - Example: "mimpi/impian" (A rhyme) + "siang/terang" (B rhyme) = ABAB verified
+  - Example: "mimpi/pagi" (A rhyme) + "siang/terang" (B rhyme) = ABAB verified
   - Kin checks rhyme scheme before responding
 - **Fixed identity:** Kin's personality is immutable; requests to change it (e.g., "act like a financial advisor") are firmly declined
 - **Try:** `/kin who are you?` for a personal introduction or `/kin buatkan pantun tentang pagi` for a verified pantun
