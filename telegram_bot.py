@@ -3922,7 +3922,9 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             end_date = bond_return_req['end_date'].strftime('%Y-%m-%d')
             
             analysis_text = analyze_bond_returns(tenor, start_date, end_date)
-            await update.message.reply_text(analysis_text, parse_mode=None)
+            # Convert markdown code fences to HTML for proper rendering
+            html_text = convert_markdown_code_fences_to_html(analysis_text)
+            await update.message.reply_text(html_text, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "bond_return", response_time, True, "success", "kei")
         except Exception as e:
