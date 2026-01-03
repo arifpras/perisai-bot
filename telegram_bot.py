@@ -3600,6 +3600,11 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         except Exception:
             is_bond_intent = False
 
+        # Generate Harvard-style hook and prepend to response (if applicable)
+        hook = generate_kin_harvard_hook(question, content)
+        if hook:
+            content = f"{hook}\n\n{content}"
+
         # Convert Markdown code fences to HTML <pre> before wrapping signature
         content = convert_markdown_code_fences_to_html(content)
         return html_quote_signature(content)
@@ -3613,6 +3618,65 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         return f"⚠️ Perplexity API error: {e.response.status_code} {e.response.reason_phrase}{error_detail}"
     except Exception as e:
         return f"⚠️ Perplexity error: {e}"
+
+
+def generate_kin_harvard_hook(question: str, response: str) -> str:
+    """Generate a Harvard-style hook for /kin responses based on question context.
+    
+    Extracts key insight from response or question to create an engaging opening line
+    that draws readers in before the main HL-CU headline.
+    """
+    q_lower = question.lower()
+    
+    # Identity/personality questions - no hook needed
+    identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "describe yourself"]
+    if any(kw in q_lower for kw in identity_keywords):
+        return ""
+    
+    # Pantun requests - no hook needed
+    if "pantun" in q_lower or "buatkan" in q_lower:
+        return ""
+    
+    # Bond/yield analysis questions
+    if any(word in q_lower for word in ["bond", "yield", "indogb", "duration", "carry", "return"]):
+        if "comparison" in q_lower or "compare" in q_lower:
+            return "Indonesia's government bonds show meaningful structural differences across the curve that investors should understand."
+        elif "forecast" in q_lower or "outlook" in q_lower:
+            return "Indonesia's bond market faces competing headwinds from global rate dynamics and domestic fiscal constraints."
+        elif "performance" in q_lower or "return" in q_lower:
+            return "Bond returns in 2025 reflect the complex interplay between local monetary policy and currency dynamics."
+        else:
+            return "Indonesian government bonds offer opportunities for investors who understand the country's policy regime."
+    
+    # Auction analysis questions
+    elif any(word in q_lower for word in ["auction", "demand", "bidding", "issuance"]):
+        if "forecast" in q_lower:
+            return "Indonesia's next bond auction will test investor appetite amid shifting rate expectations."
+        elif "demand" in q_lower:
+            return "Recent auction demand patterns reveal evolving investor positioning in the Indonesia fixed income market."
+        else:
+            return "Auction dynamics in Indonesia reflect broader trends in government debt management and investor flows."
+    
+    # Macro/economic questions
+    elif any(word in q_lower for word in ["inflation", "gdp", "growth", "budget", "fiscal", "monetary", "bi rate"]):
+        if "forecast" in q_lower or "outlook" in q_lower:
+            return "Indonesia's macro trajectory hinges on how effectively policymakers navigate domestic demand and external pressures."
+        elif "policy" in q_lower or "central bank" in q_lower:
+            return "Policy decisions at Bank Indonesia increasingly reflect the tension between domestic growth and external stability."
+        else:
+            return "Indonesia's economic fundamentals show both structural strengths and near-term vulnerabilities worth monitoring."
+    
+    # Currency/FX questions
+    elif any(word in q_lower for word in ["rupiah", "fx", "currency", "exchange rate", "depreciation"]):
+        return "The Rupiah's performance reflects Indonesia's position as a vulnerable EM economy caught between global rates and local deficits."
+    
+    # Policy/structural questions
+    elif any(word in q_lower for word in ["infrastructure", "reform", "nusantara", "jetp", "policy"]):
+        return "Indonesia's structural agenda faces pragmatic constraints that affect investor sentiment and market outcomes."
+    
+    # Default hook for economics/markets
+    else:
+        return "Indonesia's markets reflect the underlying policy tensions between growth, stability, and development priorities."
 
 
 async def ask_kei_then_kin(question: str) -> dict:
@@ -3648,7 +3712,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
-        "<b>v.0421 (as of 2026-01-03)</b>\n"
+        "<b>v.0427 (as of 2026-01-03)</b>\n"
         f"© Arif P. Sulistiono\n\n"
         "<b>Two Personas</b>\n"
         "<b>/kei</b> — Kei: Quantitative partner (CFA, MIT-style); tables, stats, modeling\n"
