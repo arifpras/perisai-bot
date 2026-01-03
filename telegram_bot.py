@@ -3550,7 +3550,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
-        "<b>v.0397 (as of 2026-01-03)</b>\n"
+        "<b>v.0398 (as of 2026-01-03)</b>\n"
         f"© Arif P. Sulistiono\n\n"
         "<b>Two Personas</b>\n"
         "<b>/kei</b> — Kei: Quantitative partner (CFA, MIT-style); tables, stats, modeling\n"
