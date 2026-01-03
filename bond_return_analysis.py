@@ -252,7 +252,21 @@ class ReturnDecomposition:
         price_change = m['end_price'] - m['start_price']
         yield_change_bp = m['yield_move_bp']
         
-        output = f"""📊 {self.tenor.upper()} Bond Return Attribution
+        # Generate Harvard-style hook based on key findings
+        if results['total_idr_pct'] > 0:
+            if abs(results['fx_depreciation']) > abs(results['total_idr_pct']) * 0.5:
+                hook = f"IDR bonds delivered {results['total_idr_pct']:.2f}% returns despite FX headwinds from {abs(results['fx_depreciation']):.2f}% currency depreciation."
+            else:
+                hook = f"Yield compression and carry drove {results['total_idr_pct']:.2f}% IDR returns in {self.tenor.replace('_', '-').upper()} bonds."
+        else:
+            if abs(results['duration_pct']) > abs(results['carry_pct']):
+                hook = f"Yield expansion headwinds resulted in {results['total_idr_pct']:.2f}% IDR returns on {self.tenor.replace('_', '-').upper()} bonds."
+            else:
+                hook = f"Weak carry and rising yields pressured {self.tenor.replace('_', '-').upper()} bond returns to {results['total_idr_pct']:.2f}%."
+        
+        output = f"""{hook}
+
+📊 {self.tenor.upper()} Bond Return Attribution
 {self.start_date.strftime('%d %b %Y')} – {self.end_date.strftime('%d %b %Y')} ({m['days_held']} days)
 
 RETURN DECOMPOSITION (IDR-based):
