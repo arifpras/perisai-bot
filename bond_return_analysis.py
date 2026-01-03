@@ -257,18 +257,18 @@ class ReturnDecomposition:
 
 RETURN DECOMPOSITION (IDR-based):
 ```
-┌─────────────────────────────┬────────┐
-│ Component                   │   %    │
-├─────────────────────────────┼────────┤
-│ Carry                       │ {results['carry_pct']:>5.2f}% │
-│ Duration Effect             │ {results['duration_pct']:>5.2f}% │
-│ Rolldown                    │ {results['rolldown_pct']:>5.2f}% │
-├─────────────────────────────┼────────┤
-│ Total (IDR)                 │ {results['total_idr_pct']:>5.2f}% │
-│ FX Impact (Depreciation)    │ {results['fx_depreciation']:>5.2f}% │
-├─────────────────────────────┼────────┤
-│ Total (USD)                 │ {results['usd_return_pct']:>5.2f}% │
-└─────────────────────────────┴────────┘
+┌───────────────────────────┬─────────┐
+│ Component                 │    %    │
+├───────────────────────────┼─────────┤
+│ Carry                     │ {results['carry_pct']:>7.3f}% │
+│ Duration Effect           │ {results['duration_pct']:>7.3f}% │
+│ Rolldown                  │ {results['rolldown_pct']:>7.3f}% │
+├───────────────────────────┼─────────┤
+│ Total (IDR)               │ {results['total_idr_pct']:>7.3f}% │
+│ FX Impact (Depreciation)  │ {results['fx_depreciation']:>7.3f}% │
+├───────────────────────────┼─────────┤
+│ Total (USD)               │ {results['usd_return_pct']:>7.3f}% │
+└───────────────────────────┴─────────┘
 ```
 
 KEY METRICS:
