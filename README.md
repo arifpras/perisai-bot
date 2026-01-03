@@ -1,27 +1,25 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0408 (as of 2026-01-03)
+**Version:** Perisai v.0409 (as of 2026-01-03)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
 ## Features
 
 - **Bond data:** Historical yields & prices (2015–2025), forecasts (2025–2026)
-- **Auction data:** Incoming & awarded bids (2015 onwards, historical + 2026 ML forecast)
+- **Auction data:** Incoming & awarded bids (2010–2025 historical, 2026 ML forecast) — all values in Rp Trillions
 - **2026 Auction Forecast:** ML ensemble (4 models: Random Forest, Gradient Boosting, AdaBoost, Stepwise Regression)
-  - **Total 2026:** 3,361.811 Trillion IDR (ensemble average)
-  - **Best model:** Random Forest (R²=0.7753)
-  - **Monthly range:** 150.3 T (Dec) to 325.1 T (June)
+  - **Total 2026:** 3.41 Trillion IDR (ensemble average)
+  - **Monthly range:** 146–325 Trillion IDR
 - **Economist-style tables:** Right-aligned numbers, summary stats (Count/Min/Max/Avg/Std), two-decimal precision
 - **Multi-tenor queries:** Compare 5Y, 10Y bonds side-by-side
-- **Professional plots:** Multi-tenor curves with single 🌍 headline (HL-CU format: Kei summary + Kin paragraphs, no INDOGB prefix)
+- **Professional plots:** Multi-tenor curves with macro overlays (FX/VIX) in Economist style
 - **Business day detection:** `/check` automatically identifies weekends and Indonesian holidays
-- **Personal AI personas:** Kei (quantitative partner, hands-on with data) and Kin (macro storyteller, strategic insights) with conversational, first-person responses
-- **Fixed personalities:** Kei and Kin have immutable core identities—attempts to override their personalities are rejected
-- **Quantitative return analysis:** Decompose bond returns into carry, duration, roll-down, and FX components using actual market data (5Y/10Y yields, prices, IDR/USD rates)
-- **7-model ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk+Drift, Monte Carlo for forecasts
-  - **Walk-forward backtesting:** Precision validation on historical data (see [Backtest Guide](BACKTEST_GUIDE.md))
-  - **Real results:** 1-day forecasts ±1.6 bp error, 5-day forecasts ±3.1 bp error
-- **Enterprise security:** Whitelist-based access control (`ALLOWED_USER_IDS`), encrypted transmission, local-only data processing (see [Security Policy](docs/SECURITY.md))
+- **Personal AI personas:** Kei (quantitative analyst) and Kin (macro storyteller) with immutable personalities
+- **Quantitative return analysis:** Decompose bond returns into carry, duration, roll-down, and FX components
+- **7-model yield ensemble:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk+Drift, Monte Carlo
+  - **Walk-forward backtested:** 1-day forecasts ±1.6 bp error, 5-day forecasts ±3.1 bp error
+- **Enterprise security:** Whitelist-based access control, encrypted transit, local data processing (see [Security Policy](docs/SECURITY.md))
+
 
 ## Quick Start
 
@@ -213,25 +211,8 @@ Yields and prices over historical (2023–2026) and forecast periods with multi-
 - **Tenors:** 5 year (05_year), 10 year (10_year) — see [examples/bond_tables.md](examples/bond_tables.md) for sample outputs
 - **Metrics:** yield, price (single or combined)
 - **Periods:** month names/numbers (jan, feb, 1, 2), quarters (q1–q4), years (2023–2026)
-- **Ranges:** "from X to Y" auto-expands (e.g., q1 2023 to q4 2024 → all 4 quarters)
+See [examples/bond_tables.md](examples/bond_tables.md) and [examples/auction_tables.md](examples/auction_tables.md) for sample outputs.
 
-## Auction Data & Queries
-
-Incoming and awarded auction bids over historical (2010–2025) and forecast (2026) periods.
-
-**Supported:**
-- **Auction types:** Incoming bids, awarded bids (historical only, 2010–2025)
-- **Periods:** Historical (2010–2025), Forecast (2026)
-- **Ranges:** "from X to Y" auto-expands (e.g., 2020 to 2025 → all years)
-- **Values:** Shown in Rp Trillions with Count/Min/Max/Avg/Std statistics
-
-**Data Sources:**
-- **Unified Auction Database:** `database/auction_database.csv`
-  - **Historical (2010–2025):** 186 records with actual incoming bids, awarded bids, and bid-to-cover ratio
-  - **Forecast (2026):** 12 monthly records with ensemble ML predictions (RF/GB/AdaBoost/Stepwise)
-  - **All values in Rp Trillions** with date, month, year, and model-specific forecast columns
-
-See [examples/auction_tables.md](examples/auction_tables.md) for sample outputs.
 
 ## Bond Data Sources
 
@@ -278,186 +259,34 @@ See [examples/auction_tables.md](examples/auction_tables.md) for sample outputs.
 - **VIX:** Global equity volatility proxy (risk sentiment); higher VIX → portfolio risk aversion → potential bond spread widening
 - **Applications:** Correlations with bond yields, forecasting model enhancements, macroeconomic shock detection
 
-## Yield Forecasting & Backtesting
+## Quantitative Return Analysis & Forecasting
 
-Perisai uses an ensemble of 7 time-series models to forecast bond yields with validated precision.
-
-**Models Included:**
-- **ARIMA(1,1,1)** — Autoregressive integrated moving average (captures trends and reversions)
-- **ETS** — Exponential smoothing with additive trend (smooth level tracking)
-- **Prophet** — Facebook's probabilistic forecasting (robust to seasonality and structural breaks)
-- **VAR** — Vector autoregression (multivariate relationships between yields)
-- **Random Walk + Drift** — Includes historical mean return drift for trend-aware forecasts
-- **Monte Carlo** — Stochastic simulation with historical volatility (provides confidence intervals)
-- **MA5** — 5-day moving average (baseline/fast)
-
-**Backtesting Results** (10-Year Bonds, Walk-Forward Validation):
-- **1-Day Forecast:** ±1.6 bp MAE (MAPE 0.26%) — ⭐⭐⭐⭐⭐ Excellent
-- **5-Day Forecast:** ±3.1 bp MAE (MAPE 0.50%) — ⭐⭐⭐⭐⭐ Excellent
-
-**Run Backtests:**
-```bash
-# Quick backtest on actual bond data
-python test_backtest.py
-
-# Full-featured backtesting with walk-forward validation
-python -c "from backtest_yield_forecasts import YieldForecastBacktester; \
-bt = YieldForecastBacktester(tenor='10_year'); \
-bt.backtest_one_step_ahead(test_window=50)"
-```
-
-See [BACKTEST_GUIDE.md](BACKTEST_GUIDE.md) for methodology, metrics interpretation, and performance benchmarks.
-
-## Quantitative Return Analysis
-
-Kei can decompose bond returns into constituent components using actual market data: bond yields & prices (5Y/10Y) plus daily IDR/USD exchange rates and VIX volatility.
+Kei analyzes bond returns and yields using actual market data and ensemble forecasting.
 
 **Return Attribution Components:**
-- **Carry:** Coupon income accrued over the holding period
-- **Duration Effect:** Price change from yield moves (yield × modified duration sensitivity)
-- **Roll-Down:** Gains/losses from moving along the yield curve as maturity shortens
-- **FX Impact:** Currency depreciation/appreciation affecting USD-based returns
+- **Carry:** Coupon income accrued over holding period
+- **Duration Effect:** Price change from yield moves (yield × modified duration)
+- **Roll-Down:** Gains/losses from moving along yield curve
+- **FX Impact:** IDR/USD currency effects on USD-based returns
 
 **Example Query:**
 ```bash
 /kei analyze indonesia 5 year bond returns
-# Returns: Attribution breakdown (Jan 2023–Dec 2025)
-# Output: Carry % | Duration % | Roll-Down % | Total IDR % | FX Effect % | Total USD %
+# Returns attribution breakdown with carry, duration, roll-down, and FX decomposition
 ```
 
-**Technical Details:**
-- Modified duration estimated from bond prices and yields
-- Yield curve changes calculated from actual 5Y/10Y spreads
-- IDR/USD movements sourced from daily FX data
-- Decomposition uses cash flow and duration calculus: Total Return = Carry + Duration Effect + Roll-Down + FX
+**7-Model Yield Forecasting Ensemble:**
+- **Models:** ARIMA, ETS, Prophet, VAR, MA5, Random Walk+Drift, Monte Carlo
+- **Backtesting Results (10-Year Bonds):**
+  - 1-Day Forecast: ±1.6 bp MAE (MAPE 0.26%) — Excellent
+  - 5-Day Forecast: ±3.1 bp MAE (MAPE 0.50%) — Excellent
+- **See [BACKTEST_GUIDE.md](BACKTEST_GUIDE.md) for methodology and performance benchmarks**
 
-**Data Used:**
-- `database/20251215_priceyield.csv` — 5Y & 10Y yields, prices, coupons (Feb 2023–Jan 2026)
-- `database/20260102_daily01.csv` — IDR/USD, VIX (Jan 2023–Dec 2025)
+**Data Sources:**
+- Bond yields/prices: `database/20251215_priceyield.csv` (Feb 2023–Jan 2026)
+- FX/VIX: `database/20260102_daily01.csv` (Jan 2023–Dec 2025)
+- Auction data: `database/auction_database.csv` (unified 2010–2026)
 
-**Example Output:**
-```
-📊 05_YEAR Bond Return Attribution
-02 Jan 2023 – 31 Dec 2025 (1,094 days)
-
-RETURN DECOMPOSITION (IDR-based):
-┌──────────────────┬────────────┬────────┐
-│ Component        │    Return  │   %    │
-├──────────────────┼────────────┼────────┤
-│ Carry            │ Rp  18.56  │  1.85% │
-│ Duration Effect  │ Rp   3.24  │  0.32% │
-│ Roll-Down        │ Rp  -1.42  │ -0.14% │
-├──────────────────┼────────────┼────────┤
-│ Total (IDR)      │            │  2.03% │
-│ FX Impact (dep)  │            │ -4.65% │
-├──────────────────┼────────────┼────────┤
-│ Total (USD)      │            │ -2.78% │
-└──────────────────┴────────────┴────────┘
-
-KEY METRICS:
-  Price: 99.45 → 100.78 (Δ 1.33)
-  Yield: 6.25% → 6.10% (Δ -15 bp)
-  Modified Duration: 4.50
-  IDR/USD: 15,592 → 16,737 (IDR weakened 7.34%)
-```
-
-See [bond_return_analysis.py](bond_return_analysis.py) for implementation details.
-
-## Macroeconomic Plotting with FX/VIX Overlays
-
-Kin can create multi-variable plots that visualize bond prices alongside foreign exchange rates (IDR/USD) and global equity volatility (VIX) to provide macroeconomic context for bond market analysis.
-
-**Supported Plot Types:**
-
-| Query | Overlay | Use Case |
-|-------|---------|----------|
-| `/kin plot price 5 year with fx from 2023 to 2025` | IDR/USD | Currency risk exposure: how bond prices correlate with rupiah weakness/strength |
-| `/kin plot price 10 year with vix from 2023 to 2025` | VIX | Risk sentiment: how bond prices move with global equity volatility |
-| `/kin plot price 10 year with fx and vix from 2023 to 2025` | IDR/USD + VIX | Full macro context: currency + risk sentiment drivers of bond performance |
-
-**Technical Features:**
-- **Dual-axis plots (FX or VIX alone):** Bond price on left axis, FX/VIX on right axis with independent scales for clarity
-- **Triple-axis plots (FX + VIX combined):** Bond price primary, IDR/USD secondary, VIX tertiary with carefully positioned axes
-- **Data alignment:** All three data sources (bonds, FX, VIX) synchronized on business day calendar
-- **Professional styling:** Economist-style colors (blue for bonds, red for FX, yellow for VIX), clear legends, date formatting
-
-**Supported Metrics:**
-- **Price plots with FX:** `/kin plot price 10 year with fx from 2023 to 2025`
-- **Price plots with VIX:** `/kin plot price 5 year with vix from 2023 to 2025`
-- **Yield plots with FX:** `/kin plot yield 10 year with fx from 2023 to 2025` ✨ NEW
-- **Yield plots with VIX:** `/kin plot yield 5 year with vix from 2023 to 2025` ✨ NEW
-- **Combined plots (both FX & VIX):** `/kin plot yield 10 year with fx and vix from 2023 to 2025` ✨ NEW
-
-**Data Requirements:**
-- **Bond Prices/Yields:** Historical data (5Y/10Y tenors, Feb 2023–Jan 2026)
-- **IDR/USD:** Daily exchange rates (Jan 2, 2023–Dec 31, 2025)
-- **VIX:** Daily closing levels (Jan 2, 2023–Dec 31, 2025)
-- All data sourced from `database/` directory with automatic interpolation for missing values
-
-**Technical Enhancements:**
-- ✅ **Yield support:** Both price and yield metrics can be plotted with FX/VIX overlays
-- ✅ **Data interpolation:** Missing values automatically interpolated to ensure continuous lines
-- ✅ **Indonesia holidays:** Weekends and 40+ public holidays excluded from calendar alignment
-- ✅ **Economist styling:** Professional chart formatting with gray background, white gridlines, custom color palette
-
-**Example Analysis Insights:**
-- **FX Overlay:** When IDR weakens (IDR/USD rises), foreign-denominated bond returns compress even if IDR yields rise—shows currency risk dimension
-- **VIX Overlay:** Risk-off periods (VIX spikes) often coincide with bond spread widening—shows how global sentiment affects emerging market bonds
-- **Combined FX+VIX:** Reveals whether bond price/yield moves are driven by currency moves, sentiment shifts, or both
-
-**Implementation:**
-- Module: [bond_macro_plots.py](bond_macro_plots.py) — `BondMacroPlotter` class with yield & price support, interpolation, Indonesia holidays
-- Integration: Telegram bot parser recognizes `with fx`, `with vix` keywords and routes to macro plotter with metric parameter
-- Fallback: If macro data unavailable, reverts to standard single-metric plot
-
-## Macroeconomic Data Tables (FX & VIX)
-
-Kei can display IDR/USD and VIX data as economist-style tables using `/kei tab` queries.
-
-**Supported Queries:**
-
-| Query | Output | Use Case |
-|-------|--------|----------|
-| `/kei tab idrusd from 2023 to 2025` | IDR/USD table with summary statistics | Monitor currency trends across years |
-| `/kei tab idrusd from jan 2023 to dec 2025` | IDR/USD with daily data | Track month-to-month and daily changes |
-| `/kei tab idrusd in 2025` | IDR/USD for single year | Full-year currency analysis |
-| `/kei tab idrusd from q1 2024 to q4 2024` | IDR/USD quarterly breakdown | Quarterly patterns within a year |
-| `/kei tab vix in 2025` | VIX table with summary statistics | Track global risk sentiment in 2025 |
-| `/kei tab vix from q1 2024 to q4 2025` | VIX quarterly breakdown | Multi-year quarterly volatility patterns |
-| `/kei tab vix from jan 2024 to mar 2024` | VIX monthly breakdown | Monthly risk sentiment tracking |
-| `/kei tab usdider vix from q1 2024 to q4 2025` | Combined IDR/USD + VIX table | Analyze currency + volatility together (quarterly) |
-| `/kei tab usdider vix from 2023 to 2025` | Combined macro indicators | Full-range currency and volatility analysis |
-| `/kei tab fx from jan 2023 to dec 2024` | IDR/USD table (alias: fx) | Same as idrusd metric |
-
-**Table Features:**
-- **Economist-style formatting:** Border boxes, right-aligned numbers, professional spacing
-- **Summary statistics:** Count, Min, Max, Avg, Std for each metric
-- **Date range support:** All standard period formats (years, quarters, months, ISO dates)
-- **Data downsampling:** Large date ranges automatically downsampled to ~20 rows for readability
-- **Holiday filtering:** NaN values (weekends, Indonesian holidays) automatically excluded
-
-**Example Output:**
-```
-💱 IDR/USD Exchange Rate
-┌─────────────┬─────────┐
-│    Date     │ IDR/USD │
-├─────────────┼─────────┤
-│ 02 Jan 2023 │  15,592 │
-│ 23 Feb 2023 │  15,218 │
-│ ... (more dates) ...
-├─────────────┼─────────┤
-│ Count       │      21 │
-│ Min         │  14,853 │
-│ Max         │  16,677 │
-│ Avg         │  15,872 │
-│ Std         │     523 │
-└─────────────┴─────────┘
-```
-
-**Implementation:**
-- Module: [macro_data_tables.py](macro_data_tables.py) — `MacroDataFormatter` class for economist-style FX/VIX tables
-- Integration: `/kei tab` parser recognizes macro metrics and routes to formatter
-- Data source: `database/20260102_daily01.csv` (IDR/USD and VIX index)
 
 ## Output Examples
 
@@ -528,19 +357,6 @@ INTERPRETATION:
 ```
 
 More in [examples/](examples/).
-
-## Forecasting
-
-7-model ensemble with outlier removal (3×MAD): ARIMA, ETS, Prophet, VAR, MA5, Random Walk, Monte Carlo.
-
-```
-Model        | Forecast
----------------------------
-ARIMA        | 6.1647%
-ETS          | 6.1494%
-PROPHET      | 6.1829%
-AVERAGE      | 6.1637%
-```
 
 ## Security & Data Protection
 
