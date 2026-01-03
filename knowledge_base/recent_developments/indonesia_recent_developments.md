@@ -110,14 +110,23 @@ Bank Indonesia employs:
 - Budget deficit: -0.4% of GDP (improved from -2.3% in 2024)
 
 **Spending Priorities:**
-| Category | Amount | % of Budget | Focus |
-|----------|--------|-------------|-------|
-| Education & Social Protection | Rp817.0T | 22.6% | Human capital, poverty reduction |
-| Infrastructure | Rp399.3T | 11.0% | Agricultural, connectivity, energy |
-| Law & Defense | Rp376.4T | 10.4% | Modernization, cyber security |
-| Health | Rp218.5T | 6.0% | Universal healthcare, stunting reduction |
-| Food Security | Rp139.4T | 3.8% | Agricultural development |
-| Energy Subsidy | Rp203.4T | 5.6% | Fuel subsidies |
+┌──────────────────────────────┬──────────────┬──────────────┬────────────────────────────────┐
+│ Category                     │ Amount       │ % of Budget  │ Focus                          │
+├──────────────────────────────┼──────────────┼──────────────┼────────────────────────────────┤
+│ Education & Social Protection │ Rp817.0T     │ 22.6%        │ Human capital, poverty reduc.  │
+├──────────────────────────────┼──────────────┼──────────────┼────────────────────────────────┤
+│ Infrastructure               │ Rp399.3T     │ 11.0%        │ Agricultural, connectivity,    │
+│                              │              │              │ energy                         │
+├──────────────────────────────┼──────────────┼──────────────┼────────────────────────────────┤
+│ Law & Defense                │ Rp376.4T     │ 10.4%        │ Modernization, cyber security  │
+├──────────────────────────────┼──────────────┼──────────────┼────────────────────────────────┤
+│ Health                       │ Rp218.5T     │ 6.0%         │ Universal healthcare, stunting │
+│                              │              │              │ reduction                      │
+├──────────────────────────────┼──────────────┼──────────────┼────────────────────────────────┤
+│ Food Security                │ Rp139.4T     │ 3.8%         │ Agricultural development       │
+├──────────────────────────────┼──────────────┼──────────────┼────────────────────────────────┤
+│ Energy Subsidy               │ Rp203.4T     │ 5.6%         │ Fuel subsidies                 │
+└──────────────────────────────┴──────────────┴──────────────┴────────────────────────────────┘
 
 ### Budget Review & Efficiency (January 2025)
 - **Presidential Instruction (Inpres) No. 1/2025:** Directed budget efficiency review
@@ -227,12 +236,17 @@ Total allocation: **Rp38.6 trillion** (completed by February 2025 with Rp33.0T d
 ## Financial System & Banking
 
 ### Banking Sector Health (June 2024)
-| Metric | Value | Status |
-|--------|-------|--------|
-| **Total Assets** | Rp13,053.1 trillion | Stable |
-| **Capital Adequacy Ratio (CAR)** | 25.9% | Above minimum |
-| **Non-Performing Loans (NPL)** | 2.2% | Healthy |
-| **IDIC Coverage** | Up to Rp2 billion/depositor | Protective |
+┌───────────────────────────────┬──────────────────────┬─────────────┐
+│ Metric                        │ Value                │ Status      │
+├───────────────────────────────┼──────────────────────┼─────────────┤
+│ Total Assets                  │ Rp13,053.1 trillion  │ Stable      │
+├───────────────────────────────┼──────────────────────┼─────────────┤
+│ Capital Adequacy Ratio (CAR)  │ 25.9%                │ Above min.  │
+├───────────────────────────────┼──────────────────────┼─────────────┤
+│ Non-Performing Loans (NPL)    │ 2.2%                 │ Healthy     │
+├───────────────────────────────┼──────────────────────┼─────────────┤
+│ IDIC Coverage                 │ Up to Rp2B/depositor │ Protective  │
+└───────────────────────────────┴──────────────────────┴─────────────┘
 
 ### Islamic Banking (As of June 2025)
 - **Assets:** Rp960.8 trillion
@@ -464,13 +478,19 @@ Total allocation: **Rp38.6 trillion** (completed by February 2025 with Rp33.0T d
 
 ### Key Economic Indicators (Latest Data)
 
-| Indicator | 2024 | 2025P | Unit |
-|-----------|------|-------|------|
-| Real GDP growth | 5.0% | 4.9% | % |
-| Inflation (YoY) | 1.6% | 1.9% | % |
-| Exchange rate (mid-year) | 16,665 | 16,000* | Rp/USD |
-| Current account | -8.5 | TBD | $B |
-| Reserves | 155.7 | TBD | $B |
+┌──────────────────────────┬──────────┬──────────┬────────┐
+│ Indicator                │ 2024     │ 2025P    │ Unit   │
+├──────────────────────────┼──────────┼──────────┼────────┤
+│ Real GDP growth          │ 5.0%     │ 4.9%     │ %      │
+├──────────────────────────┼──────────┼──────────┼────────┤
+│ Inflation (YoY)          │ 1.6%     │ 1.9%     │ %      │
+├──────────────────────────┼──────────┼──────────┼────────┤
+│ Exchange rate (mid-year) │ 16,665   │ 16,000*  │ Rp/USD │
+├──────────────────────────┼──────────┼──────────┼────────┤
+│ Current account          │ -8.5     │ TBD      │ $B     │
+├──────────────────────────┼──────────┼──────────┼────────┤
+│ Reserves                 │ 155.7    │ TBD      │ $B     │
+└──────────────────────────┴──────────┴──────────┴────────┘
 | Debt-to-GDP | 39.9% | TBD | % |
 
 *2025 Budget assumption (actual varying)
@@ -483,6 +503,216 @@ Total allocation: **Rp38.6 trillion** (completed by February 2025 with Rp33.0T d
 | Working age (15-64) | 69.1% |
 | Unemployment rate | Declining trend |
 | Minimum wage | Rp3.31T (annual) |
+
+
+
+---
+
+## Recent Developments - Exhibit 99.E (2025)
+
+**Source:** SEC Form 18-K/A Filing - Exhibit 99.E  
+**Amendment Date:** October 2025 (Supplement to July 25, 2025 filing)  
+**Coverage:** Major policy and economic announcements (July-September 2025)
+
+This section contains recent developments that supplement and update information in the main SEC filing.
+
+### 2026 Budget (Approved September 23, 2025)
+
+**Revenue Target:** Rp3,153.6 trillion (↑7.3% vs 2025)
+- Tax revenues: Rp2,693.7 trillion
+- Non-tax revenues: Rp459.2 trillion
+- Grants: Rp0.7 trillion
+
+**Expenditure Target:** Rp3,842.7 trillion (↑11.1% vs 2025)
+- Government expenditures: Rp3,149.7 trillion
+  - Ministries and agencies: Rp1,510.6 trillion
+  - Non-ministerial: Rp1,639.2 trillion
+- Transfers to regions/villages: Rp693.0 trillion
+
+**Deficit & Financing:**
+- Primary balance deficit: Rp89.7 trillion
+- Budget deficit target: Rp689.2 trillion (2.7% of GDP, ↑32.5% vs 2025)
+- Financing need: Rp689.15 trillion
+
+**Macroeconomic Assumptions:**
+- Economic growth: 5.4%
+- Inflation rate: 2.5%
+- Exchange rate: Rp16,500 per USD
+- 10-year government bond rate: 6.9%
+- Oil price (ICP): $70/barrel
+- Oil production: 610 thousand bbl/day
+- Gas production: 904 thousand boe/day
+
+**Priority Sector Allocations:**
+- Food security: Rp164.7 trillion
+- Energy security: Rp402.4 trillion
+- Free Nutritious Meals Program: Rp335.0 trillion
+- Education: Rp769.1 trillion
+- Health: Rp244.0 trillion
+- Village development & MSMEs: Rp181.8 trillion
+- Defense, order, security & law enforcement: Rp425.0 trillion
+
+**Key Focus Areas:**
+- Food and water security through local production
+- Energy independence and downstreaming
+- Human capital through nutrition and education programs
+- Infrastructure development for regional connectivity
+- Green economy and sustainable growth transitions
+- Poverty alleviation through social protection
+
+### Comprehensive Economic Partnership Agreement (CEPA) with European Union
+
+**Date Concluded:** September 23, 2025
+
+**Trade Liberalization:**
+- Eliminate tariffs on 98%+ of tariff lines
+- Liberalize nearly 100% of trade value over transition period
+- Modern, comprehensive rules covering goods, services, and investment
+
+**Coverage:**
+- Digital trade and e-commerce
+- Government procurement modernization
+- Intellectual property protections
+- Subsidies and state-owned enterprises regulation
+- Trade and sustainable development standards
+- Binding dispute settlement with institutional cooperation
+
+**Investment Protection Agreement (IPA):**
+- Modern investor protections aligned with international standards
+- Safeguards against unlawful expropriation
+- Non-discrimination and fair & equitable treatment
+- Preserves right to regulate for public policy objectives
+- Strengthens investment climate and market certainty
+
+### Policy Coordination: Bank Indonesia & Ministry of Finance (September 4, 2025)
+
+**Interest Cost Sharing Mechanism:**
+- Effective 2025, continuing for agreed period
+- Applies to Government affordable housing programs
+- Extends to Koperasi Desa Merah Putih (Village Red-White Cooperatives)
+
+**How It Works:**
+- Budget allocations placed with government agencies and financial institutions
+- Returns on placements offset interest costs
+- Remaining interest costs split 50/50 between Ministry of Finance and Bank Indonesia
+- BI contribution: Additional interest credited to government accounts at BI
+- Compliant with Bank Indonesia Act State Treasury function
+- Maintains market discipline and financial system integrity
+
+**Bank Indonesia Securities Purchases:**
+- Resumed SBN (Government Securities) purchases in secondary market
+- Purchases as of September 16, 2025: Rp217.1 trillion
+- Includes debt-switching operations
+- Reflects expansionary monetary policy stance
+
+### Establishment of Australian Dollar Medium-Term Note Program (AMTN)
+
+**Timeline:**
+- Program established: July 2025
+- First drawdown: August 2025
+- Amount raised: AUD800 million (two tranches)
+
+**Strategic Objectives:**
+- Broaden and diversify investor base
+- Strengthen presence in Australian and Asia-Pacific capital markets
+- Reduce reliance on single currency or investor group
+- Strengthen fiscal resilience through portfolio optimization
+- Minimize refinancing risks
+- Promote financial innovation
+
+**Significance:** Milestone in Indonesia's sovereign debt portfolio optimization and international financial community standing
+
+### United States Trade Agreement (Tariff Arrangements)
+
+**Initial Agreement:** July 15, 2025
+- U.S. tariff on Indonesian imports: 19%
+- Indonesian elimination: Tariffs on substantially all U.S. imports
+- Indonesian tariff reductions: Key non-tariff barriers for U.S. exports
+  - Relaxed local content requirements for certain industries
+  - Strengthened rules of origin
+  - Labor standards improvements
+
+**Scope:** Digital trade, services, investment, and supply-chain resilience cooperation
+
+**Tariff Exemptions:** August 26, 2025
+- U.S. agreed in principle to exempt from 19% tariff:
+  - Cocoa
+  - Palm oil
+  - Rubber
+- Details under negotiation: Specific tariff lines, quotas, timing
+
+**Current Status:** Discussions on implementation issues including rules of origin, digital trade commitments, and enforcement mechanisms
+
+### Economic Stimulus Package - "8+4+5 Program" (September 2025)
+
+**Program Structure:**
+- 8 acceleration programs (2025)
+- 4 continuation programs (2026)
+- 5 job-creation initiatives
+
+#### Eight Acceleration Programs (2025):
+
+1. **National Internship Program**
+   - 20,000 recent university graduates
+   - Launch: Mid-October 2025
+   - Support: Monthly stipend = provincial minimum wage per graduate
+
+2. **Personal Income Tax Relief - Tourism Sector**
+   - Applies: Tourism, hotels, restaurants, cafés
+   - Eligibility: Monthly earnings below Rp10 million
+   - Period: October-December 2025
+
+3. **Food Assistance Program**
+   - Beneficiaries: 18.3 million families
+   - Distribution: 10 kg rice per month per household
+
+4. **Informal Worker Social Security Subsidy**
+   - Subsidy: 50% of work accident and death insurance contributions
+   - Target: Online motorcycle taxi drivers, couriers, logistics personnel
+
+5. **Housing Loan Improvements via Employment Social Security Agency (BPJS)**
+   - Lower interest rates
+   - Enhanced benefits and more financing options
+   - Easier eligibility requirements
+
+6. **Cash-for-Work (Padat Karya) Initiative**
+   - Jobs created: ~600,000 temporary positions
+   - Focus: Labor-intensive infrastructure
+   - Projects: Road repairs, flood control, community facilities
+
+7. **Deregulation & Licensing Reforms**
+   - Simplify business permits through Online Single Submission (OSS)
+   - Expedite licensing process
+
+8. **Pilot Projects for New Economic Models**
+   - Test innovative economic frameworks
+   - Urban hubs development: Platform, infrastructure, services for gig economy
+   - Target workers: Ride-hailing drivers, freelancers
+
+#### Four Continuation Programs (2026):
+
+1. **MSME Income Tax Rate Extension**
+   - Current rate: 0.5%
+   - Extended through: 2029
+   - Continuation: Simplified tax regime for small businesses
+
+2. **Tourism Sector Tax Relief Continuation**
+   - Extends income tax relief to hospitality sector workers
+   - Maintains eligibility and benefit levels
+
+3. **Labor-Intensive Industry Tax Relief**
+   - Sectors: Textiles, footwear, garments, furniture, leather goods
+   - Continues personal income tax relief benefits
+
+4. **Informal Worker Insurance Subsidy Expansion**
+   - Extends 50% subsidy to: Farmers, traders, fishermen, construction laborers, domestic workers
+   - Broadens coverage beyond gig economy
+
+#### Five Job-Creation Programs:
+
+(Details to be elaborated as programs are formally announced)
+
+---
 
 ---
 
