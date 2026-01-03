@@ -19,16 +19,16 @@ Generates 8 consecutive quarters:
 - Q1 2026, Q2 2026, Q3 2026, Q4 2026 (Forecast)
 
 ### 3. Data Loading
-For each quarter, loads auction records:
-- **2025 quarters** (Q1-Q4): Load from historical database
-  - Source: `database/20251207_db01.xlsx` → `train_sbn` sheet
+For each quarter, loads auction records from unified database:
+- **2025 quarters** (Q1-Q4): Load from `auction_database.csv` (historical rows)
+  - Source: `database/auction_database.csv` (2010-2025 historical data)
   - Each quarter: ~6 auction records
-  - Total 2025: 24 auctions
+  - Values: actual incoming/awarded from auctions
 
-- **2026 quarters** (Q1-Q4): Load from forecast database
-  - Source: `database/20251207_db01.xlsx` → `predict_sbn` sheet
-  - Each quarter: ~7 forecast records (ML ensemble predictions)
-  - Total 2026: 28 forecast rows
+- **2026 quarters** (Q1-Q4): Load from `auction_database.csv` (forecast rows)
+  - Source: `database/auction_database.csv` (2026 forecast data)
+  - Each quarter: 3 forecast records (Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec)
+  - Values: ensemble ML predictions for incoming_trillions, awarded_trillions=NaN
 
 ### 4. Response Formatting
 Aggregates quarterly metrics and displays in formatted table:
@@ -41,10 +41,10 @@ Aggregates quarterly metrics and displays in formatted table:
 │Q2 2025   |   Rp 622.41T |   Rp 208.00T│
 │Q3 2025   | Rp 1,110.33T |   Rp 287.35T│
 │Q4 2025   |   Rp 598.60T |   Rp 152.00T│
-│Q1 2026   |   Rp 692.47T |   Rp 422.93T│
-│Q2 2026   |   Rp 724.27T |   Rp 372.62T│
-│Q3 2026   |   Rp 725.15T |   Rp 421.38T│
-│Q4 2026   |   Rp 641.20T |   Rp 372.05T│
+│Q1 2026   |   Rp 692.47T |          N/A│
+│Q2 2026   |   Rp 724.27T |          N/A│
+│Q3 2026   |   Rp 725.15T |          N/A│
+│Q4 2026   |   Rp 641.20T |          N/A│
 └───────────────────────────────────────┘
 
 ~ Kei
@@ -111,21 +111,21 @@ Aggregates quarterly metrics and displays in formatted table:
 
 ### Data Sources
 
-#### Historical Data (Q1-Q4 2025)
-- **File**: `database/20251207_db01.xlsx`
-- **Sheet**: `train_sbn`
-- **Records**: 185 total historical auctions
-- **Columns**: 42 (including incoming_bio_log, awarded_bio_log, etc.)
-- **Date Range**: 2017-2025
+#### Historical Data (2010-2025)
+- **File**: `database/auction_database.csv`
+- **Records**: 186 historical auctions (2010-2025)
+- **Columns**: date, auction_month, auction_year, incoming_trillions, awarded_trillions, bid_to_cover, model columns
+- **Units**: All values in Rp Trillions
 
-#### Forecast Data (Q1-Q4 2026)
-- **File**: `database/20251207_db01.xlsx`
-- **Sheet**: `predict_sbn`
-- **Records**: 13 rows (Dec 2025 + 12 months of 2026)
-- **Methodology**: ML ensemble predictions with:
-  - 6 input features: number_series, dpk_bio_log, move, auction_month, long_holiday, inflation_rate
-  - 5 models averaging for final prediction
-  - Model performance: R² = 0.76 (Linear/Stepwise regression best)
+#### Forecast Data (2026)
+- **File**: `database/auction_database.csv`
+- **Records**: 12 rows (Jan-Dec 2026)
+- **Methodology**: ML ensemble predictions (4 models):
+  - Models: Random Forest, Gradient Boosting, AdaBoost, Stepwise Regression
+  - Training: 186 historical records (2010-2025)
+  - Model performance: R² = 0.7596-0.7886
+  - Incoming: Ensemble mean (simple average of 4 models)
+  - Awarded: NaN (not realized yet)
 
 ### Key Integration Points
 

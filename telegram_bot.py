@@ -398,7 +398,7 @@ def get_db(csv_path: str = "database/20251215_priceyield.csv") -> BondDB:
         _db_cache[csv_path] = BondDB(csv_path)
     return _db_cache[csv_path]
 
-def get_auction_db(csv_path: str = "database/20251224_auction_forecast_ensemble.csv"):
+def get_auction_db(csv_path: str = "database/auction_database.csv"):
     """Get or create a cached AuctionDB instance."""
     cache_key = f"auction_{csv_path}"
     if cache_key not in _db_cache:
@@ -407,9 +407,9 @@ def get_auction_db(csv_path: str = "database/20251224_auction_forecast_ensemble.
 
 
 def get_historical_auction_data(year: int, quarter: int) -> Optional[Dict]:
-    """Load historical auction data from database/auction_train.csv for a specific quarter."""
+    """Load historical auction data from database/auction_database.csv for a specific quarter."""
     try:
-        df = pd.read_csv('database/auction_train.csv')
+        df = pd.read_csv('database/auction_database.csv')
         
         # Map quarter to months
         quarter_months = {1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12]}
@@ -422,23 +422,21 @@ def get_historical_auction_data(year: int, quarter: int) -> Optional[Dict]:
         if quarter_data.empty:
             return None
         
-        # Calculate totals (incoming_bio_log and awarded_bio_log are log base 10 of billions)
+        # Calculate totals (incoming_trillions and awarded_trillions are already in trillions)
         monthly_incoming = []
         monthly_btc = []
         total_awarded = 0.0
         
         for _, row in quarter_data.iterrows():
-            incoming_billions = 10 ** row['incoming_bio_log']
-            incoming_trillions = incoming_billions / 1000.0
-            awarded_billions = 10 ** row['awarded_bio_log'] if pd.notnull(row['awarded_bio_log']) else 0.0
-            awarded_trillions = awarded_billions / 1000.0
+            incoming_trillions = row['incoming_trillions'] if pd.notnull(row['incoming_trillions']) else 0.0
+            awarded_trillions = row['awarded_trillions'] if pd.notnull(row['awarded_trillions']) else 0.0
             monthly_incoming.append({
                 'month': int(row['auction_month']),
                 'incoming': incoming_trillions,
                 'awarded': awarded_trillions,
-                'bid_to_cover': row['bid_to_cover']
+                'bid_to_cover': row['bid_to_cover'] if pd.notnull(row['bid_to_cover']) else 0.0
             })
-            monthly_btc.append(row['bid_to_cover'])
+            monthly_btc.append(row['bid_to_cover'] if pd.notnull(row['bid_to_cover']) else 0.0)
             total_awarded += awarded_trillions
         
         total_incoming = sum(m['incoming'] for m in monthly_incoming)
@@ -458,22 +456,21 @@ def get_historical_auction_data(year: int, quarter: int) -> Optional[Dict]:
 
 
 def get_historical_auction_month_data(year: int, month: int) -> Optional[Dict]:
-    """Load historical auction data from database/auction_train.csv for a specific month."""
+    """Load historical auction data from database/auction_database.csv for a specific month."""
     try:
-        df = pd.read_csv('database/auction_train.csv')
+        df = pd.read_csv('database/auction_database.csv')
         mask = (df['auction_year'] == year) & (df['auction_month'] == month)
         month_data = df[mask]
         if month_data.empty:
             return None
-        # Single month aggregate
+        # Single month aggregate (incoming_trillions and awarded_trillions already in trillions)
         incoming_vals = []
         awarded_vals = []
         btc_vals = []
         for _, row in month_data.iterrows():
-            incoming_vals.append((10 ** row['incoming_bio_log']) / 1000.0)
-            awarded_billions = 10 ** row['awarded_bio_log'] if pd.notnull(row['awarded_bio_log']) else 0.0
-            awarded_vals.append(awarded_billions / 1000.0)
-            btc_vals.append(row['bid_to_cover'])
+            incoming_vals.append(row['incoming_trillions'] if pd.notnull(row['incoming_trillions']) else 0.0)
+            awarded_vals.append(row['awarded_trillions'] if pd.notnull(row['awarded_trillions']) else 0.0)
+            btc_vals.append(row['bid_to_cover'] if pd.notnull(row['bid_to_cover']) else 0.0)
         total_incoming = sum(incoming_vals)
         total_awarded = sum(awarded_vals)
         avg_btc = sum(btc_vals) / len(btc_vals) if btc_vals else 0
@@ -497,9 +494,9 @@ def get_historical_auction_month_data(year: int, month: int) -> Optional[Dict]:
 
 
 def get_historical_auction_year_data(year: int) -> Optional[Dict]:
-    """Load historical auction data from database/auction_train.csv for a year (sum of months)."""
+    """Load historical auction data from database/auction_database.csv for a year (sum of months)."""
     try:
-        df = pd.read_csv('database/auction_train.csv')
+        df = pd.read_csv('database/auction_database.csv')
         year_df = df[df['auction_year'] == year]
         if year_df.empty:
             return None
@@ -508,11 +505,11 @@ def get_historical_auction_year_data(year: int) -> Optional[Dict]:
         for _, row in year_df.iterrows():
             m = int(row['auction_month'])
             monthly_vals.setdefault(m, {'incoming': 0.0, 'awarded': 0.0, 'btc_items': []})
-            monthly_vals[m]['incoming'] += (10 ** row['incoming_bio_log']) / 1000.0
-            awarded_billions = 10 ** row['awarded_bio_log'] if pd.notnull(row['awarded_bio_log']) else 0.0
-            monthly_vals[m]['awarded'] += awarded_billions / 1000.0
-            monthly_vals[m]['btc_items'].append(row['bid_to_cover'])
-            btc_vals.append(row['bid_to_cover'])
+            monthly_vals[m]['incoming'] += row['incoming_trillions'] if pd.notnull(row['incoming_trillions']) else 0.0
+            monthly_vals[m]['awarded'] += row['awarded_trillions'] if pd.notnull(row['awarded_trillions']) else 0.0
+            btc = row['bid_to_cover'] if pd.notnull(row['bid_to_cover']) else 0.0
+            monthly_vals[m]['btc_items'].append(btc)
+            btc_vals.append(btc)
         monthly = []
         for m in sorted(monthly_vals.keys()):
             items = monthly_vals[m]
@@ -634,61 +631,63 @@ def load_auction_period(period: Dict) -> Optional[Dict]:
 
 def get_2026_demand_forecast(use_cache: bool = True) -> Optional[Dict]:
     """
-    Load or generate 2026 auction demand forecast using ML ensemble.
+    Load 2026 auction demand forecast from auction_database.csv.
     
-    Uses trained Random Forest, Gradient Boosting, AdaBoost, and Stepwise Regression models
-    to forecast incoming bids (auction demand) for each month of 2026.
-    
-    Args:
-        use_cache: If True, load pre-trained models from disk; if False, retrain.
+    The forecast for 2026 consists of 12 monthly ensemble predictions that were generated
+    using Random Forest, Gradient Boosting, AdaBoost, and Stepwise Regression models.
     
     Returns:
         Dictionary with monthly forecasts and totals, or None if error
     """
     try:
-        forecaster = AuctionDemandForecaster()
+        # Load the unified auction database (includes 2026 forecast)
+        df = pd.read_csv('database/auction_database.csv')
         
-        # Try loading pre-trained models
-        if use_cache:
-            try:
-                forecaster.load("models")
-                logger.info("✓ Loaded pre-trained demand forecast models")
-            except Exception as e:
-                logger.warning(f"Could not load cached models: {e}. Will retrain.")
-                use_cache = False
+        # Filter for 2026 records only
+        df_2026 = df[df['auction_year'] == 2026].copy()
         
-        # Retrain if needed
-        if not use_cache or not forecaster.is_fitted:
-            try:
-                train_df = pd.read_excel('database/20251207_db01.xlsx', sheet_name='train_sbn')
-                forecaster.train(train_df)
-                forecaster.save("models")
-                logger.info("✓ Trained and saved demand forecast models")
-            except Exception as e:
-                logger.error(f"Could not train demand forecast model: {e}")
-                return None
-        
-        # Load forecast data
-        try:
-            forecast_df = pd.read_excel('database/20251207_db01.xlsx', sheet_name='predict_sbn')
-        except Exception as e:
-            logger.error(f"Could not load forecast data: {e}")
+        if df_2026.empty:
+            logger.error("No 2026 forecast data found in auction_database.csv")
             return None
         
-        # Generate 2026 forecast
-        forecast_results = forecaster.get_2026_forecast(forecast_df)
+        # Extract monthly forecasts (incoming_trillions contains the ensemble forecast for 2026)
+        monthly_forecasts = []
+        total_incoming_trillions = 0.0
+        
+        for _, row in df_2026.iterrows():
+            month = int(row['auction_month'])
+            incoming_trillions = row['incoming_trillions']
+            incoming_billions = incoming_trillions * 1000.0 if pd.notnull(incoming_trillions) else 0.0
+            total_incoming_trillions += incoming_trillions if pd.notnull(incoming_trillions) else 0.0
+            
+            monthly_forecasts.append({
+                'month': month,
+                'incoming_billions': incoming_billions,
+                'incoming_trillions': incoming_trillions
+            })
+        
+        # Calculate average monthly
+        avg_monthly_billions = (total_incoming_trillions * 1000.0 / 12) if df_2026.shape[0] == 12 else 0.0
+        
+        # Construct metrics from individual model columns
+        metrics = {
+            'rf': 'N/A',
+            'gb': 'N/A',
+            'adaboost': 'N/A',
+            'stepwise': 'N/A'
+        }
         
         return {
-            'source': 'ML Ensemble (RF, GB, AdaBoost, Stepwise)',
+            'source': 'ML Ensemble (RF, GB, AdaBoost, Stepwise) - Forecasted Jan-Dec 2026',
             'forecast_date': datetime.now().date(),
-            'total_2026_incoming_billions': forecast_results['total_2026_billions'],
-            'average_monthly_billions': forecast_results['average_monthly_billions'],
-            'monthly': forecast_results['monthly'],
-            'model_metrics': forecast_results['metrics']
+            'total_2026_incoming_billions': total_incoming_trillions * 1000.0,
+            'average_monthly_billions': avg_monthly_billions,
+            'monthly': monthly_forecasts,
+            'model_metrics': metrics
         }
     
     except Exception as e:
-        logger.error(f"Error generating 2026 demand forecast: {e}")
+        logger.error(f"Error loading 2026 demand forecast: {e}")
         return None
 
 
@@ -1109,7 +1108,7 @@ def format_auction_historical_multi_year(start_year: int, end_year: int, dual_mo
         dual_mode: If True, use "Kei x Kin" signature (for /both command)
     """
     try:
-        df = pd.read_csv('database/auction_train.csv')
+        df = pd.read_csv('database/auction_database.csv')
         df['date'] = pd.to_datetime(df['date'], errors='coerce')
         df['year'] = df['date'].dt.year
         
@@ -1120,22 +1119,18 @@ def format_auction_historical_multi_year(start_year: int, end_year: int, dual_mo
         if df_filtered.empty:
             return f"❌ No auction data available for {start_year}–{end_year}."
         
-        # Reverse log10 transformation: incoming_bio_log and awarded_bio_log are LOG10 of billions
-        df_filtered['incoming_bio'] = 10 ** df_filtered['incoming_bio_log']
-        df_filtered['awarded_bio'] = 10 ** df_filtered['awarded_bio_log']
+        # Values are already in trillions (incoming_trillions and awarded_trillions)
+        df_filtered['incoming_tri'] = df_filtered['incoming_trillions']
+        df_filtered['awarded_tri'] = df_filtered['awarded_trillions']
         
         # Group by year and sum
         yearly = df_filtered.groupby('year').agg({
-            'incoming_bio': 'sum',
-            'awarded_bio': 'sum'
+            'incoming_tri': 'sum',
+            'awarded_tri': 'sum'
         }).reset_index()
         
         # Calculate bid-to-cover ratio
-        yearly['bid_to_cover'] = yearly['incoming_bio'] / yearly['awarded_bio']
-        
-        # Convert billions to trillions for display
-        yearly['incoming_tri'] = yearly['incoming_bio'] / 1000.0
-        yearly['awarded_tri'] = yearly['awarded_bio'] / 1000.0
+        yearly['bid_to_cover'] = yearly['incoming_tri'] / yearly['awarded_tri']
         
         # Build Economist-style table (41-char width target)
         # Columns: Year | Incoming | Awarded | BtC

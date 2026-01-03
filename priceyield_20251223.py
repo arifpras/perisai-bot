@@ -480,52 +480,35 @@ class BondDB:
 class AuctionDB:
     def __init__(self, csv):
         self.con = duckdb.connect(":memory:")
-        # Load auction forecast data - handle both standard and ensemble column names
-        # First, load raw CSV
+        # Load unified auction database (2010-2025 historical + 2026 forecast)
+        # Structure: date, auction_month, auction_year, incoming_trillions, awarded_trillions, bid_to_cover, 
+        #            Random Forest, Gradient Boosting, AdaBoost, Stepwise Regression (all in Rp Trillions)
         self.con.execute(f"""
             CREATE TEMPORARY VIEW raw_auction AS
             SELECT * FROM read_csv_auto('{csv}', header=True)
         """)
         
-        # Check if ensemble column exists
-        try:
-            self.con.execute("SELECT incoming_billions_ensemble FROM raw_auction LIMIT 1")
-            has_ensemble = True
-        except:
-            has_ensemble = False
-        
         # Create view with proper column mapping
-        # Note: incoming_billions_ensemble stores values that need to be divided by 1000 to get trillions
-        # incoming_billions from standard CSV is already in billions, divide by 1000 to get trillions
-        if has_ensemble:
-            incoming_col = "TRY_CAST(incoming_billions_ensemble AS DOUBLE) / 1000.0"
-        else:
-            incoming_col = "TRY_CAST(incoming_billions AS DOUBLE) / 1000.0"
-        
-        # For awarded, similar logic
-        if has_ensemble:
-            awarded_col = "TRY_CAST(awarded_billions AS DOUBLE) / 1000.0"
-        else:
-            awarded_col = "TRY_CAST(awarded_billions AS DOUBLE) / 1000.0"
-        
+        # incoming_trillions and awarded_trillions are already in trillions (Rp T)
+        # Convert to billions for compatibility with existing output format
         self.con.execute(f"""
             CREATE VIEW auction_forecast AS
             SELECT
                 TRY_CAST(date AS DATE) AS forecast_date,
-                auction_month,
-                auction_year,
-                TRY_CAST(bi_rate AS DOUBLE) AS bi_rate,
-                TRY_CAST(yield01_ibpa AS DOUBLE) AS yield01_ibpa,
-                TRY_CAST(yield05_ibpa AS DOUBLE) AS yield05_ibpa,
-                TRY_CAST(yield10_ibpa AS DOUBLE) AS yield10_ibpa,
-                TRY_CAST(inflation_rate AS DOUBLE) AS inflation_rate,
-                TRY_CAST(idprod_rate AS DOUBLE) AS idprod_rate,
-                {incoming_col} AS incoming_billions,
-                {awarded_col} AS awarded_billions,
+                TRY_CAST(auction_month AS INTEGER) AS auction_month,
+                TRY_CAST(auction_year AS INTEGER) AS auction_year,
+                TRY_CAST(incoming_trillions AS DOUBLE) * 1000.0 AS incoming_billions,
+                TRY_CAST(awarded_trillions AS DOUBLE) * 1000.0 AS awarded_billions,
                 TRY_CAST(bid_to_cover AS DOUBLE) AS bid_to_cover,
-                TRY_CAST(number_series AS INTEGER) AS number_series,
-                TRY_CAST(move AS DOUBLE) AS move,
-                TRY_CAST(forh_avg AS DOUBLE) AS forh_avg
+                NULL AS bi_rate,
+                NULL AS yield01_ibpa,
+                NULL AS yield05_ibpa,
+                NULL AS yield10_ibpa,
+                NULL AS inflation_rate,
+                NULL AS idprod_rate,
+                NULL AS number_series,
+                NULL AS move,
+                NULL AS forh_avg
             FROM raw_auction
         """)
 

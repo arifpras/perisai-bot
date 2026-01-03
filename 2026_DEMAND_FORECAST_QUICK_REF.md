@@ -2,32 +2,29 @@
 
 ## 📊 System Overview
 
-**Purpose**: Predict incoming bids (auction demand) for 2026 using ML ensemble  
-**Approach**: Supervised learning with 5 models + ensemble averaging  
-**Data**: Historical 185 auctions + 6 macroeconomic features  
-**Output**: Monthly forecasts Jan-Dec 2026 with uncertainty bands  
+**Purpose**: Monthly incoming bids (auction demand) forecast for 2026  
+**Approach**: ML ensemble of 4 models (RF, GB, AdaBoost, Stepwise Regression)  
+**Data**: Historical 186 auctions (2010-2025) from `auction_database.csv`  
+**Output**: 12 monthly forecasts Jan-Dec 2026 in `auction_database.csv`  
 
 ## 🚀 Quick Start
 
-### Method 1: Direct Python Usage
+### Method 1: Query from Unified Database
 
 ```python
-from auction_demand_forecast import AuctionDemandForecaster
 import pandas as pd
 
-# Initialize
-forecaster = AuctionDemandForecaster()
+# Load unified database (includes 2026 forecast)
+df = pd.read_csv('database/auction_database.csv')
 
-# Train
-train_df = pd.read_excel('database/20251207_db01.xlsx', sheet_name='train_sbn')
-forecaster.train(train_df)
+# Filter for 2026 forecast data
+forecast_2026 = df[df['auction_year'] == 2026]
 
-# Forecast
-forecast_df = pd.read_excel('database/20251207_db01.xlsx', sheet_name='predict_sbn')
-results = forecaster.get_2026_forecast(forecast_df)
-
-# Results
-print(f"Total 2026: Rp {results['total_2026_billions']:,.0f} billion")
+# Each month's incoming bids (ensemble mean)
+for _, row in forecast_2026.iterrows():
+    month = int(row['auction_month'])
+    incoming = row['incoming_trillions']
+    print(f"Month {month}: Rp {incoming:.2f} T")
 ```
 
 ### Method 2: Telegram Bot Integration
@@ -35,18 +32,18 @@ print(f"Total 2026: Rp {results['total_2026_billions']:,.0f} billion")
 ```python
 from telegram_bot import get_2026_demand_forecast
 
-forecast = get_2026_demand_forecast()  # Auto-loads cached models
+forecast = get_2026_demand_forecast()  # Loads from auction_database.csv
 print(f"Total: Rp {forecast['total_2026_incoming_billions']:,.0f} billion")
 
 for month in forecast['monthly']:
-    print(f"{month['month']}: {month['ensemble_mean_billions']:,.0f}B")
+    print(f"{month['month']}: {month['incoming_billions']:,.0f}B")
 ```
 
 ### Method 3: Run Test Script
 
 ```bash
 cd /workspaces/perisai-bot
-python test_demand_forecast.py
+python auction_demand_forecast.py
 ```
 
 ## 📈 4-Model Ensemble
@@ -100,36 +97,33 @@ Monthly Range: 172.365 T (Dec) to 362.394 T (Feb)
 │   ├── demand_random_forest.pkl
 │   ├── demand_gradient_boosting.pkl
 │   ├── demand_adaboost.pkl
-│   ├── demand_linear_regression.pkl
-│   ├── demand_stepwise_model.pkl
-│   ├── demand_stepwise_features.pkl
-│   └── demand_metadata.pkl
+│   └── demand_stepwise_model.pkl
 └── database/
-    └── 20251207_db01.xlsx          ← Training & forecast data
-        ├── train_sbn               ← 185 historical auctions
-        └── predict_sbn             ← 12 months for 2026
+    ├── auction_train.csv           ← 186 historical auctions (2010-2025)
+    ├── auction_predict.csv         ← 12 months feature set for 2026
+    └── auction_database.csv        ← Unified: historical + 2026 forecast (FINAL)
+        └── incoming_trillions      ← 2026 months: ensemble mean forecast
 ```
 
 ## 🔄 Model Training
 
-**Automatic triggers**:
-- First run: Trains from `train_sbn` sheet (3-5 min)
-- Cached models: Uses `models/` directory (< 1 sec)
-- Force retrain: `forecaster.train()` directly
+**Original training process** (already completed):
+- Data source: `auction_train.csv` (186 historical records, 2010-2025)
+- Models: Random Forest, Gradient Boosting, AdaBoost, Stepwise Regression
+- R² scores: RF=0.7596, GB=0.7886✓, AdaBoost=0.7351, Stepwise=0.7884
+- Ensemble: Simple mean of 4 model predictions
+- Forecast period: Jan-Dec 2026 (12 months)
 
-**Data split**:
-- Training: 80% (148 records)
-- Testing: 20% (37 records)
-
-**Validation metrics**:
-- MSE: Mean Squared Error (lower better)
-- R²: Coefficient of determination (1.0 = perfect)
+**Current workflow**:
+- Forecast data: Stored in `auction_database.csv` (ready to use)
+- No model training needed (data already generated)
+- Simply query 2026 rows from `auction_database.csv`
 
 ## 📊 Interpreting Results
 
-### Ensemble Mean
+### 2026 Forecast Values
 ```python
-ensemble_mean_billions  # Prediction (average of 5 models)
+incoming_trillions  # Rp Trillions (ensemble mean forecast for each month)
 ```
 
 ### Confidence Band
@@ -163,57 +157,61 @@ Which variables most influence demand:
 
 ### "Could not find Excel file"
 ```python
-# Ensure database/20251207_db01.xlsx exists with correct sheets
-train_df = pd.read_excel('database/20251207_db01.xlsx', sheet_name='train_sbn')
-forecast_df = pd.read_excel('database/20251207_db01.xlsx', sheet_name='predict_sbn')
+# Use unified database (2026 data already computed)
+df = pd.read_csv('database/auction_database.csv')
+forecast_2026 = df[df['auction_year'] == 2026]
 ```
 
-### "Feature mismatch error"
+### "How do I update 2026 forecast?"
 ```python
-# Ensure predict_sbn has all 6 features
-required_features = ['number_series', 'dpk_bio_log', 'move', 'auction_month', 'long_holiday', 'inflation_rate']
-# Each row should have values for all 6
+# Re-run auction_demand_forecast.py to regenerate all 2026 predictions
+# This will overwrite auction_database.csv with new ensemble forecasts
+python auction_demand_forecast.py
 ```
 
-### "Models not found, retraining..."
+### "Can I see individual model predictions?"
 ```python
-# Normal - first run trains automatically
-# Subsequently uses cached models in models/ directory
-# To force retrain: forecaster.train(train_df)
+# Yes - auction_database.csv includes columns:
+# - Random Forest (Rp T)
+# - Gradient Boosting (Rp T)
+# - AdaBoost (Rp T)
+# - Stepwise Regression (Rp T)
+# Plus incoming_trillions = ensemble mean
 ```
 
 ## 📚 Full Documentation
 
 See [AUCTION_DEMAND_FORECAST.md](AUCTION_DEMAND_FORECAST.md) for:
 - Architecture deep-dive
-- Advanced usage patterns
+- Model specifications
 - Data format specifications
-- Hyperparameter tuning
+- Feature engineering details
 - Model interpretation
 - Future enhancements
 
-## 🤔 Why Not Just Time-Series?
+## 🎯 Key Improvements from Old System
 
-| Aspect | Time-Series | ML Ensemble |
-|--------|-------------|-------------|
-| Features | Only historical prices | Macro context (6 features) |
-| Seasonality | Implicit in lags | Explicit (month feature) |
-| Macro Events | Invisible | Captured (inflation, deposits) |
-| Interpretability | Black box | Feature importance explained |
-| Accuracy | ~70% (R²) | ~82% (R²) |
+| Aspect | Old (Excel sheets) | New (Unified DB) |
+|--------|-------------------|------------------|
+| Data source | 20251207_db01.xlsx | auction_database.csv |
+| Historical records | 185 | 186 (2010-2025) |
+| Forecast records | 12 (separate) | 12 (integrated into main DB) |
+| Access method | Multi-step (train + predict) | Simple query (filter year==2026) |
+| Unit consistency | Mixed (billions/log scale) | Unified (Rp Trillions) |
+| Other columns | Excel sheets | Integrated (dates, BtC ratio, etc.) |
 
 ## ✅ Next Steps
 
-1. **Run test**: `python test_demand_forecast.py`
-2. **Verify forecast**: Check monthly breakdown vs expectations
-3. **Cache models**: Automatic after first run
-4. **Integrate queries**: Ask Kei for 2026 demand via Telegram
-5. **Monitor**: Compare actual auctions vs forecast
+1. **Verify data**: Check `auction_database.csv` has 198 rows (186+12)
+2. **Query 2026**: Filter `auction_year==2026` to get 12 monthly forecasts
+3. **Check values**: `incoming_trillions` = ensemble forecast for each month
+4. **Update models**: Re-run `auction_demand_forecast.py` if needing fresh forecast
+5. **Monitor**: Use bot `/kei analyze incoming` to fetch 2026 data
 
 ## 📞 Support
 
 For questions on:
-- **Usage**: See code comments in `auction_demand_forecast.py`
+- **Usage**: See code comments in `auction_demand_forecast.py` and `telegram_bot.py`
 - **Theory**: See notebook `20251208_podem2026_sbn_v01.ipynb`
 - **Integration**: See `telegram_bot.py` function `get_2026_demand_forecast()`
-- **Data**: Check `database/20251207_db01.xlsx` structure
+- **Data**: Check `database/auction_database.csv` structure
