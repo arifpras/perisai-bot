@@ -696,7 +696,13 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
     """Economist-style table for requested metrics across periods.
     Rows: periods (month/quarter/year labels)
     Columns: one or two of ['Incoming','Awarded'] in Rp T
+    
+    Note: For forecast years (2026+), 'Awarded' column shows 'N/A' since actual 
+    awarded amounts haven't been realized yet.
     """
+    from datetime import datetime
+    current_year = datetime.now().year
+    
     # Determine columns
     cols = []
     if any(m.strip().lower().startswith('incoming') for m in metrics):
@@ -724,12 +730,22 @@ def format_auction_metrics_table(periods_data: List[Dict], metrics: List[str]) -
     for p in periods_data:
         label = _period_label(p)
         values = []
+        period_year = p.get('year')
+        # For awarded bids, show N/A for current year and future years since full-year
+        # awarded amounts haven't been finalized yet
+        is_forecast = period_year >= current_year if period_year else False
+        
         for c in cols:
             if c == 'Incoming':
                 val = p.get('total_incoming')
-            else:
-                val = p.get('total_awarded')
-            values.append(f"Rp {val:,.2f}T" if isinstance(val, (int, float)) else '-')
+                values.append(f"Rp {val:,.2f}T" if isinstance(val, (int, float)) else '-')
+            else:  # Awarded
+                # Show N/A for current/forecast years (2026+) since awarded bids are unrealized
+                if is_forecast:
+                    values.append("N/A")
+                else:
+                    val = p.get('total_awarded')
+                    values.append(f"Rp {val:,.2f}T" if isinstance(val, (int, float)) else '-')
         rows.append(f"{label:<{label_width}}{sep}" + sep.join([f"{v:>{col_width}}" for v in values]))
 
     rows_box = "\n".join([f"│{r:<{total_width}}│" for r in rows])
