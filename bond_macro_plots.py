@@ -17,7 +17,7 @@ import matplotlib.dates as mdates
 from datetime import datetime, date
 import os
 from io import BytesIO
-from economist_style import ECONOMIST_COLORS, apply_economist_style, add_economist_caption
+from utils.economist_style import ECONOMIST_COLORS, apply_economist_style, add_economist_caption
 
 
 class BondMacroPlotter:

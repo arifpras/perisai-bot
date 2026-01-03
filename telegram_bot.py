@@ -29,7 +29,7 @@ except ImportError:
 
 import priceyield_20251223 as priceyield_mod
 from priceyield_20251223 import BondDB, AuctionDB, parse_intent
-from economist_style import (
+from utils.economist_style import (
     ECONOMIST_COLORS,
     ECONOMIST_PALETTE,
     add_economist_caption,
@@ -73,7 +73,7 @@ API_BASE_URL = (
 
 # Metrics module
 try:
-    from usage_store import log_query, log_error
+    from utils.usage_store import log_query, log_error
     
     class MetricsAdapter:
         """Adapter to provide metrics.log_query and metrics.log_error interface"""
@@ -6904,7 +6904,7 @@ async def activity_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Import and run activity monitor
     try:
-        from activity_monitor import ActivityMonitor
+        from utils.activity_monitor import ActivityMonitor
         
         monitor = ActivityMonitor()
         health = monitor.health_check()
