@@ -590,6 +590,26 @@ if __name__ == "__main__":
                   'Stepwise Regression (Rp T)', 'Ensemble Mean (Rp T)']
     merged_db = merged_db[cols_order]
     
+    # For 2026 records: fill incoming_bio_log with ensemble_mean and note that awarded/bid_to_cover are forecasts
+    print("✓ Processing 2026 forecast data...")
+    merged_db_2026_idx = merged_db[merged_db['auction_year'] == 2026].index
+    for idx in merged_db_2026_idx:
+        merged_db.loc[idx, 'incoming_bio_log'] = merged_db.loc[idx, 'Ensemble Mean (Rp T)']
+    
+    # Remove ensemble_mean column (no longer needed)
+    merged_db = merged_db.drop(columns=['Ensemble Mean (Rp T)'])
+    
+    # Rename columns for clarity
+    merged_db = merged_db.rename(columns={
+        'incoming_bio_log': 'incoming_trillions',
+        'awarded_bio_log': 'awarded_trillions'
+    })
+    
+    # For 2026 records, set awarded_trillions and bid_to_cover to NaN (not realized yet)
+    for idx in merged_db_2026_idx:
+        merged_db.loc[idx, 'awarded_trillions'] = np.nan
+        merged_db.loc[idx, 'bid_to_cover'] = np.nan
+    
     # Export merged database
     database_file = "database/auction_database.csv"
     print(f"💾 Exporting transformed database to {database_file}")
@@ -600,6 +620,9 @@ if __name__ == "__main__":
     print(f"     - Added end-of-month date from auction_month and auction_year")
     print(f"     - Unlogged incoming_bio_log and awarded_bio_log (from log10 to billions)")
     print(f"     - Converted all to trillion units (divided by 1000)")
+    print(f"     - For 2026: filled incoming_trillions with ensemble forecast")
+    print(f"     - For 2026: awarded_trillions and bid_to_cover set to NaN (not realized yet)")
+    print(f"     - Renamed columns: incoming_bio_log → incoming_trillions, awarded_bio_log → awarded_trillions")
     print()
     
     print("=" * 80)
