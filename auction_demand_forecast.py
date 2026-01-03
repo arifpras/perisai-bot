@@ -375,35 +375,145 @@ class AuctionDemandForecaster:
 
 
 if __name__ == "__main__":
-    # Example usage
-    import openpyxl
+    """
+    Main execution: Train ensemble models and forecast 2026 monthly incoming bids.
     
-    print("=" * 70)
-    print("AUCTION DEMAND FORECASTING SYSTEM")
-    print("=" * 70)
+    Data files:
+    - Training: database/auction_train.csv
+    - Prediction features: database/auction_predict.csv
+    - Output: database/auction_forecast.csv
+    """
+    import os
+    from pathlib import Path
+    
+    print("=" * 80)
+    print("2026 AUCTION DEMAND FORECASTING - MONTHLY BASIS")
+    print("=" * 80)
     print()
     
-    # Load training data
-    try:
-        train_file = "20251207_db01.xlsx"  # Update path as needed
-        train_data = pd.read_excel(train_file, sheet_name='train_sbn')
-        forecast_data = pd.read_excel(train_file, sheet_name='predict_sbn')
+    # File paths
+    train_file = "database/auction_train.csv"
+    predict_file = "database/auction_predict.csv"
+    output_file = "database/auction_forecast.csv"
+    
+    # Verify input files exist
+    for f in [train_file, predict_file]:
+        if not Path(f).exists():
+            print(f"❌ Error: {f} not found!")
+            exit(1)
+    
+    print(f"✓ Loading training data from {train_file}")
+    train_data = pd.read_csv(train_file)
+    print(f"  Loaded {len(train_data)} historical records")
+    
+    print(f"✓ Loading 2026 prediction features from {predict_file}")
+    predict_data = pd.read_csv(predict_file)
+    print(f"  Loaded {len(predict_data)} months for 2026")
+    print()
+    
+    # Initialize forecaster
+    forecaster = AuctionDemandForecaster()
+    
+    # Train models
+    print("🚀 Training ensemble models...")
+    forecaster.train(train_data, test_size=0.2, random_state=42)
+    print()
+    
+    # Generate predictions
+    print("📊 Generating 2026 monthly forecasts...")
+    predictions_df = forecaster.predict(predict_data)
+    print(f"  Generated predictions for {len(predictions_df)} months")
+    print()
+    
+    # Convert log-scale predictions to billions for all models
+    for model_name in ['Random Forest', 'Gradient Boosting', 'AdaBoost', 'Stepwise Regression']:
+        if model_name in predictions_df.columns:
+            predictions_df[f'{model_name}_billions'] = forecaster.convert_to_billions(
+                predictions_df[model_name].values
+            )
+    
+    # Create output dataframe with monthly forecasts
+    forecast_results = []
+    
+    for idx, (_, row) in enumerate(predictions_df.iterrows(), 1):
+        month_date = row.get('date', f"2026-{idx:02d}-01")
         
-        # Initialize and train
-        forecaster = AuctionDemandForecaster()
-        forecaster.train(train_data)
-        
-        # Generate 2026 forecast
-        forecast_results = forecaster.get_2026_forecast(forecast_data)
-        
-        print("\n📈 2026 FORECAST SUMMARY:")
-        print(f"  Total Expected Incoming Bids (2026): {forecast_results['total_2026_billions']:,.2f} billion")
-        print(f"  Average Monthly: {forecast_results['average_monthly_billions']:,.2f} billion")
-        print()
-        
-        # Save models
-        forecaster.save("models")
-        
-    except FileNotFoundError as e:
-        print(f"⚠️  Data file not found: {e}")
-        print("   Update the file path and run again.")
+        result = {
+            'month': idx,
+            'date': month_date,
+            'Random Forest (Rp T)': row.get('Random Forest_billions', np.nan),
+            'Gradient Boosting (Rp T)': row.get('Gradient Boosting_billions', np.nan),
+            'AdaBoost (Rp T)': row.get('AdaBoost_billions', np.nan),
+            'Stepwise Regression (Rp T)': row.get('Stepwise Regression_billions', np.nan),
+            'Ensemble Mean (Rp T)': row.get('ensemble_mean_billions', np.nan),
+        }
+        forecast_results.append(result)
+    
+    # Create results DataFrame
+    results_df = pd.DataFrame(forecast_results)
+    
+    # Calculate totals and averages
+    print("📈 Computing 2026 summary statistics...")
+    
+    rf_total = results_df['Random Forest (Rp T)'].sum()
+    gb_total = results_df['Gradient Boosting (Rp T)'].sum()
+    ada_total = results_df['AdaBoost (Rp T)'].sum()
+    stepwise_total = results_df['Stepwise Regression (Rp T)'].sum()
+    ensemble_total = results_df['Ensemble Mean (Rp T)'].sum()
+    
+    rf_avg = rf_total / len(results_df)
+    gb_avg = gb_total / len(results_df)
+    ada_avg = ada_total / len(results_df)
+    stepwise_avg = stepwise_total / len(results_df)
+    ensemble_avg = ensemble_total / len(results_df)
+    
+    print(f"  Random Forest Total: Rp {rf_total:,.2f}T (Avg: {rf_avg:,.2f}T/month)")
+    print(f"  Gradient Boosting Total: Rp {gb_total:,.2f}T (Avg: {gb_avg:,.2f}T/month)")
+    print(f"  AdaBoost Total: Rp {ada_total:,.2f}T (Avg: {ada_avg:,.2f}T/month)")
+    print(f"  Stepwise Regression Total: Rp {stepwise_total:,.2f}T (Avg: {stepwise_avg:,.2f}T/month)")
+    print(f"  Ensemble Mean Total: Rp {ensemble_total:,.2f}T (Avg: {ensemble_avg:,.2f}T/month)")
+    print()
+    
+    # Add summary rows
+    summary_rows = [
+        {
+            'month': 'TOTAL',
+            'date': '2026 Full Year',
+            'Random Forest (Rp T)': rf_total,
+            'Gradient Boosting (Rp T)': gb_total,
+            'AdaBoost (Rp T)': ada_total,
+            'Stepwise Regression (Rp T)': stepwise_total,
+            'Ensemble Mean (Rp T)': ensemble_total,
+        },
+        {
+            'month': 'AVG',
+            'date': 'Monthly Average',
+            'Random Forest (Rp T)': rf_avg,
+            'Gradient Boosting (Rp T)': gb_avg,
+            'AdaBoost (Rp T)': ada_avg,
+            'Stepwise Regression (Rp T)': stepwise_avg,
+            'Ensemble Mean (Rp T)': ensemble_avg,
+        }
+    ]
+    
+    results_df = pd.concat([results_df, pd.DataFrame(summary_rows)], ignore_index=True)
+    
+    # Export to CSV
+    print(f"💾 Exporting results to {output_file}")
+    results_df.to_csv(output_file, index=False)
+    print(f"✅ Successfully saved {len(results_df)-2} months + 2 summary rows to {output_file}")
+    print()
+    
+    # Print model performance
+    print("📊 Model Performance (Test Set):")
+    for model_name, metrics in forecaster.metrics.items():
+        print(f"  {model_name:25s} | R² = {metrics['r2']:.4f} | MSE = {metrics['mse']:.4f}")
+    print()
+    
+    print("=" * 80)
+    print("✅ FORECASTING COMPLETE")
+    print("=" * 80)
+    print(f"\nForecast file: {output_file}")
+    print(f"Models trained: {', '.join(forecaster.models.keys())}, Stepwise Regression")
+    print(f"2026 Ensemble Forecast: Rp {ensemble_total:,.2f}T")
+    print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
