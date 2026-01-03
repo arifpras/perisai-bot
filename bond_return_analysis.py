@@ -264,10 +264,10 @@ class ReturnDecomposition:
             else:
                 hook = f"Weak carry and rising yields pressured {self.tenor.replace('_', '-').upper()} bond returns to {results['total_idr_pct']:.2f}%."
         
-        output = f"""{hook}
-
-📊 {self.tenor.upper()} Bond Return Attribution
+        output = f"""📊 {self.tenor.upper()} Bond Return Attribution
 {self.start_date.strftime('%d %b %Y')} – {self.end_date.strftime('%d %b %Y')} ({m['days_held']} days)
+
+{hook}
 
 RETURN DECOMPOSITION (IDR-based):
 ```
@@ -326,7 +326,7 @@ INTERPRETATION:
             output += f"\n• FX headwind: IDR depreciation of {results['fx_depreciation']:.1f}% reduced USD returns "
             output += f"from {results['total_idr_pct']:.2f}% to {results['usd_return_pct']:.2f}%"
         
-        output += "\n\n> ~ Kei"
+        output += "\n\n<blockquote>~ Kei</blockquote>"
         return output
 
 
@@ -352,7 +352,7 @@ def analyze_bond_returns(tenor: str, start_date: str, end_date: str) -> str:
         results = decomp.analyze()
         return decomp.format_analysis(results)
     except Exception as e:
-        return f"❌ Return analysis error: {str(e)}\n\n> ~ Kei"
+        return f"❌ Return analysis error: {str(e)}\n\n<blockquote>~ Kei</blockquote>"
 
 
 if __name__ == "__main__":
