@@ -252,11 +252,11 @@ class ReturnDecomposition:
         price_change = m['end_price'] - m['start_price']
         yield_change_bp = m['yield_move_bp']
         
-        output = f"""
-📊 {self.tenor.upper()} Bond Return Attribution
+        output = f"""📊 {self.tenor.upper()} Bond Return Attribution
 {self.start_date.strftime('%d %b %Y')} – {self.end_date.strftime('%d %b %Y')} ({m['days_held']} days)
 
 RETURN DECOMPOSITION (IDR-based):
+```
 ┌──────────────────────────────────┬────────┐
 │ Component                        │   %    │
 ├──────────────────────────────────┼────────┤
@@ -269,8 +269,10 @@ RETURN DECOMPOSITION (IDR-based):
 ├──────────────────────────────────┼────────┤
 │ Total (USD)                      │ {results['usd_return_pct']:>5.2f}% │
 └──────────────────────────────────┴────────┘
+```
 
 KEY METRICS:
+```
 ┌──────────────────┬───────────────┐
 │ Metric           │         Value │
 ├──────────────────┼───────────────┤
@@ -289,24 +291,25 @@ KEY METRICS:
 │ IDR/USD (End)    │  {int(m['end_fx']):>10,}  │
 │ IDR Depreciat.   │  {results['fx_depreciation']:>12.2f}% │
 └──────────────────┴───────────────┘
+```
 
 INTERPRETATION:
 """
         if results['total_idr_pct'] > 0:
-            output += f"  ✓ Positive IDR return of {results['total_idr_pct']:.2f}% driven by "
+            output += f"• Positive IDR return of {results['total_idr_pct']:.2f}% driven by "
             if abs(results['carry_pct']) > abs(results['duration_pct']):
                 output += "carry income"
             else:
                 output += "yield compression"
         else:
-            output += f"  ✗ Negative IDR return of {results['total_idr_pct']:.2f}% driven by "
+            output += f"• Negative IDR return of {results['total_idr_pct']:.2f}% driven by "
             if abs(results['duration_pct']) > abs(results['carry_pct']):
                 output += "yield expansion"
             else:
                 output += "weak carry"
         
         if results['usd_return_pct'] < results['total_idr_pct']:
-            output += f"\n  ⚠ FX headwind: IDR depreciation of {results['fx_depreciation']:.1f}% reduced USD returns "
+            output += f"\n• FX headwind: IDR depreciation of {results['fx_depreciation']:.1f}% reduced USD returns "
             output += f"from {results['total_idr_pct']:.2f}% to {results['usd_return_pct']:.2f}%"
         
         output += "\n\n~ Kei"
