@@ -257,40 +257,40 @@ class ReturnDecomposition:
 
 RETURN DECOMPOSITION (IDR-based):
 ```
-┌───────────────────────────┬─────────┐
-│ Component                 │    %    │
-├───────────────────────────┼─────────┤
-│ Carry                     │ {results['carry_pct']:>7.3f}% │
-│ Duration Effect           │ {results['duration_pct']:>7.3f}% │
-│ Rolldown                  │ {results['rolldown_pct']:>7.3f}% │
-├───────────────────────────┼─────────┤
-│ Total (IDR)               │ {results['total_idr_pct']:>7.3f}% │
-│ FX Impact (Depreciation)  │ {results['fx_depreciation']:>7.3f}% │
-├───────────────────────────┼─────────┤
-│ Total (USD)               │ {results['usd_return_pct']:>7.3f}% │
-└───────────────────────────┴─────────┘
+┌──────────────────────────┬─────────┐
+│ Component                │    %    │
+├──────────────────────────┼─────────┤
+│ Carry                    │ {results['carry_pct']:>7.3f}% │
+│ Duration Effect          │ {results['duration_pct']:>7.3f}% │
+│ Rolldown                 │ {results['rolldown_pct']:>7.3f}% │
+├──────────────────────────┼─────────┤
+│ Total (IDR)              │ {results['total_idr_pct']:>7.3f}% │
+│ FX Impact (Depreciation) │ {results['fx_depreciation']:>7.3f}% │
+├──────────────────────────┼─────────┤
+│ Total (USD)              │ {results['usd_return_pct']:>7.3f}% │
+└──────────────────────────┴─────────┘
 ```
 
 KEY METRICS:
 ```
-┌────────────────────┬────────────┐
-│ Metric             │      Value │
-├────────────────────┼────────────┤
-│ Price (Start)      │ {m['start_price']:>9.2f}% │
-│ Price (End)        │ {m['end_price']:>9.2f}% │
-│ Price Change       │ {price_change:>9.2f}% │
-├────────────────────┼────────────┤
-│ Yield (Start)      │ {m['start_yield']:>9.2f}% │
-│ Yield (End)        │ {m['end_yield']:>9.2f}% │
-│ Yield Change       │ {yield_change_bp:>7.0f} bp │
-├────────────────────┼────────────┤
-│ Modified Duration  │ {m['modified_duration']:>9.2f}  │
-│ Coupon             │ {m['coupon']:>9.3f}% │
-├────────────────────┼────────────┤
-│ IDR/USD (Start)    │ {int(m['start_fx']):>8,}  │
-│ IDR/USD (End)      │ {int(m['end_fx']):>8,}  │
-│ IDR Depreciation   │ {results['fx_depreciation']:>9.2f}% │
-└────────────────────┴────────────┘
+┌─────────────────────┬────────────┐
+│ Metric              │      Value │
+├─────────────────────┼────────────┤
+│ Price (Start)       │ {m['start_price']:>9.2f}% │
+│ Price (End)         │ {m['end_price']:>9.2f}% │
+│ Price Change        │ {price_change:>9.2f}% │
+├─────────────────────┼────────────┤
+│ Yield (Start)       │ {m['start_yield']:>9.2f}% │
+│ Yield (End)         │ {m['end_yield']:>9.2f}% │
+│ Yield Change        │ {yield_change_bp:>7.0f} bp │
+├─────────────────────┼────────────┤
+│ Modified Duration   │ {m['modified_duration']:>9.2f}  │
+│ Coupon              │ {m['coupon']:>9.3f}% │
+├─────────────────────┼────────────┤
+│ IDR/USD (Start)     │ {int(m['start_fx']):>8,}  │
+│ IDR/USD (End)       │ {int(m['end_fx']):>8,}  │
+│ IDR Depreciation    │ {results['fx_depreciation']:>9.2f}% │
+└─────────────────────┴────────────┘
 ```
 
 INTERPRETATION:
@@ -312,7 +312,7 @@ INTERPRETATION:
             output += f"\n• FX headwind: IDR depreciation of {results['fx_depreciation']:.1f}% reduced USD returns "
             output += f"from {results['total_idr_pct']:.2f}% to {results['usd_return_pct']:.2f}%"
         
-        output += "\n\n~ Kei"
+        output += "\n\n> ~ Kei"
         return output
 
 
@@ -338,7 +338,7 @@ def analyze_bond_returns(tenor: str, start_date: str, end_date: str) -> str:
         results = decomp.analyze()
         return decomp.format_analysis(results)
     except Exception as e:
-        return f"❌ Return analysis error: {str(e)}\n\n~ Kei"
+        return f"❌ Return analysis error: {str(e)}\n\n> ~ Kei"
 
 
 if __name__ == "__main__":
