@@ -533,8 +533,8 @@ if __name__ == "__main__":
     
     print("✓ Merging historical and forecast data...")
     
-    # Select columns from training data
-    train_cols = ['date', 'auction_month', 'auction_year', 'incoming_bio_log', 'awarded_bio_log', 'bid_to_cover']
+    # Select columns from training data (without date)
+    train_cols = ['auction_month', 'auction_year', 'incoming_bio_log', 'awarded_bio_log', 'bid_to_cover']
     train_selected = train_data[train_cols].copy()
     
     # Select columns from forecast results (only the 12 monthly rows, not summary)
