@@ -273,24 +273,24 @@ RETURN DECOMPOSITION (IDR-based):
 
 KEY METRICS:
 ```
-┌──────────────────┬───────────────┐
-│ Metric           │         Value │
-├──────────────────┼───────────────┤
-│ Price (Start)    │  {m['start_price']:>12.2f}% │
-│ Price (End)      │  {m['end_price']:>12.2f}% │
-│ Price Change     │  {price_change:>12.2f}% │
-├──────────────────┼───────────────┤
-│ Yield (Start)    │  {m['start_yield']:>12.2f}% │
-│ Yield (End)      │  {m['end_yield']:>12.2f}% │
-│ Yield Change     │ {yield_change_bp:>10.0f} bp │
-├──────────────────┼───────────────┤
-│ Modified Dur.    │  {m['modified_duration']:>12.2f}  │
-│ Coupon           │  {m['coupon']:>12.3f}% │
-├──────────────────┼───────────────┤
-│ IDR/USD (Start)  │  {int(m['start_fx']):>10,}  │
-│ IDR/USD (End)    │  {int(m['end_fx']):>10,}  │
-│ IDR Depreciat.   │  {results['fx_depreciation']:>12.2f}% │
-└──────────────────┴───────────────┘
+┌────────────────────┬────────────┐
+│ Metric             │      Value │
+├────────────────────┼────────────┤
+│ Price (Start)      │ {m['start_price']:>9.2f}% │
+│ Price (End)        │ {m['end_price']:>9.2f}% │
+│ Price Change       │ {price_change:>9.2f}% │
+├────────────────────┼────────────┤
+│ Yield (Start)      │ {m['start_yield']:>9.2f}% │
+│ Yield (End)        │ {m['end_yield']:>9.2f}% │
+│ Yield Change       │ {yield_change_bp:>7.0f} bp │
+├────────────────────┼────────────┤
+│ Modified Duration  │ {m['modified_duration']:>9.2f}  │
+│ Coupon             │ {m['coupon']:>9.3f}% │
+├────────────────────┼────────────┤
+│ IDR/USD (Start)    │ {int(m['start_fx']):>8,}  │
+│ IDR/USD (End)      │ {int(m['end_fx']):>8,}  │
+│ IDR Depreciation   │ {results['fx_depreciation']:>9.2f}% │
+└────────────────────┴────────────┘
 ```
 
 INTERPRETATION:
