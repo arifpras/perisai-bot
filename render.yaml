@@ -1,22 +1,23 @@
 services:
-  - type: web
-    name: perisai-api
-    runtime: python
-    # Explicitly install requirements and ensure python-telegram-bot is present (Render cache can miss it)
-    buildCommand: |
-      pip install --upgrade pip
-      pip install -r requirements.txt
-      pip install python-telegram-bot
-    startCommand: uvicorn app_fastapi:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.5
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: PERPLEXITY_API_KEY
-        sync: false
+  # FastAPI service disabled - app_fastapi.py moved to future_dev/ for future adoption
+  # Uncomment when FastAPI service is ready for deployment
+  # - type: web
+  #   name: perisai-api
+  #   runtime: python
+  #   buildCommand: |
+  #     pip install --upgrade pip
+  #     pip install -r requirements.txt
+  #     pip install python-telegram-bot
+  #   startCommand: uvicorn app_fastapi:app --host 0.0.0.0 --port $PORT
+  #   envVars:
+  #     - key: PYTHON_VERSION
+  #       value: 3.12.5
+  #     - key: TELEGRAM_BOT_TOKEN
+  #       sync: false
+  #     - key: OPENAI_API_KEY
+  #       sync: false
+  #     - key: PERPLEXITY_API_KEY
+  #       sync: false
 
   - type: worker
     name: perisai-telegram-bot
