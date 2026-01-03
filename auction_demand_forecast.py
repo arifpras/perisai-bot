@@ -441,6 +441,8 @@ if __name__ == "__main__":
         result = {
             'month': idx,
             'date': month_date,
+            'auction_month': row.get('auction_month', idx),
+            'auction_year': row.get('auction_year', 2026),
             'Random Forest (Rp T)': row.get('Random Forest_billions', np.nan),
             'Gradient Boosting (Rp T)': row.get('Gradient Boosting_billions', np.nan),
             'AdaBoost (Rp T)': row.get('AdaBoost_billions', np.nan),
@@ -474,29 +476,33 @@ if __name__ == "__main__":
     print(f"  Ensemble Mean Total: Rp {ensemble_total:,.2f}T (Avg: {ensemble_avg:,.2f}T/month)")
     print()
     
-    # Add summary rows
-    summary_rows = [
-        {
-            'month': 'TOTAL',
-            'date': '2026 Full Year',
-            'Random Forest (Rp T)': rf_total,
-            'Gradient Boosting (Rp T)': gb_total,
-            'AdaBoost (Rp T)': ada_total,
-            'Stepwise Regression (Rp T)': stepwise_total,
-            'Ensemble Mean (Rp T)': ensemble_total,
-        },
-        {
-            'month': 'AVG',
-            'date': 'Monthly Average',
-            'Random Forest (Rp T)': rf_avg,
-            'Gradient Boosting (Rp T)': gb_avg,
-            'AdaBoost (Rp T)': ada_avg,
-            'Stepwise Regression (Rp T)': stepwise_avg,
-            'Ensemble Mean (Rp T)': ensemble_avg,
-        }
-    ]
+    # Add summary rows with same columns as merged dataframe
+    summary_row_total = {'month': 'TOTAL', 'date': '2026 Full Year'}
+    summary_row_avg = {'month': 'AVG', 'date': 'Monthly Average'}
     
-    results_df = pd.concat([results_df, pd.DataFrame(summary_rows)], ignore_index=True)
+    # Add NaN for feature columns
+    for col in results_df.columns:
+        if col not in ['month', 'date', 'Random Forest (Rp T)', 'Gradient Boosting (Rp T)', 'AdaBoost (Rp T)', 'Stepwise Regression (Rp T)', 'Ensemble Mean (Rp T)']:
+            summary_row_total[col] = np.nan
+            summary_row_avg[col] = np.nan
+    
+    # Add forecast totals/averages
+    summary_row_total['Random Forest (Rp T)'] = rf_total
+    summary_row_total['Gradient Boosting (Rp T)'] = gb_total
+    summary_row_total['AdaBoost (Rp T)'] = ada_total
+    summary_row_total['Stepwise Regression (Rp T)'] = stepwise_total
+    summary_row_total['Ensemble Mean (Rp T)'] = ensemble_total
+    
+    summary_row_avg['Random Forest (Rp T)'] = rf_avg
+    summary_row_avg['Gradient Boosting (Rp T)'] = gb_avg
+    summary_row_avg['AdaBoost (Rp T)'] = ada_avg
+    summary_row_avg['Stepwise Regression (Rp T)'] = stepwise_avg
+    summary_row_avg['Ensemble Mean (Rp T)'] = ensemble_avg
+    
+    # Concat with matching columns
+    summary_df = pd.DataFrame([summary_row_total, summary_row_avg])
+    summary_df = summary_df[results_df.columns]
+    results_df = pd.concat([results_df, summary_df], ignore_index=True)
     
     # Export to CSV
     print(f"💾 Exporting results to {output_file}")
@@ -516,4 +522,52 @@ if __name__ == "__main__":
     print(f"\nForecast file: {output_file}")
     print(f"Models trained: {', '.join(forecaster.models.keys())}, Stepwise Regression")
     print(f"2026 Ensemble Forecast: Rp {ensemble_total:,.2f}T")
+    print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print()
+    
+    # Create merged auction database
+    print("=" * 80)
+    print("CREATING MERGED AUCTION DATABASE")
+    print("=" * 80)
+    print()
+    
+    print("✓ Merging historical and forecast data...")
+    
+    # Select columns from training data
+    train_cols = ['date', 'auction_month', 'auction_year', 'incoming_bio_log', 'awarded_bio_log', 'bid_to_cover']
+    train_selected = train_data[train_cols].copy()
+    
+    # Select columns from forecast results (only the 12 monthly rows, not summary)
+    forecast_cols = ['auction_month', 'auction_year', 'Random Forest (Rp T)', 'Gradient Boosting (Rp T)', 
+                     'AdaBoost (Rp T)', 'Stepwise Regression (Rp T)', 'Ensemble Mean (Rp T)']
+    forecast_selected = results_df.iloc[:12][forecast_cols].copy()
+    
+    # Merge by auction_month and auction_year
+    merged_db = pd.merge(
+        train_selected,
+        forecast_selected,
+        on=['auction_month', 'auction_year'],
+        how='outer'
+    )
+    
+    # Sort by year and month
+    merged_db = merged_db.sort_values(['auction_year', 'auction_month']).reset_index(drop=True)
+    
+    # Export merged database
+    database_file = "database/auction_database.csv"
+    print(f"💾 Exporting merged database to {database_file}")
+    merged_db.to_csv(database_file, index=False)
+    print(f"✅ Successfully created {database_file}")
+    print(f"   Total records: {len(merged_db)} (historical + forecast)")
+    print()
+    
+    print("=" * 80)
+    print("✅ ALL OPERATIONS COMPLETE")
+    print("=" * 80)
+    print(f"\nOutput files created:")
+    print(f"  1. {output_file}")
+    print(f"     - 2026 monthly forecasts with ensemble predictions")
+    print(f"  2. {database_file}")
+    print(f"     - Merged historical data + 2026 forecasts")
+    print(f"\n2026 Ensemble Forecast: Rp {ensemble_total:,.2f}T")
     print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
