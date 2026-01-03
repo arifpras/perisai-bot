@@ -553,12 +553,53 @@ if __name__ == "__main__":
     # Sort by year and month
     merged_db = merged_db.sort_values(['auction_year', 'auction_month']).reset_index(drop=True)
     
+    # Transform data: create date, unlog, and convert to trillion units
+    print("✓ Transforming data...")
+    
+    # 1. Create date column (end of month) from auction_month and auction_year
+    from dateutil.relativedelta import relativedelta
+    
+    def get_end_of_month(row):
+        """Get end of month date from auction_month and auction_year."""
+        year = int(row['auction_year'])
+        month = int(row['auction_month'])
+        # First day of next month minus one day = last day of current month
+        return pd.Timestamp(year=year, month=month, day=1) + relativedelta(months=1) - relativedelta(days=1)
+    
+    merged_db['date'] = merged_db.apply(get_end_of_month, axis=1)
+    
+    # 2. Unlog incoming_bio_log and awarded_bio_log (they are in log10 scale)
+    merged_db['incoming_bio_log'] = 10 ** merged_db['incoming_bio_log']
+    merged_db['awarded_bio_log'] = 10 ** merged_db['awarded_bio_log']
+    
+    # 3. Convert to trillion units (divide by 1000)
+    # Historical data columns
+    merged_db['incoming_bio_log'] = merged_db['incoming_bio_log'] / 1000
+    merged_db['awarded_bio_log'] = merged_db['awarded_bio_log'] / 1000
+    
+    # Forecast columns
+    forecast_cols_to_divide = ['Random Forest (Rp T)', 'Gradient Boosting (Rp T)', 
+                                'AdaBoost (Rp T)', 'Stepwise Regression (Rp T)', 'Ensemble Mean (Rp T)']
+    for col in forecast_cols_to_divide:
+        if col in merged_db.columns:
+            merged_db[col] = merged_db[col] / 1000
+    
+    # Reorder columns: date first, then auction_month, auction_year, then rest
+    cols_order = ['date', 'auction_month', 'auction_year', 'incoming_bio_log', 'awarded_bio_log', 'bid_to_cover',
+                  'Random Forest (Rp T)', 'Gradient Boosting (Rp T)', 'AdaBoost (Rp T)', 
+                  'Stepwise Regression (Rp T)', 'Ensemble Mean (Rp T)']
+    merged_db = merged_db[cols_order]
+    
     # Export merged database
     database_file = "database/auction_database.csv"
-    print(f"💾 Exporting merged database to {database_file}")
+    print(f"💾 Exporting transformed database to {database_file}")
     merged_db.to_csv(database_file, index=False)
     print(f"✅ Successfully created {database_file}")
     print(f"   Total records: {len(merged_db)} (historical + forecast)")
+    print(f"   Transformations applied:")
+    print(f"     - Added end-of-month date from auction_month and auction_year")
+    print(f"     - Unlogged incoming_bio_log and awarded_bio_log (from log10 to billions)")
+    print(f"     - Converted all to trillion units (divided by 1000)")
     print()
     
     print("=" * 80)
@@ -568,6 +609,6 @@ if __name__ == "__main__":
     print(f"  1. {output_file}")
     print(f"     - 2026 monthly forecasts with ensemble predictions")
     print(f"  2. {database_file}")
-    print(f"     - Merged historical data + 2026 forecasts")
+    print(f"     - Merged historical data + 2026 forecasts (transformed)")
     print(f"\n2026 Ensemble Forecast: Rp {ensemble_total:,.2f}T")
     print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
