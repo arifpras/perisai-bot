@@ -4611,7 +4611,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
-        f"<b>v.0433 (as of {current_date})</b>\n"
+        f"<b>v.0442 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
         "and policy-oriented insight.\n\n"
@@ -4930,6 +4930,32 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             end_date = bond_return_req['end_date'].strftime('%Y-%m-%d')
             
             analysis_text = analyze_bond_returns(tenor, start_date, end_date)
+            
+            # Add Harvard-style hook (question summary)
+            hook = generate_kei_harvard_hook(question, analysis_text)
+            if hook:
+                # Insert hook between headline and content
+                lines = analysis_text.split('\n')
+                headline = ""
+                remainder = analysis_text
+                for i, line in enumerate(lines):
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    if stripped.startswith("📊"):
+                        headline = stripped
+                        remainder = "\n".join(lines[i+1:]).strip()
+                        break
+                    if i == 0 and len(stripped) < 100:
+                        headline = stripped
+                        remainder = "\n".join(lines[i+1:]).strip()
+                        break
+                
+                if headline:
+                    analysis_text = f"{headline}\n\n<blockquote>{hook}</blockquote>\n\n{remainder}"
+                else:
+                    analysis_text = f"<blockquote>{hook}</blockquote>\n\n{analysis_text}"
+            
             # Convert markdown code fences to HTML for proper rendering
             html_text = convert_markdown_code_fences_to_html(analysis_text)
             await update.message.reply_text(html_text, parse_mode=ParseMode.HTML)
