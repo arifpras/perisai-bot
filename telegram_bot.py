@@ -4144,16 +4144,19 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
                     headline = first_line
                     remainder = "\n".join(lines[1:]).strip() if len(lines) > 1 else ""
 
+                # Reconstruct: headline + body, then add hook before signature
+                if headline:
+                    content = f"{headline}\n\n{remainder}" if remainder else headline
+                else:
+                    content = remainder if remainder else content
+                
+                # Add hook before signature if present
                 if hook:
-                    if headline:
-                        content = f"{headline}\n\n<blockquote>{hook}</blockquote>"
-                        if remainder:
-                            content += f"\n\n{remainder}"
-                    else:
-                        content = f"<blockquote>{hook}</blockquote>\n\n{content}"
+                    content = f"{content}\n\n<blockquote>{hook}</blockquote>"
                 elif not is_data_query and not content.startswith("📊"):
                     # Preserve legacy emoji headline for generic replies without hook
                     content = f"📊 {content}"
+                
                 # Convert any Markdown code fences to HTML <pre> for HTML parse mode
                 content = convert_markdown_code_fences_to_html(content)
                 return html_quote_signature(content)
@@ -4443,31 +4446,12 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         except Exception:
             is_bond_intent = False
 
-        # Generate Harvard-style hook and insert between headline and content (if applicable)
+        # Generate Harvard-style hook from content (first meaningful sentence) to place before signature
         hook = generate_kin_harvard_hook(question, content)
+        
+        # Add hook before signature if present
         if hook:
-            # Extract headline (first line starting with emoji or all-caps/title case)
-            lines = content.split('\n')
-            headline = ""
-            content_remainder = content
-            
-            # Look for headline: line with emoji or short headline pattern (max ~80 chars with emoji)
-            for i, line in enumerate(lines):
-                if any(ord(char) > 0x1F300 for char in line):  # Contains emoji
-                    headline = line
-                    content_remainder = '\n'.join(lines[i+1:]).strip()
-                    break
-                elif i == 0 and len(line.strip()) < 100 and line.strip():  # First short line without emoji
-                    headline = line
-                    content_remainder = '\n'.join(lines[i+1:]).strip()
-                    break
-            
-            # Reconstruct with hook in blockquote between headline and content
-            if headline:
-                content = f"{headline}\n\n<blockquote>{hook}</blockquote>\n\n{content_remainder}"
-            else:
-                # No headline detected, just prepend hook as blockquote
-                content = f"<blockquote>{hook}</blockquote>\n\n{content}"
+            content = f"{content}\n\n<blockquote>{hook}</blockquote>"
 
         # Convert Markdown code fences to HTML <pre> before wrapping signature
         content = convert_markdown_code_fences_to_html(content)
@@ -4500,27 +4484,87 @@ def generate_kin_harvard_hook(question: str, response: str) -> str:
     if "pantun" in q_lower or "buatkan" in q_lower:
         return ""
     
-    # Use the question itself as the hook (summary of what was asked)
-    hook = question.strip()
+    # Extract hook from response content - first meaningful sentence after any headline
+    if not response:
+        return ""
+    
+    lines = response.split('\n')
+    
+    # Skip headline line(s) if present
+    content_start = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Skip emoji headlines, empty lines, and short headers
+        if not stripped or any(ord(char) > 0x1F300 for char in stripped) or (len(stripped) < 100 and i == 0):
+            content_start = i + 1
+        else:
+            break
+    
+    # Find first sentence (ends with . ! or ?)
+    remaining_text = '\n'.join(lines[content_start:]).strip()
+    if not remaining_text:
+        return ""
+    
+    # Extract first sentence
+    import re
+    match = re.match(r'^([^.!?]*[.!?])', remaining_text, re.DOTALL)
+    if match:
+        hook = match.group(1).strip()
+    else:
+        # If no sentence ending found, take first line
+        hook = remaining_text.split('\n')[0].strip()
+    
+    # Truncate to 180 chars
     if len(hook) > 180:
         hook = hook[:177].rstrip() + "…"
+    
     return hook
 
 
 def generate_kei_harvard_hook(question: str, response_body: str) -> str:
-    """Generate a short hook for Kei as a summary of the question context.
+    """Generate a short hook for Kei — extract key insight from response content.
 
-    Skips identity questions; uses the question as the hook, truncated to ~180 chars.
+    Skips identity questions; extracts first meaningful sentence from response, truncated to ~180 chars.
     """
     q_lower = question.lower()
     identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "describe yourself"]
     if any(kw in q_lower for kw in identity_keywords):
         return ""
 
-    # Use the question itself as the hook (summary of what was asked)
-    hook = question.strip()
+    # Extract hook from response content - first meaningful sentence after any headline
+    if not response_body:
+        return ""
+    
+    lines = response_body.split('\n')
+    
+    # Skip headline line(s) if present
+    content_start = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Skip emoji headlines, empty lines, and short headers
+        if not stripped or stripped.startswith("📊") or (len(stripped) < 100 and i == 0):
+            content_start = i + 1
+        else:
+            break
+    
+    # Find first sentence (ends with . ! or ?)
+    remaining_text = '\n'.join(lines[content_start:]).strip()
+    if not remaining_text:
+        return ""
+    
+    # Extract first sentence
+    import re
+    match = re.match(r'^([^.!?]*[.!?])', remaining_text, re.DOTALL)
+    if match:
+        hook = match.group(1).strip()
+    else:
+        # If no sentence ending found, take first line
+        hook = remaining_text.split('\n')[0].strip()
+    
+    # Truncate to 180 chars
     if len(hook) > 180:
         hook = hook[:177].rstrip() + "…"
+    
     return hook
 
 
@@ -4575,7 +4619,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
-        f"<b>v.0443 (as of {current_date})</b>\n"
+        f"<b>v.0444 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
         "and policy-oriented insight.\n\n"
