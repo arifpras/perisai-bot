@@ -36,9 +36,9 @@ def ar1_regression(series: pd.Series, start_date: Optional[date] = None, end_dat
     # Filter by date range if specified
     if start_date or end_date:
         if start_date:
-            series = series[series.index >= pd.to_datetime(start_date)]
+            series = series[series.index >= pd.Timestamp(start_date)]
         if end_date:
-            series = series[series.index <= pd.to_datetime(end_date)]
+            series = series[series.index <= pd.Timestamp(end_date)]
     
     if len(series) < 60:
         return {'error': 'Insufficient data for regression (need at least 60 observations)'}
@@ -271,9 +271,9 @@ def multiple_regression(y_series: pd.Series, X_dict: Dict[str, pd.Series],
     
     # Filter by date range
     if start_date:
-        df = df[df.index >= pd.to_datetime(start_date)]
+        df = df[df.index >= pd.Timestamp(start_date)]
     if end_date:
-        df = df[df.index <= pd.to_datetime(end_date)]
+        df = df[df.index <= pd.Timestamp(end_date)]
     
     # Drop missing values
     df = df.dropna()
@@ -838,9 +838,9 @@ def arima_model(series: pd.Series, order: tuple = (1, 1, 1),
     
     if start_date or end_date:
         if start_date:
-            series = series[series.index >= pd.to_datetime(start_date)]
+            series = series[series.index >= pd.Timestamp(start_date)]
         if end_date:
-            series = series[series.index <= pd.to_datetime(end_date)]
+            series = series[series.index <= pd.Timestamp(end_date)]
     
     if len(series) < 60:
         return {'error': 'Insufficient data (need ≥60 observations)'}
@@ -890,9 +890,9 @@ def garch_volatility(series: pd.Series, p: int = 1, q: int = 1,
     
     if start_date or end_date:
         if start_date:
-            series = series[series.index >= pd.to_datetime(start_date)]
+            series = series[series.index >= pd.Timestamp(start_date)]
         if end_date:
-            series = series[series.index <= pd.to_datetime(end_date)]
+            series = series[series.index <= pd.Timestamp(end_date)]
     
     if len(series) < 60:
         return {'error': 'Insufficient data (need ≥60 observations)'}
@@ -966,9 +966,9 @@ def cointegration_test(series_dict: Dict[str, pd.Series],
     
     if start_date or end_date:
         if start_date:
-            df = df[df.index >= pd.to_datetime(start_date)]
+            df = df[df.index >= pd.Timestamp(start_date)]
         if end_date:
-            df = df[df.index <= pd.to_datetime(end_date)]
+            df = df[df.index <= pd.Timestamp(end_date)]
     
     if len(df) < 60:
         return {'error': 'Insufficient data (need ≥60 observations)'}
@@ -1026,9 +1026,9 @@ def rolling_regression(y_series: pd.Series, X_dict: Dict[str, pd.Series], window
     
     if start_date or end_date:
         if start_date:
-            df = df[df.index >= pd.to_datetime(start_date)]
+            df = df[df.index >= pd.Timestamp(start_date)]
         if end_date:
-            df = df[df.index <= pd.to_datetime(end_date)]
+            df = df[df.index <= pd.Timestamp(end_date)]
     
     df = df.dropna()
     
@@ -1170,9 +1170,9 @@ def aggregate_frequency(series: pd.Series, freq: str = 'M',
     """
     if start_date or end_date:
         if start_date:
-            series = series[series.index >= pd.to_datetime(start_date)]
+            series = series[series.index >= pd.Timestamp(start_date)]
         if end_date:
-            series = series[series.index <= pd.to_datetime(end_date)]
+            series = series[series.index <= pd.Timestamp(end_date)]
     
     freq_map = {'D': 'D', 'W': 'W', 'M': 'M', 'Q': 'Q', 'Y': 'A'}
     if freq not in freq_map:
