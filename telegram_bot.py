@@ -5145,10 +5145,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # AR(1) regression
                 results = ar1_regression(y_series, start_date, end_date)
                 tenor_display = tenor.replace('_', ' ')
-                
-            # Format output
-            tenor_display = tenor.replace('_', ' ')
-            formatted_results = format_ar1_results(results, tenor_display)
+                formatted_results = format_ar1_results(results, tenor_display)
             
             # Add Kei signature
             full_response = formatted_results + "\n\n<blockquote>~ Kei</blockquote>"
