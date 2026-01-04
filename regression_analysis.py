@@ -1217,32 +1217,21 @@ def format_arima(res: Dict) -> str:
     p, d, q = res['order']
     hook = f"ARIMA({p},{d},{q}): AIC={res['aic']:.2f}, RMSE={res['rmse']:.6f}, LB p={res['diagnostics']['ljung_box_pval']:.4f}"
     
-    lines = _harvard_header(f"📊 INDOGB ARIMA({p},{d},{q}) Model; {res['start']}–{res['end']}", hook)
+    lines = _harvard_header(f"📊 ARIMA({p},{d},{q}) Model; {res['start']}–{res['end']}", hook)
     lines.append(f"Observations: {res['n_obs']} | AIC={res['aic']:.2f} | BIC={res['bic']:.2f} | RMSE={res['rmse']:.6f}")
     lines.append("")
-    lines.append("Model coefficients:")
+    lines.append("<b>Model coefficients:</b>")
     for coef, val in res['coef'].items():
         pval = res['pvalues'].get(coef, np.nan)
         sig = "***" if pval < 0.01 else "**" if pval < 0.05 else "*" if pval < 0.10 else ""
         lines.append(f"  {coef}: {val:.6f} (p={pval:.4f}) {sig}")
     lines.append("")
-    lines.append(f"Diagnostics: Mean residual = {res['diagnostics']['mean_residual']:.6f}, Std = {res['diagnostics']['residual_std']:.6f}")
+    lines.append(f"<b>Diagnostics:</b> Mean residual = {res['diagnostics']['mean_residual']:.6f}, Std = {res['diagnostics']['residual_std']:.6f}")
     lines.append(f"Ljung-Box test (lag 5): p = {res['diagnostics']['ljung_box_pval']:.4f}")
     lines.append("")
-    lines.append("5-step ahead forecast:")
+    lines.append("<b>5-step ahead forecast:</b>")
     for i, fc in enumerate(res['forecast_next_5'], 1):
         lines.append(f"  t+{i}: {fc:.6f}")
-    
-    # Plain English explanation
-    lines.append("")
-    lines.append("<b>What This Means:</b>")
-    lines.append(f"  * ARIMA({p},{d},{q}) captures: AR({p}) autoregression, I({d}) differencing, MA({q}) moving average.")
-    lines.append(f"  * The model uses past {p} values, {d} order of differencing, and {q} forecast errors.")
-    lines.append(f"  * RMSE of {res['rmse']:.6f} indicates average forecast error magnitude.")
-    if res['diagnostics']['ljung_box_pval'] > 0.05:
-        lines.append(f"  * Ljung-Box p={res['diagnostics']['ljung_box_pval']:.4f} suggests residuals are white noise (good fit).")
-    else:
-        lines.append(f"  * Ljung-Box p={res['diagnostics']['ljung_box_pval']:.4f} suggests residual correlation remains (consider higher order).")
     lines.append("")
     return "\n".join(lines)
 
@@ -1256,26 +1245,18 @@ def format_garch(res: Dict) -> str:
     persist = res.get('persistence', 0)
     hook = f"GARCH({p},{q}): Mean vol={res['mean_volatility']:.4f}%, Persistence={persist:.4f}"
     
-    lines = _harvard_header(f"📊 INDOGB Yield GARCH({p},{q}) Volatility; {res['start']}–{res['end']}", hook)
-    lines.append(f"Observations: {res['n_obs']} | AIC={res['aic']:.2f} | Current volatility: {res['current_volatility']:.4f}")
+    lines = _harvard_header(f"📊 GARCH({p},{q}) Volatility Model; {res['start']}–{res['end']}", hook)
+    lines.append(f"Observations: {res['n_obs']} | AIC={res['aic']:.2f} | BIC={res['bic']:.2f}")
     lines.append("")
-    lines.append(f"Mean volatility: {res['mean_volatility']:.4f}% | Max: {res['max_volatility']:.4f}% | Min: {res['min_volatility']:.4f}%")
-    lines.append(f"Persistence (α+β): {persist:.4f} {'[mean-reverting]' if persist < 1 else '[explosive]'}")
+    lines.append("<b>Volatility Statistics (basis points):</b>")
+    lines.append(f"  Mean: {res['mean_volatility']:.4f}% | Max: {res['max_volatility']:.4f}% | Min: {res['min_volatility']:.4f}%")
+    lines.append(f"  Current: {res['current_volatility']:.4f}%")
     lines.append("")
-    lines.append("5-day volatility forecast (basis points):")
+    lines.append(f"<b>Persistence (α+β):</b> {persist:.4f} {'[mean-reverting]' if persist < 1 else '[explosive]'}")
+    lines.append("")
+    lines.append("<b>5-day volatility forecast (%):</b>")
     for i, vol in enumerate(res['forecast_volatility_5d'], 1):
         lines.append(f"  t+{i}: {vol:.4f}")
-    
-    # Plain English explanation
-    lines.append("")
-    lines.append("<b>What This Means:</b>")
-    lines.append(f"  * GARCH models time-varying volatility: how yield volatility changes over time.")
-    lines.append(f"  * Persistence of {persist:.4f} indicates volatility shocks take ~{-1/np.log(persist):.0f} days to half-decay.")
-    if persist < 1:
-        lines.append(f"  * Volatility is mean-reverting (returns to {res['mean_volatility']:.4f}% average).")
-    else:
-        lines.append(f"  * Volatility may be explosive (persistence > 1 suggests high regime change risk).")
-    lines.append(f"  * Current volatility {res['current_volatility']:.4f}% is {'above' if res['current_volatility'] > res['mean_volatility'] else 'below'} the long-run average.")
     lines.append("")
     return "\n".join(lines)
 
@@ -1296,7 +1277,7 @@ def format_cointegration(res: Dict) -> str:
     lines.append("Trace test statistics vs 5% critical values:")
     for i, (trace, crit) in enumerate(zip(res['trace_statistics'], res['critical_values_5pct'])):
         sig = "***" if trace > crit else ""
-        lines.append(f"  r<={i}: Trace={trace:.2f}, CV={crit:.2f} {sig}")
+        lines.append(f"  r&lt;={i}: Trace={trace:.2f}, CV={crit:.2f} {sig}")
     lines.append("")
     if rank > 0:
         lines.append(f"First {min(rank, 2)} cointegrating vector(s):")
@@ -1326,20 +1307,13 @@ def format_rolling_regression(res: Dict) -> str:
     lines = _harvard_header(f"📊 Rolling Regression; {res['regressors']}", hook)
     lines.append(f"Window size: {res['window']} days | Number of windows: {res['n_windows']} | Mean R2: {mean_r2:.4f}")
     lines.append("")
-    lines.append("Time-varying coefficient estimates:")
+    lines.append("<b>Time-varying coefficient estimates:</b>")
     for reg_name, coefs in res['rolling_coef'].items():
         mean_c = np.nanmean(coefs)
         std_c = np.nanstd(coefs)
         lines.append(f"  {reg_name}: mean={mean_c:.6f}, std={std_c:.6f}")
     lines.append("")
     lines.append(f"Period: {res['dates'][0]} to {res['dates'][-1]}")
-    
-    # Plain English explanation
-    lines.append("")
-    lines.append("<b>What This Means:</b>")
-    lines.append(f"  * Rolling regression estimates coefficients in moving windows of {res['window']} days.")
-    lines.append(f"  * Shows how relationships between variables evolve over time (non-stationary behavior).")
-    lines.append(f"  * Mean R2 of {mean_r2:.4f} indicates average model fit; variations show regime changes.")
     lines.append("")
     return "\n".join(lines)
 
@@ -1355,25 +1329,13 @@ def format_structural_break(res: Dict) -> str:
     lines = _harvard_header(f"📊 Structural Break Test (Chow); {res['start']}–{res['end']}", hook)
     lines.append(f"Hypothesized break: {res['break_date']} | Before: {res['n_before']} obs | After: {res['n_after']} obs")
     lines.append("")
-    lines.append("AR(1) persistence before vs after break:")
+    lines.append("<b>AR(1) persistence before vs after break:</b>")
     lines.append(f"  Before: beta={res['beta_before']:.6f}, R2={res['r2_before']:.4f}")
     lines.append(f"  After:  beta={res['beta_after']:.6f}, R2={res['r2_after']:.4f}")
     lines.append(f"  Full:   R2={res['r2_full']:.4f}")
     lines.append("")
-    lines.append(f"Chow test: F-statistic = {res['chow_statistic']:.4f}, p-value = {res['chow_pval']:.4f}")
+    lines.append(f"<b>Chow test:</b> F-statistic = {res['chow_statistic']:.4f}, p-value = {res['chow_pval']:.4f}")
     lines.append(f"Result: Structural break is {sig_str} at 5% level")
-    lines.append("")
-    
-    # Plain English explanation
-    lines.append("<b>What This Means:</b>")
-    if res['significant_5pct']:
-        lines.append(f"  * A significant structural break was detected at {res['break_date']}.")
-        lines.append(f"  * Persistence changed from {res['beta_before']:.4f} to {res['beta_after']:.4f}.")
-        change_desc = "increased" if res['beta_after'] > res['beta_before'] else "decreased"
-        lines.append(f"  * The mean-reversion speed {change_desc} after the break (p={res['chow_pval']:.4f}).")
-    else:
-        lines.append(f"  * No structural break detected at {res['break_date']} (p={res['chow_pval']:.4f}).")
-        lines.append(f"  * The relationship remained stable; persistence consistent before and after.")
     lines.append("")
     return "\n".join(lines)
     return "\n".join(lines)
@@ -1387,25 +1349,17 @@ def format_aggregation(res: Dict) -> str:
     freq_full = res['freq_full']
     hook = f"Aggregated to {freq_full}: {res['n_original']} daily → {res['n_aggregated']} periods, mean={res['mean']:.6f}"
     
-    lines = _harvard_header(f"📊 INDOGB {freq_full} Aggregation; {res['start']}–{res['end']}", hook)
+    lines = _harvard_header(f"📊 {freq_full} Aggregation; {res['start']}–{res['end']}", hook)
     lines.append(f"Original (daily): {res['n_original']} obs | Aggregated ({freq_full}): {res['n_aggregated']} obs")
     lines.append("")
-    lines.append(f"Summary statistics ({freq_full}):")
+    lines.append(f"<b>Summary statistics ({freq_full}):</b>")
     lines.append(f"  Mean:   {res['mean']:.6f}")
     lines.append(f"  Std:    {res['std']:.6f}")
     lines.append(f"  Min:    {res['min']:.6f}")
     lines.append(f"  Max:    {res['max']:.6f}")
     lines.append("")
-    lines.append("Autocorrelation at aggregated frequency:")
+    lines.append("<b>Autocorrelation at aggregated frequency:</b>")
     for i, acf in enumerate(res['autocorr'], 1):
         lines.append(f"  lag {i}: {acf:.4f}")
-    lines.append("")
-    
-    # Plain English explanation
-    lines.append("<b>What This Means:</b>")
-    acf_strength = "strong" if abs(res['autocorr'][0]) > 0.5 else "moderate" if abs(res['autocorr'][0]) > 0.2 else "weak"
-    lines.append(f"  * Aggregating {res['n_original']} daily observations to {res['n_aggregated']} {freq_full} periods reduces noise.")
-    lines.append(f"  * Autocorrelation at lag 1 is {acf_strength} ({res['autocorr'][0]:.4f}), indicating {'strong' if abs(res['autocorr'][0]) > 0.5 else 'moderate'} short-term persistence.")
-    lines.append(f"  * Volatility ({res['std']:.6f}) captures variation at the aggregated frequency.")
     lines.append("")
     return "\n".join(lines)

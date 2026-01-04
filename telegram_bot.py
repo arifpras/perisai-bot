@@ -1785,16 +1785,23 @@ def parse_arima_query(q: str) -> Optional[Dict]:
 
 
 def parse_garch_query(q: str) -> Optional[Dict]:
-    """Parse GARCH queries: '/kei garch 5 year' or '/kei garch 10 year p=1 q=1 from 2023 to 2025'."""
+    """Parse GARCH queries: '/kei garch 5 year' or '/kei garch idrusd p=1 q=1 from 2023 to 2025'."""
     q_lower = q.lower()
     if 'garch' not in q_lower:
         return None
     
+    # Check for bond tenors (5 or 10 year) or macro variables (idrusd, vix)
+    tenor = None
     tenor_match = re.search(r'(5|10)\s+year', q_lower)
-    if not tenor_match:
+    if tenor_match:
+        tenor = f"{tenor_match.group(1):0>2}_year"
+    elif 'idrusd' in q_lower or 'fx' in q_lower:
+        tenor = 'idrusd'
+    elif 'vix' in q_lower:
+        tenor = 'vix'
+    else:
         return None
     
-    tenor = f"{tenor_match.group(1):0>2}_year"
     p = q = 1  # defaults
     
     p_match = re.search(r'p\s*=\s*(\d+)', q_lower)
@@ -1907,16 +1914,30 @@ def parse_cointegration_query(q: str) -> Optional[Dict]:
 
 
 def parse_rolling_query(q: str) -> Optional[Dict]:
-    """Parse rolling regression queries: '/kei rolling 5 year with 10 year and vix window=90 from 2023 to 2025'."""
+    """Parse rolling regression queries: '/kei rolling 5 year with 10 year and vix window=90 from 2023 to 2025' or '/kei rolling usdidr with vix window=90 from 2023 to 2025'."""
     q_lower = q.lower()
     if 'rolling' not in q_lower:
         return None
     
-    tenor_match = re.search(r'(5|10)\s+year', q_lower)
-    if not tenor_match:
-        return None
+    # Try to match currency pairs first
+    currency_match = re.search(r'rolling\s+([a-z]+)\s', q_lower)
+    tenor = None
     
-    tenor = f"{tenor_match.group(1):0>2}_year"
+    if currency_match:
+        curr = currency_match.group(1)
+        if 'idrusd' in curr or 'usdidr' in curr:
+            tenor = 'usdidr'
+        elif 'indogb' in curr or 'gbpidr' in curr:
+            tenor = 'indogb'
+    
+    # If no currency pair, try bond tenor
+    if not tenor:
+        tenor_match = re.search(r'(5|10)\s+year', q_lower)
+        if tenor_match:
+            tenor = f"{tenor_match.group(1):0>2}_year"
+    
+    if not tenor:
+        return None
     
     predictors = []
     with_match = re.search(r'with\s+(.+?)(?:\s+window|\s+from|\s+in|$)', q_lower)
@@ -1927,8 +1948,10 @@ def parse_rolling_query(q: str) -> Optional[Dict]:
             if re.search(r'(5|10)\s+year', part):
                 other = re.search(r'(5|10)\s+year', part).group(1)
                 predictors.append(f"{other:0>2}_year")
-            elif 'idrusd' in part or 'fx' in part:
-                predictors.append('idrusd')
+            elif 'idrusd' in part or 'usdidr' in part or 'fx' in part:
+                predictors.append('usdidr')
+            elif 'indogb' in part or 'gbpidr' in part:
+                predictors.append('indogb')
             elif 'vix' in part:
                 predictors.append('vix')
     
@@ -1971,6 +1994,10 @@ def parse_rolling_query(q: str) -> Optional[Dict]:
     if from_match:
         from_res = parse_period_spec(from_match.group(1))
         to_res = parse_period_spec(from_match.group(2))
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    
+    return {'tenor': tenor, 'predictors': predictors, 'window': window, 'start_date': start_date, 'end_date': end_date}
         if from_res and to_res:
             start_date, end_date = from_res[0], to_res[1]
     
@@ -5116,31 +5143,6 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             analysis_text = analyze_bond_returns(tenor, start_date, end_date)
             
-            # Add hook
-            hook = generate_kei_harvard_hook(question, analysis_text)
-            if hook:
-                # Insert hook between headline and content
-                lines = analysis_text.split('\n')
-                headline = ""
-                remainder = analysis_text
-                for i, line in enumerate(lines):
-                    stripped = line.strip()
-                    if not stripped:
-                        continue
-                    if stripped.startswith("📊"):
-                        headline = stripped
-                        remainder = "\n".join(lines[i+1:]).strip()
-                        break
-                    if i == 0 and len(stripped) < 100:
-                        headline = stripped
-                        remainder = "\n".join(lines[i+1:]).strip()
-                        break
-                
-                if headline:
-                    analysis_text = f"{headline}\n\n<blockquote>{hook}</blockquote>\n\n{remainder}"
-                else:
-                    analysis_text = f"<blockquote>{hook}</blockquote>\n\n{analysis_text}"
-            
             # Convert markdown code fences to HTML for proper rendering
             html_text = convert_markdown_code_fences_to_html(analysis_text)
             await update.message.reply_text(html_text, parse_mode=ParseMode.HTML)
@@ -5676,21 +5678,35 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db = get_db()
             
             # Load dependent variable
-            res = db.con.execute(f"""
-                SELECT obs_date, AVG("yield") as avg_yield
-                FROM ts
-                WHERE tenor = '{rolling_req['tenor']}' AND "yield" IS NOT NULL
-                GROUP BY obs_date
-                ORDER BY obs_date
-            """).fetchall()
-            
-            if not res:
-                await update.message.reply_text(f"❌ No data for {rolling_req['tenor']}.", parse_mode=ParseMode.HTML)
-                return
-            
-            dates = [r[0] for r in res]
-            vals = [r[1] for r in res]
-            y_series = pd.Series(vals, index=pd.to_datetime(dates))
+            if rolling_req['tenor'] in ['usdidr', 'idrusd', 'indogb', 'gbpidr']:
+                # Load from macro data CSV
+                try:
+                    df_macro = pd.read_csv('database/20260102_daily01.csv')
+                    df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                    if rolling_req['tenor'] in ['usdidr', 'idrusd']:
+                        y_series = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
+                    elif rolling_req['tenor'] in ['indogb', 'gbpidr']:
+                        y_series = pd.Series(df_macro['indogb'].values, index=df_macro['date'])
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Could not load {rolling_req['tenor']}: {e}", parse_mode=ParseMode.HTML)
+                    return
+            else:
+                # Load from ts table (bond yields)
+                res = db.con.execute(f"""
+                    SELECT obs_date, AVG("yield") as avg_yield
+                    FROM ts
+                    WHERE tenor = '{rolling_req['tenor']}' AND "yield" IS NOT NULL
+                    GROUP BY obs_date
+                    ORDER BY obs_date
+                """).fetchall()
+                
+                if not res:
+                    await update.message.reply_text(f"❌ No data for {rolling_req['tenor']}.", parse_mode=ParseMode.HTML)
+                    return
+                
+                dates = [r[0] for r in res]
+                vals = [r[1] for r in res]
+                y_series = pd.Series(vals, index=pd.to_datetime(dates))
             
             # Load predictors
             X_dict = {}
@@ -5707,11 +5723,18 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         dates_x = [r[0] for r in res_x]
                         vals_x = [r[1] for r in res_x]
                         X_dict[pred] = pd.Series(vals_x, index=pd.to_datetime(dates_x))
-                elif pred == 'idrusd':
+                elif pred in ['usdidr', 'idrusd']:
                     try:
                         df_macro = pd.read_csv('database/20260102_daily01.csv')
                         df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
-                        X_dict['idrusd'] = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
+                        X_dict['usdidr'] = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
+                    except:
+                        pass
+                elif pred in ['indogb', 'gbpidr']:
+                    try:
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        X_dict['indogb'] = pd.Series(df_macro['indogb'].values, index=df_macro['date'])
                     except:
                         pass
                 elif pred == 'vix':
