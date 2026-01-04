@@ -1718,14 +1718,15 @@ def parse_bond_return_query(q: str) -> Optional[Dict]:
 
 
 def parse_regression_query(q: str) -> Optional[Dict]:
-    """Parse regression queries for AR(1) and other time series models.
+    """Parse regression queries for AR(1) and multiple regression models.
     Supported patterns:
-    - '/kei regres yield 5 year on 5 year at t-1 from 2023 to 2025'
-    - '/kei regres yield 5 year on 5 year at t-1 in 2025'
-    - '/kei regression 10 year from jan 2023 to dec 2025'
-    - '/kei ar1 5 year in q1 2025'
+    - '/kei regres yield 5 year on 5 year at t-1 from 2023 to 2025' (AR1)
+    - '/kei regres 5 year on 10 year and idrusd in 2025' (Multiple)
+    - '/kei regres 5 year on 10 year, vix, idrusd from 2023 to 2025' (Multiple)
+    - '/kei regression 10 year from jan 2023 to dec 2025' (AR1)
+    - '/kei ar1 5 year in q1 2025' (AR1)
     
-    Returns Dict with tenor and optional date range, or None if no match.
+    Returns Dict with tenor, predictors, and optional date range, or None if no match.
     """
     q_lower = q.lower()
     
@@ -1733,13 +1734,35 @@ def parse_regression_query(q: str) -> Optional[Dict]:
     if not any(kw in q_lower for kw in ['regres', 'regression', 'ar(1)', 'ar1', 'autoregressive']):
         return None
     
-    # Extract tenor (5 or 10 year) - yield keyword is optional
+    # Extract dependent variable tenor (5 or 10 year)
     tenor_match = re.search(r'(5|10)\s+year', q_lower)
     if not tenor_match:
         return None
     
     tenor_num = tenor_match.group(1)
     tenor = f'{tenor_num:0>2}_year'  # "05_year" or "10_year"
+    
+    # Check for multiple regression pattern: "X on Y and Z" or "X on Y, Z"
+    predictors = []
+    on_match = re.search(r'on\s+(.+?)(?:\s+from|\s+in|$)', q_lower)
+    if on_match:
+        predictors_str = on_match.group(1).strip()
+        # Skip AR(1) patterns
+        if 't-1' not in predictors_str and 'lag' not in predictors_str:
+            # Split by "and" or comma
+            predictor_parts = re.split(r'\s+and\s+|,\s*', predictors_str)
+            for part in predictor_parts:
+                part = part.strip()
+                # Check for other tenor (5 or 10 year)
+                other_tenor_match = re.search(r'(5|10)\s+year', part)
+                if other_tenor_match:
+                    other_tenor_num = other_tenor_match.group(1)
+                    predictors.append(f'{other_tenor_num:0>2}_year')
+                # Check for macro variables
+                elif 'idrusd' in part or 'fx' in part or 'idr' in part:
+                    predictors.append('idrusd')
+                elif 'vix' in part:
+                    predictors.append('vix')
     
     # Date parsing helpers
     month_map = {
@@ -1799,6 +1822,7 @@ def parse_regression_query(q: str) -> Optional[Dict]:
         if from_res and to_res:
             return {
                 'tenor': tenor,
+                'predictors': predictors if predictors else None,
                 'start_date': from_res[0],
                 'end_date': to_res[1],
             }
@@ -1811,6 +1835,7 @@ def parse_regression_query(q: str) -> Optional[Dict]:
         if period_res:
             return {
                 'tenor': tenor,
+                'predictors': predictors if predictors else None,
                 'start_date': period_res[0],
                 'end_date': period_res[1],
             }
@@ -1818,6 +1843,7 @@ def parse_regression_query(q: str) -> Optional[Dict]:
     # No date range - return tenor only (will use all available data)
     return {
         'tenor': tenor,
+        'predictors': predictors if predictors else None,
         'start_date': None,
         'end_date': None,
     }
@@ -4215,15 +4241,17 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
         try:
-            from regression_analysis import ar1_regression, format_ar1_results
+            from regression_analysis import ar1_regression, format_ar1_results, multiple_regression, format_multiple_regression_results
             
             tenor = regression_req['tenor']
+            predictors = regression_req.get('predictors')
             start_date = regression_req.get('start_date')
             end_date = regression_req.get('end_date')
             
-            # Get yield series
             db = get_db()
-            series_result = db.con.execute(f"""
+            
+            # Get dependent variable (yield series)
+            y_result = db.con.execute(f"""
                 SELECT obs_date, AVG("yield") as avg_yield
                 FROM ts
                 WHERE tenor = '{tenor}'
@@ -4232,21 +4260,75 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ORDER BY obs_date
             """).fetchall()
             
-            if not series_result:
+            if not y_result:
                 await update.message.reply_text(
                     f"❌ No yield data found for {tenor.replace('_', ' ')}.",
                     parse_mode=ParseMode.HTML
                 )
                 return
             
-            # Convert to pandas Series
-            dates = [row[0] for row in series_result]
-            yields = [row[1] for row in series_result]
-            series = pd.Series(yields, index=pd.to_datetime(dates))
+            y_dates = [row[0] for row in y_result]
+            y_values = [row[1] for row in y_result]
+            y_series = pd.Series(y_values, index=pd.to_datetime(y_dates))
             
-            # Run regression
-            results = ar1_regression(series, start_date, end_date)
-            
+            # Check if multiple regression (has predictors)
+            if predictors and len(predictors) > 0:
+                # Multiple regression
+                X_dict = {}
+                
+                for predictor in predictors:
+                    if predictor.endswith('_year'):
+                        # Bond yield predictor
+                        X_result = db.con.execute(f"""
+                            SELECT obs_date, AVG("yield") as avg_yield
+                            FROM ts
+                            WHERE tenor = '{predictor}'
+                              AND "yield" IS NOT NULL
+                            GROUP BY obs_date
+                            ORDER BY obs_date
+                        """).fetchall()
+                        
+                        if X_result:
+                            X_dates = [row[0] for row in X_result]
+                            X_values = [row[1] for row in X_result]
+                            X_dict[predictor] = pd.Series(X_values, index=pd.to_datetime(X_dates))
+                    
+                    elif predictor == 'idrusd':
+                        # IDR/USD exchange rate
+                        try:
+                            fx_df = pd.read_csv('database/idrusd.csv')
+                            fx_df['date'] = pd.to_datetime(fx_df['date'])
+                            fx_series = pd.Series(fx_df['rate'].values, index=fx_df['date'])
+                            X_dict['idrusd'] = fx_series
+                        except Exception as e:
+                            logger.warning(f"Could not load IDRUSD data: {e}")
+                    
+                    elif predictor == 'vix':
+                        # VIX volatility index
+                        try:
+                            vix_df = pd.read_csv('database/vix.csv')
+                            vix_df['date'] = pd.to_datetime(vix_df['date'])
+                            vix_series = pd.Series(vix_df['close'].values, index=vix_df['date'])
+                            X_dict['vix'] = vix_series
+                        except Exception as e:
+                            logger.warning(f"Could not load VIX data: {e}")
+                
+                if not X_dict:
+                    await update.message.reply_text(
+                        f"❌ Could not load predictor data.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    return
+                
+                # Run multiple regression
+                results = multiple_regression(y_series, X_dict, start_date, end_date)
+                tenor_display = tenor.replace('_', ' ') + ' yield'
+                formatted_results = format_multiple_regression_results(results, tenor_display)
+            else:
+                # AR(1) regression
+                results = ar1_regression(y_series, start_date, end_date)
+                tenor_display = tenor.replace('_', ' ')
+                
             # Format output
             tenor_display = tenor.replace('_', ' ')
             formatted_results = format_ar1_results(results, tenor_display)
