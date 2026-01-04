@@ -4568,6 +4568,68 @@ def generate_kei_harvard_hook(question: str, response_body: str) -> str:
     return hook
 
 
+def generate_unified_hook_for_both(combined_content: str) -> str:
+    """Generate a unified Harvard-style hook from combined Kei + Kin content.
+    
+    Extracts the first meaningful sentence after skipping headlines and the separator.
+    For /both, we want a hook that captures the essence of the combined analysis.
+    """
+    if not combined_content:
+        return ""
+    
+    lines = combined_content.split('\n')
+    
+    # Skip headline lines (📊 and 🌍 emojis) and empty lines to get to main content
+    content_start = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Skip emoji headlines, separators (---), empty lines, and short headers
+        if not stripped or stripped == "---" or any(ord(char) > 0x1F300 for char in stripped[:2]) or (len(stripped) < 100 and i < 5):
+            content_start = i + 1
+        else:
+            break
+    
+    # Get remaining text
+    remaining_text = '\n'.join(lines[content_start:]).strip()
+    if not remaining_text:
+        return ""
+    
+    # For /both, we want to extract from Kin's analysis (which comes after ---)
+    # Look for the separator and prefer extracting hook from Kin's part
+    if "---" in combined_content:
+        parts = combined_content.split("---", 1)
+        if len(parts) > 1:
+            kin_part = parts[1].strip()
+            # Skip Kin's headline
+            kin_lines = kin_part.split('\n')
+            kin_content_start = 0
+            for i, line in enumerate(kin_lines):
+                stripped = line.strip()
+                if not stripped or any(ord(char) > 0x1F300 for char in stripped[:2]) or (len(stripped) < 100 and i == 0):
+                    kin_content_start = i + 1
+                else:
+                    break
+            remaining_text = '\n'.join(kin_lines[kin_content_start:]).strip()
+    
+    if not remaining_text:
+        return ""
+    
+    # Extract first sentence (ends with . ! or ?)
+    import re
+    match = re.match(r'^([^.!?]*[.!?])', remaining_text, re.DOTALL)
+    if match:
+        hook = match.group(1).strip()
+    else:
+        # If no sentence ending found, take first line
+        hook = remaining_text.split('\n')[0].strip()
+    
+    # Truncate to 180 chars
+    if len(hook) > 180:
+        hook = hook[:177].rstrip() + "…"
+    
+    return hook
+
+
 async def ask_kei_then_kin(question: str) -> dict:
     """Chain both personas: Kei analyzes data quantitatively, Kin interprets & concludes.
     
@@ -4619,7 +4681,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
-        f"<b>v.0444 (as of {current_date})</b>\n"
+        f"<b>v.0445 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
         "and policy-oriented insight.\n\n"
@@ -8044,14 +8106,17 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 metrics.log_query(user_id, username, question, "text", response_time, False, "Kin empty response", "both")
                 return
             
-            # Strip individual persona signatures from both answers
-            # Remove both old-style (________) and new-style (<blockquote>) signatures
-            def strip_signature(answer):
-                """Remove trailing signature lines (both ________ and <blockquote> formats)."""
+            # Strip individual persona signatures and hooks from both answers
+            # Remove both old-style (________) and new-style (<blockquote>) signatures and hooks
+            def strip_signature_and_hook(answer):
+                """Remove trailing signature lines and Harvard-style hooks."""
                 # Remove all blockquote signatures (anywhere, not just end of string)
                 answer = re.sub(r'<blockquote>~\s+(Kei|Kin|Kei x Kin|Kei & Kin)</blockquote>', '', answer, flags=re.IGNORECASE)
                 # Remove any remaining plain text signatures (~ Kei, ~ Kin, ~ Kei x Kin)
                 answer = re.sub(r'\n*~\s+(Kei|Kin|Kei x Kin|Kei & Kin)\s*$', '', answer, flags=re.IGNORECASE | re.MULTILINE)
+                # Remove Harvard-style hooks (blockquoted text before signature that's not a signature itself)
+                # Find and remove <blockquote>...any content...</blockquote> that appears near the end
+                answer = re.sub(r'\n*<blockquote>(?!~)(.*?)</blockquote>\s*$', '', answer, flags=re.IGNORECASE | re.DOTALL)
                 # Then remove old-style ________ signatures
                 lines = answer.rstrip().split('\n')
                 for i in range(len(lines) - 1, -1, -1):
@@ -8059,17 +8124,26 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         return '\n'.join(lines[:i]).rstrip()
                 return answer.rstrip()
             
-            kei_clean = strip_signature(kei_answer)
-            kin_clean = strip_signature(kin_answer)
+            kei_clean = strip_signature_and_hook(kei_answer)
+            kin_clean = strip_signature_and_hook(kin_answer)
+            
+            # Generate unified Harvard-style hook from combined content
+            combined_content = f"{kei_clean}\n\n---\n\n{kin_clean}"
+            unified_hook = generate_unified_hook_for_both(combined_content)
             
             # Both Kei and Kin generate their own HL-CU headlines (📊 and 🌍)
             # Don't add an additional header to avoid triple headlines
             response = (
                 f"{kei_clean}\n\n"
                 "---\n\n"
-                f"{kin_clean}\n\n"
-                "<blockquote>~ Kei x Kin</blockquote>"
+                f"{kin_clean}"
             )
+            
+            # Add unified hook before signature
+            if unified_hook:
+                response = f"{response}\n\n<blockquote>{unified_hook}</blockquote>"
+            
+            response = f"{response}\n\n<blockquote>~ Kei x Kin</blockquote>"
             
             await update.message.reply_text(response, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
