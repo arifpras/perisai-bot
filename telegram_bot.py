@@ -10,6 +10,7 @@ import time
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import statistics
+from functools import lru_cache
 from typing import Optional, List, Dict
 import html as html_module
 from openai import AsyncOpenAI
@@ -1717,6 +1718,386 @@ def parse_bond_return_query(q: str) -> Optional[Dict]:
     return None
 
 
+def parse_arima_query(q: str) -> Optional[Dict]:
+    """Parse ARIMA queries: '/kei arima 5 year' or '/kei arima 10 year p=1 d=1 q=1 from 2023 to 2025'."""
+    q_lower = q.lower()
+    if 'arima' not in q_lower:
+        return None
+    
+    tenor_match = re.search(r'(5|10)\s+year', q_lower)
+    if not tenor_match:
+        return None
+    
+    tenor = f"{tenor_match.group(1):0>2}_year"
+    
+    # Parse ARIMA order (p, d, q)
+    p = d = q = 1  # defaults
+    p_match = re.search(r'p\s*=\s*(\d+)', q_lower)
+    d_match = re.search(r'd\s*=\s*(\d+)', q_lower)
+    q_match = re.search(r'q\s*=\s*(\d+)', q_lower)
+    
+    if p_match:
+        p = int(p_match.group(1))
+    if d_match:
+        d = int(d_match.group(1))
+    if q_match:
+        q = int(q_match.group(1))
+    
+    # Parse date range using existing logic
+    month_map = {
+        'jan':1,'january':1,'feb':2,'february':2,'mar':3,'march':3,
+        'apr':4,'april':4,'may':5,'jun':6,'june':6,'jul':7,'july':7,
+        'aug':8,'august':8,'sep':9,'sept':9,'september':9,'oct':10,'october':10,
+        'nov':11,'november':11,'dec':12,'december':12,
+    }
+    
+    def parse_period_spec(spec):
+        spec = spec.strip()
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            return date(year, 1, 1), date(year, 12, 31)
+        q_m = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_m:
+            q_num = int(q_m.group(1))
+            year = int(q_m.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        m_m = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_m and m_m.group(1) in month_map:
+            month = month_map[m_m.group(1)]
+            year = int(m_m.group(2))
+            start = date(year, month, 1)
+            end = start + relativedelta(months=1) - timedelta(days=1)
+            return start, end
+        return None
+    
+    start_date = end_date = None
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    if from_match:
+        from_res = parse_period_spec(from_match.group(1))
+        to_res = parse_period_spec(from_match.group(2))
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    
+    return {'tenor': tenor, 'order': (p, d, q), 'start_date': start_date, 'end_date': end_date}
+
+
+def parse_garch_query(q: str) -> Optional[Dict]:
+    """Parse GARCH queries: '/kei garch 5 year' or '/kei garch 10 year p=1 q=1 from 2023 to 2025'."""
+    q_lower = q.lower()
+    if 'garch' not in q_lower:
+        return None
+    
+    tenor_match = re.search(r'(5|10)\s+year', q_lower)
+    if not tenor_match:
+        return None
+    
+    tenor = f"{tenor_match.group(1):0>2}_year"
+    p = q = 1  # defaults
+    
+    p_match = re.search(r'p\s*=\s*(\d+)', q_lower)
+    q_match = re.search(r'q\s*=\s*(\d+)', q_lower)
+    
+    if p_match:
+        p = int(p_match.group(1))
+    if q_match:
+        q = int(q_match.group(1))
+    
+    # Parse date range
+    month_map = {
+        'jan':1,'january':1,'feb':2,'february':2,'mar':3,'march':3,
+        'apr':4,'april':4,'may':5,'jun':6,'june':6,'jul':7,'july':7,
+        'aug':8,'august':8,'sep':9,'sept':9,'september':9,'oct':10,'october':10,
+        'nov':11,'november':11,'dec':12,'december':12,
+    }
+    
+    def parse_period_spec(spec):
+        spec = spec.strip()
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            return date(year, 1, 1), date(year, 12, 31)
+        q_m = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_m:
+            q_num = int(q_m.group(1))
+            year = int(q_m.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        m_m = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_m and m_m.group(1) in month_map:
+            month = month_map[m_m.group(1)]
+            year = int(m_m.group(2))
+            start = date(year, month, 1)
+            end = start + relativedelta(months=1) - timedelta(days=1)
+            return start, end
+        return None
+    
+    start_date = end_date = None
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    if from_match:
+        from_res = parse_period_spec(from_match.group(1))
+        to_res = parse_period_spec(from_match.group(2))
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    
+    return {'tenor': tenor, 'order': (p, q), 'start_date': start_date, 'end_date': end_date}
+
+
+def parse_cointegration_query(q: str) -> Optional[Dict]:
+    """Parse cointegration queries: '/kei coint 5 year and 10 year from 2023 to 2025'."""
+    q_lower = q.lower()
+    if 'coint' not in q_lower and 'cointegr' not in q_lower:
+        return None
+    
+    # Extract two variables to test
+    tenor_matches = re.findall(r'(5|10)\s+year', q_lower)
+    if len(tenor_matches) < 2:
+        return None
+    
+    var1 = f"{tenor_matches[0]:0>2}_year"
+    var2 = f"{tenor_matches[1]:0>2}_year"
+    
+    # Check for other variables
+    if 'idrusd' in q_lower or 'fx' in q_lower:
+        var2 = 'idrusd'
+    elif 'vix' in q_lower:
+        var2 = 'vix'
+    
+    month_map = {
+        'jan':1,'january':1,'feb':2,'february':2,'mar':3,'march':3,
+        'apr':4,'april':4,'may':5,'jun':6,'june':6,'jul':7,'july':7,
+        'aug':8,'august':8,'sep':9,'sept':9,'september':9,'oct':10,'october':10,
+        'nov':11,'november':11,'dec':12,'december':12,
+    }
+    
+    def parse_period_spec(spec):
+        spec = spec.strip()
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            return date(year, 1, 1), date(year, 12, 31)
+        q_m = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_m:
+            q_num = int(q_m.group(1))
+            year = int(q_m.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        m_m = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_m and m_m.group(1) in month_map:
+            month = month_map[m_m.group(1)]
+            year = int(m_m.group(2))
+            start = date(year, month, 1)
+            end = start + relativedelta(months=1) - timedelta(days=1)
+            return start, end
+        return None
+    
+    start_date = end_date = None
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    if from_match:
+        from_res = parse_period_spec(from_match.group(1))
+        to_res = parse_period_spec(from_match.group(2))
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    
+    return {'variables': [var1, var2], 'start_date': start_date, 'end_date': end_date}
+
+
+def parse_rolling_query(q: str) -> Optional[Dict]:
+    """Parse rolling regression queries: '/kei rolling 5 year with 10 year and vix window=90 from 2023 to 2025'."""
+    q_lower = q.lower()
+    if 'rolling' not in q_lower:
+        return None
+    
+    tenor_match = re.search(r'(5|10)\s+year', q_lower)
+    if not tenor_match:
+        return None
+    
+    tenor = f"{tenor_match.group(1):0>2}_year"
+    
+    predictors = []
+    with_match = re.search(r'with\s+(.+?)(?:\s+window|\s+from|\s+in|$)', q_lower)
+    if with_match:
+        predictor_str = with_match.group(1).strip()
+        parts = re.split(r'\s+and\s+', predictor_str)
+        for part in parts:
+            if re.search(r'(5|10)\s+year', part):
+                other = re.search(r'(5|10)\s+year', part).group(1)
+                predictors.append(f"{other:0>2}_year")
+            elif 'idrusd' in part or 'fx' in part:
+                predictors.append('idrusd')
+            elif 'vix' in part:
+                predictors.append('vix')
+    
+    window = 90
+    window_match = re.search(r'window\s*=?\s*(\d+)', q_lower)
+    if window_match:
+        window = int(window_match.group(1))
+    
+    month_map = {
+        'jan':1,'january':1,'feb':2,'february':2,'mar':3,'march':3,
+        'apr':4,'april':4,'may':5,'jun':6,'june':6,'jul':7,'july':7,
+        'aug':8,'august':8,'sep':9,'sept':9,'september':9,'oct':10,'october':10,
+        'nov':11,'november':11,'dec':12,'december':12,
+    }
+    
+    def parse_period_spec(spec):
+        spec = spec.strip()
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            return date(year, 1, 1), date(year, 12, 31)
+        q_m = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_m:
+            q_num = int(q_m.group(1))
+            year = int(q_m.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        m_m = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_m and m_m.group(1) in month_map:
+            month = month_map[m_m.group(1)]
+            year = int(m_m.group(2))
+            start = date(year, month, 1)
+            end = start + relativedelta(months=1) - timedelta(days=1)
+            return start, end
+        return None
+    
+    start_date = end_date = None
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    if from_match:
+        from_res = parse_period_spec(from_match.group(1))
+        to_res = parse_period_spec(from_match.group(2))
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    
+    return {'tenor': tenor, 'predictors': predictors, 'window': window, 'start_date': start_date, 'end_date': end_date}
+
+
+def parse_structural_break_query(q: str) -> Optional[Dict]:
+    """Parse structural break queries: '/kei chow 5 year' or '/kei chow 5 year on 2025-09-08 from 2023 to 2025'."""
+    q_lower = q.lower()
+    if 'chow' not in q_lower and 'break' not in q_lower and 'structural' not in q_lower:
+        return None
+    
+    tenor_match = re.search(r'(5|10)\s+year', q_lower)
+    if not tenor_match:
+        return None
+    
+    tenor = f"{tenor_match.group(1):0>2}_year"
+    
+    # Check for specific break date
+    break_date_match = re.search(r'on\s+(\d{4}-\d{2}-\d{2})', q_lower)
+    break_date = break_date_match.group(1) if break_date_match else None
+    
+    month_map = {
+        'jan':1,'january':1,'feb':2,'february':2,'mar':3,'march':3,
+        'apr':4,'april':4,'may':5,'jun':6,'june':6,'jul':7,'july':7,
+        'aug':8,'august':8,'sep':9,'sept':9,'september':9,'oct':10,'october':10,
+        'nov':11,'november':11,'dec':12,'december':12,
+    }
+    
+    def parse_period_spec(spec):
+        spec = spec.strip()
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            return date(year, 1, 1), date(year, 12, 31)
+        q_m = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_m:
+            q_num = int(q_m.group(1))
+            year = int(q_m.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        m_m = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_m and m_m.group(1) in month_map:
+            month = month_map[m_m.group(1)]
+            year = int(m_m.group(2))
+            start = date(year, month, 1)
+            end = start + relativedelta(months=1) - timedelta(days=1)
+            return start, end
+        return None
+    
+    start_date = end_date = None
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    if from_match:
+        from_res = parse_period_spec(from_match.group(1))
+        to_res = parse_period_spec(from_match.group(2))
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    
+    return {'tenor': tenor, 'break_date': break_date, 'start_date': start_date, 'end_date': end_date}
+
+
+def parse_aggregation_query(q: str) -> Optional[Dict]:
+    """Parse aggregation queries: '/kei agg 5 year monthly' or '/kei aggregate 10 year quarterly from 2023 to 2025'."""
+    q_lower = q.lower()
+    if 'agg' not in q_lower:
+        return None
+    
+    tenor_match = re.search(r'(5|10)\s+year', q_lower)
+    if not tenor_match:
+        return None
+    
+    tenor = f"{tenor_match.group(1):0>2}_year"
+    
+    # Parse frequency
+    freq = 'M'  # default to monthly
+    if 'daily' in q_lower or 'daily' in q_lower:
+        freq = 'D'
+    elif 'weekly' in q_lower:
+        freq = 'W'
+    elif 'monthly' in q_lower:
+        freq = 'M'
+    elif 'quarterly' in q_lower or 'quarter' in q_lower:
+        freq = 'Q'
+    elif 'yearly' in q_lower or 'annual' in q_lower or 'year' in q_lower:
+        freq = 'Y'
+    
+    month_map = {
+        'jan':1,'january':1,'feb':2,'february':2,'mar':3,'march':3,
+        'apr':4,'april':4,'may':5,'jun':6,'june':6,'jul':7,'july':7,
+        'aug':8,'august':8,'sep':9,'sept':9,'september':9,'oct':10,'october':10,
+        'nov':11,'november':11,'dec':12,'december':12,
+    }
+    
+    def parse_period_spec(spec):
+        spec = spec.strip()
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            return date(year, 1, 1), date(year, 12, 31)
+        q_m = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_m:
+            q_num = int(q_m.group(1))
+            year = int(q_m.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        m_m = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_m and m_m.group(1) in month_map:
+            month = month_map[m_m.group(1)]
+            year = int(m_m.group(2))
+            start = date(year, month, 1)
+            end = start + relativedelta(months=1) - timedelta(days=1)
+            return start, end
+        return None
+    
+    start_date = end_date = None
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    if from_match:
+        from_res = parse_period_spec(from_match.group(1))
+        to_res = parse_period_spec(from_match.group(2))
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    
+    return {'tenor': tenor, 'frequency': freq, 'start_date': start_date, 'end_date': end_date}
+
+
 def parse_regression_query(q: str) -> Optional[Dict]:
     """Parse regression queries for AR(1) and multiple regression models.
     Supported patterns:
@@ -1865,6 +2246,252 @@ def parse_regression_query(q: str) -> Optional[Dict]:
         'predictors': predictors if predictors else None,
         'start_date': None,
         'end_date': None,
+    }
+
+
+def parse_granger_query(q: str) -> Optional[Dict]:
+    """Parse Granger causality queries: 'granger X and Y from ...'."""
+    q = q.lower()
+    if 'granger' not in q:
+        return None
+    pair_match = re.search(r'granger\s+(.+?)\s+and\s+(.+?)(?:\s+from\s+(.+?)\s+to\s+(.+)|\s+in\s+(.+))?$', q)
+    if not pair_match:
+        return None
+    x_spec = pair_match.group(1).strip()
+    y_spec = pair_match.group(2).strip()
+    from_spec = pair_match.group(3)
+    to_spec = pair_match.group(4)
+    in_spec = pair_match.group(5)
+
+    def normalize_var(spec: str) -> Optional[str]:
+        if re.search(r'5\s+year', spec):
+            return '05_year'
+        if re.search(r'10\s+year', spec):
+            return '10_year'
+        if 'idrusd' in spec or 'fx' in spec or 'idr' in spec:
+            return 'idrusd'
+        if 'vix' in spec:
+            return 'vix'
+        return None
+
+    x_var = normalize_var(x_spec)
+    y_var = normalize_var(y_spec)
+    if not x_var or not y_var:
+        return None
+
+    month_map = {
+        'jan':1, 'january':1, 'feb':2, 'february':2, 'mar':3, 'march':3,
+        'apr':4, 'april':4, 'may':5, 'jun':6, 'june':6, 'jul':7, 'july':7,
+        'aug':8, 'august':8, 'sep':9, 'sept':9, 'september':9, 'oct':10,
+        'october':10, 'nov':11, 'november':11, 'dec':12, 'december':12
+    }
+
+    def parse_period_spec(spec: str) -> Optional[tuple]:
+        spec = spec.strip().lower()
+        iso_match = re.match(r'^(\d{4})-(\d{2})-(\d{2})$', spec)
+        if iso_match:
+            year, month, day = map(int, iso_match.groups())
+            try:
+                d = date(year, month, day)
+                return d, d
+            except ValueError:
+                return None
+        q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_match:
+            q_num = int(q_match.group(1))
+            year = int(q_match.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        m_match = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_match:
+            month_str = m_match.group(1)
+            year = int(m_match.group(2))
+            if month_str in month_map:
+                month = month_map[month_str]
+                start = date(year, month, 1)
+                end = start + relativedelta(months=1) - timedelta(days=1)
+                return start, end
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            start = date(year, 1, 1)
+            end = date(year, 12, 31)
+            return start, end
+        return None
+
+    start_date = None
+    end_date = None
+    if from_spec and to_spec:
+        from_res = parse_period_spec(from_spec)
+        to_res = parse_period_spec(to_spec)
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    elif in_spec:
+        in_res = parse_period_spec(in_spec)
+        if in_res:
+            start_date, end_date = in_res
+
+    return {
+        'x_var': x_var,
+        'y_var': y_var,
+        'start_date': start_date,
+        'end_date': end_date,
+    }
+
+
+def parse_var_query(q: str) -> Optional[Dict]:
+    """Parse VAR queries: 'var 5 and 10 year and vix in 2025'."""
+    q = q.lower()
+    if 'var' not in q:
+        return None
+    # Extract variables list after 'var'
+    m = re.search(r'var\s+(.+?)(?:\s+from\s+(.+?)\s+to\s+(.+)|\s+in\s+(.+))?$', q)
+    if not m:
+        return None
+    vars_spec = m.group(1)
+    from_spec = m.group(2)
+    to_spec = m.group(3)
+    in_spec = m.group(4)
+
+    parts = re.split(r'\s+and\s+|,\s*', vars_spec)
+    vars_norm = []
+    for part in parts:
+        p = part.strip()
+        if re.search(r'5\s+year', p):
+            vars_norm.append('05_year')
+        elif re.search(r'10\s+year', p):
+            vars_norm.append('10_year')
+        elif 'idrusd' in p or 'fx' in p or 'idr' in p:
+            vars_norm.append('idrusd')
+        elif 'vix' in p:
+            vars_norm.append('vix')
+    vars_norm = list(dict.fromkeys(vars_norm))  # dedupe
+    if len(vars_norm) < 2:
+        return None
+
+    month_map = {
+        'jan':1, 'january':1, 'feb':2, 'february':2, 'mar':3, 'march':3,
+        'apr':4, 'april':4, 'may':5, 'jun':6, 'june':6, 'jul':7, 'july':7,
+        'aug':8, 'august':8, 'sep':9, 'sept':9, 'september':9, 'oct':10,
+        'october':10, 'nov':11, 'november':11, 'dec':12, 'december':12
+    }
+
+    def parse_period_spec(spec: str) -> Optional[tuple]:
+        spec = spec.strip().lower()
+        iso_match = re.match(r'^(\d{4})-(\d{2})-(\d{2})$', spec)
+        if iso_match:
+            year, month, day = map(int, iso_match.groups())
+            try:
+                d = date(year, month, day)
+                return d, d
+            except ValueError:
+                return None
+        q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_match:
+            q_num = int(q_match.group(1))
+            year = int(q_match.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        m_match = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_match:
+            month_str = m_match.group(1)
+            year = int(m_match.group(2))
+            if month_str in month_map:
+                month = month_map[month_str]
+                start = date(year, month, 1)
+                end = start + relativedelta(months=1) - timedelta(days=1)
+                return start, end
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            start = date(year, 1, 1)
+            end = date(year, 12, 31)
+            return start, end
+        return None
+
+    start_date = None
+    end_date = None
+    if from_spec and to_spec:
+        from_res = parse_period_spec(from_spec)
+        to_res = parse_period_spec(to_spec)
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    elif in_spec:
+        in_res = parse_period_spec(in_spec)
+        if in_res:
+            start_date, end_date = in_res
+
+    return {
+        'vars': vars_norm,
+        'start_date': start_date,
+        'end_date': end_date,
+    }
+
+
+def parse_event_study_query(q: str) -> Optional[Dict]:
+    """Parse event study queries: 'event study 5 year on 2024-08-10 window -5 +5 estimation 60 with market vix method risk'"""
+    q = q.lower()
+    if 'event study' not in q:
+        return None
+
+    m = re.search(r'event study\s+(.+?)\s+on\s+(.+?)(?:\s|$)', q)
+    if not m:
+        return None
+    target_spec = m.group(1).strip()
+    date_spec = m.group(2).strip()
+
+    def normalize_var(spec: str) -> Optional[str]:
+        if re.search(r'5\s*year', spec):
+            return '05_year'
+        if re.search(r'10\s*year', spec):
+            return '10_year'
+        if 'idrusd' in spec or 'fx' in spec or 'idr' in spec:
+            return 'idrusd'
+        if 'vix' in spec:
+            return 'vix'
+        return None
+
+    target_var = normalize_var(target_spec)
+    if not target_var:
+        return None
+
+    event_date = pd.to_datetime(date_spec, errors='coerce')
+    if pd.isna(event_date):
+        return None
+
+    window_pre = 5
+    window_post = 5
+    est_window = 60
+    method = None
+    market_var = None
+
+    win_match = re.search(r'window\s+([-+]?\d+)\s+([-+]?\d+)', q)
+    if win_match:
+        window_pre = abs(int(win_match.group(1)))
+        window_post = abs(int(win_match.group(2)))
+
+    est_match = re.search(r'estimation\s+(\d+)', q)
+    if est_match:
+        est_window = int(est_match.group(1))
+
+    market_match = re.search(r'(?:with|and) market\s+([\w\s]+)', q)
+    if market_match:
+        market_var = normalize_var(market_match.group(1).strip())
+
+    method_match = re.search(r'method\s+(mean|market|risk)', q)
+    if method_match:
+        method = method_match.group(1)
+
+    return {
+        'target': target_var,
+        'event_date': event_date.date(),
+        'window_pre': window_pre,
+        'window_post': window_post,
+        'estimation_window': est_window,
+        'market': market_var,
+        'method': method,
     }
 
 
@@ -3485,14 +4112,49 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
                 if is_identity_question:
                     # For identity questions: fixed plain-text bio with Kei signature
                     return (
-                        "I'm Kei. I work at the intersection of markets and data, helping turn complex signals into clear, testable models. With training as a CFA charterholder and MIT-style quantitative background, I focus on precision and evidence—what the numbers show, why they matter, and where the risks lie.\n\n"
-                        "I enjoy working with valuation, risk analysis, forecasting, and backtesting using established asset-pricing and time-series frameworks. If you share prices, fundamentals, or a dataset, I'll help model what's driving returns, quantify uncertainty, and stress-test the conclusions.\n\n"
-                        "~ Kei"
+                        "I'm Kei, your 24/7 quantitative partner. I work with market data to build clear, testable models, focusing on valuation, risk, and forecasting. CFA-trained with an MIT-style quantitative background, I concentrate on what the numbers show, why they matter, and where the risks lie.\n\n"
+                        "My recent work includes comprehensive regression analysis—rolling coefficients, structural break detection via Chow tests, ARIMA/GARCH volatility modeling, and cointegration analysis—plus frequency aggregation and persistence measurement across time scales.\n\n"
+                        "If you share prices, fundamentals, or a dataset, I'll help model what's driving returns, quantify uncertainty, stress-test the conclusions, and detect regime changes using rigorous statistical methods.\n\n"
+                        "<blockquote>~ Kei</blockquote>"
                     )
-                elif not is_data_query:
-                    # For non-identity, non-data queries: ensure headline emoji
-                    if not content.startswith("📊"):
-                        content = f"📊 {content}"
+                # Generate Harvard-style hook for Kei responses
+                hook = generate_kei_harvard_hook(question, content)
+
+                # Identify headline and body to insert hook cleanly
+                headline = ""
+                remainder = content
+                lines = content.split('\n')
+                for i, line in enumerate(lines):
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    if stripped.startswith("📊"):
+                        headline = stripped
+                        remainder = "\n".join(lines[i+1:]).strip()
+                        break
+                    if i == 0 and len(stripped) < 100:
+                        headline = stripped
+                        remainder = "\n".join(lines[i+1:]).strip()
+                        break
+
+                # Ensure non-data responses carry a headline with emoji
+                if not headline and not is_data_query:
+                    first_line = lines[0].strip() if lines else content.strip()
+                    if not first_line.startswith("📊"):
+                        first_line = f"📊 {first_line}"
+                    headline = first_line
+                    remainder = "\n".join(lines[1:]).strip() if len(lines) > 1 else ""
+
+                if hook:
+                    if headline:
+                        content = f"{headline}\n\n<blockquote>{hook}</blockquote>"
+                        if remainder:
+                            content += f"\n\n{remainder}"
+                    else:
+                        content = f"<blockquote>{hook}</blockquote>\n\n{content}"
+                elif not is_data_query and not content.startswith("📊"):
+                    # Preserve legacy emoji headline for generic replies without hook
+                    content = f"📊 {content}"
                 # Convert any Markdown code fences to HTML <pre> for HTML parse mode
                 content = convert_markdown_code_fences_to_html(content)
                 return html_quote_signature(content)
@@ -3769,10 +4431,9 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         is_identity_question = any(kw in question.lower() for kw in identity_keywords)
         if is_identity_question:
             return (
-                "I'm Kin. I work at the intersection of macroeconomics, policy, and markets, helping turn complex signals into clear, usable stories. "
-                "With training as a CFA charterholder and a Harvard PhD, I focus on context and trade-offs—what matters, why it matters, and where the uncertainties lie.\n\n"
-                "I enjoy connecting dots across data, incentives, and real-world policy constraints, then translating them into concise, headline-led updates for decision-makers—no forecasts or advice, just structured thinking, transparent assumptions, and plain language.\n\n"
-                "~ Kin"
+                "I'm Kin, your 24/7 macro and policy partner. I work across macroeconomics, policy, and markets to translate complex signals into clear insights. CFA-trained with a Harvard PhD background, I focus on context and trade-offs—what matters, why it matters, and where the uncertainties lie.\n\n"
+                "I enjoy connecting dots across data, incentives, and real-world policy constraints, then translating them into concise, headline-led updates for decision-makers. I'm grounded in Indonesia's macroeconomic fundamentals and policy frameworks. For quantitative forecasting and statistical modeling, my partner Kei handles those—I focus on the 'why' and 'what if' behind the numbers.\n\n"
+                "<blockquote>~ Kin</blockquote>"
             )
         
         # If this is a bond query, note it for context (but don't prepend header to output)
@@ -3883,6 +4544,32 @@ def generate_kin_harvard_hook(question: str, response: str) -> str:
         return "Indonesia's markets reflect the underlying policy tensions between growth, stability, and development priorities."
 
 
+def generate_kei_harvard_hook(question: str, response_body: str) -> str:
+    """Generate a short hook for Kei by lifting the first sentence of the body.
+
+    Skips identity questions; truncates to ~180 chars.
+    """
+    q_lower = question.lower()
+    identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "describe yourself"]
+    if any(kw in q_lower for kw in identity_keywords):
+        return ""
+
+    text = response_body.strip()
+    hook = ""
+    if text:
+        parts = re.split(r"(?<=[.!?])\s+", text)
+        for part in parts:
+            candidate = part.strip()
+            if candidate:
+                hook = candidate
+                break
+    if not hook:
+        hook = question.strip()
+    if len(hook) > 180:
+        hook = hook[:177].rstrip() + "…"
+    return hook
+
+
 async def ask_kei_then_kin(question: str) -> dict:
     """Chain both personas: Kei analyzes data quantitatively, Kin interprets & concludes.
     
@@ -3890,6 +4577,20 @@ async def ask_kei_then_kin(question: str) -> dict:
     This ensures Kin enters MODE 1 (data-only) when data is available, and directly
     references Kei's findings for a cohesive narrative.
     """
+    # Check for identity questions first
+    identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "who am i", "describe yourself"]
+    is_identity_question = any(kw in question.lower() for kw in identity_keywords)
+    
+    if is_identity_question:
+        # Return combined identity response for /both
+        return {
+            "kei": (
+                "Kei & Kin work together as a 24/7 analytical pair, combining quantitative evidence with macro and policy context. Together, we move from what the data show to why it matters—delivering clear, decision-ready insight.\n\n"
+                "<blockquote>~ Kei x Kin</blockquote>"
+            ),
+            "kin": ""
+        }
+    
     kei_answer = await ask_kei(question, dual_mode=True)
     # Pass original question so Kin can compute data_summary, plus Kei's analysis
     kin_prompt = (
@@ -3920,7 +4621,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
-        f"<b>v.0432 (as of {current_date})</b>\n"
+        f"<b>v.0433 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
         "and policy-oriented insight.\n\n"
@@ -4375,6 +5076,564 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "regression", response_time, False, str(e), "kei")
         return
+
+    # Granger causality queries
+    granger_req = parse_granger_query(lower_q)
+    if granger_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import granger_causality, format_granger_results
+
+            db = get_db()
+
+            @lru_cache(maxsize=16)
+            def load_series(name: str) -> Optional[pd.Series]:
+                if name.endswith('_year'):
+                    res = db.con.execute(f"""
+                        SELECT obs_date, AVG("yield") as avg_yield
+                        FROM ts
+                        WHERE tenor = '{name}'
+                          AND "yield" IS NOT NULL
+                        GROUP BY obs_date
+                        ORDER BY obs_date
+                    """).fetchall()
+                    if not res:
+                        return None
+                    dates = [r[0] for r in res]
+                    vals = [r[1] for r in res]
+                    return pd.Series(vals, index=pd.to_datetime(dates))
+                if name == 'idrusd':
+                    try:
+                        df_fx = pd.read_csv('database/idrusd.csv')
+                        df_fx['date'] = pd.to_datetime(df_fx['date'])
+                        return pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                    except Exception:
+                        return None
+                if name == 'vix':
+                    try:
+                        df_vix = pd.read_csv('database/vix.csv')
+                        df_vix['date'] = pd.to_datetime(df_vix['date'])
+                        return pd.Series(df_vix['close'].values, index=df_vix['date'])
+                    except Exception:
+                        return None
+                return None
+
+            x_series = load_series(granger_req['x_var'])
+            y_series = load_series(granger_req['y_var'])
+            if x_series is None or y_series is None:
+                await update.message.reply_text("❌ Could not load required series.", parse_mode=ParseMode.HTML)
+                return
+
+            # Align and trim to requested window
+            df_xy = pd.concat({granger_req['y_var']: y_series, granger_req['x_var']: x_series}, axis=1).dropna()
+            if granger_req.get('start_date'):
+                df_xy = df_xy[df_xy.index >= pd.to_datetime(granger_req['start_date'])]
+            if granger_req.get('end_date'):
+                df_xy = df_xy[df_xy.index <= pd.to_datetime(granger_req['end_date'])]
+            if df_xy.empty:
+                await update.message.reply_text("❌ No overlapping data in the requested window.", parse_mode=ParseMode.HTML)
+                return
+
+            y_series = df_xy[granger_req['y_var']]
+            x_series = df_xy[granger_req['x_var']]
+
+            res = granger_causality(y_series, x_series)
+            formatted = format_granger_results(res, granger_req['x_var'], granger_req['y_var'])
+            full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+            await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "granger", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing Granger query: {e}")
+            await update.message.reply_text(f"❌ Error running Granger test: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "granger", response_time, False, str(e), "kei")
+        return
+
+    # VAR queries
+    var_req = parse_var_query(lower_q)
+    if var_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import var_with_irf, format_var_irf_results
+            db = get_db()
+
+            @lru_cache(maxsize=16)
+            def load_series(name: str) -> Optional[pd.Series]:
+                if name.endswith('_year'):
+                    res = db.con.execute(f"""
+                        SELECT obs_date, AVG("yield") as avg_yield
+                        FROM ts
+                        WHERE tenor = '{name}'
+                          AND "yield" IS NOT NULL
+                        GROUP BY obs_date
+                        ORDER BY obs_date
+                    """).fetchall()
+                    if not res:
+                        return None
+                    dates = [r[0] for r in res]
+                    vals = [r[1] for r in res]
+                    return pd.Series(vals, index=pd.to_datetime(dates))
+                if name == 'idrusd':
+                    try:
+                        df_fx = pd.read_csv('database/idrusd.csv')
+                        df_fx['date'] = pd.to_datetime(df_fx['date'])
+                        return pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                    except Exception:
+                        return None
+                if name == 'vix':
+                    try:
+                        df_vix = pd.read_csv('database/vix.csv')
+                        df_vix['date'] = pd.to_datetime(df_vix['date'])
+                        return pd.Series(df_vix['close'].values, index=df_vix['date'])
+                    except Exception:
+                        return None
+                return None
+
+            series_dict = {}
+            for v in var_req['vars']:
+                s = load_series(v)
+                if s is not None:
+                    series_dict[v] = s
+            if len(series_dict) < 2:
+                await update.message.reply_text("❌ Need at least two valid series for VAR.", parse_mode=ParseMode.HTML)
+                return
+
+            # Align series on overlapping dates and trim to requested window
+            df_var = pd.concat(series_dict, axis=1).dropna()
+            if var_req.get('start_date'):
+                df_var = df_var[df_var.index >= pd.to_datetime(var_req['start_date'])]
+            if var_req.get('end_date'):
+                df_var = df_var[df_var.index <= pd.to_datetime(var_req['end_date'])]
+            if df_var.shape[0] < 2 or df_var.shape[1] < 2:
+                await update.message.reply_text("❌ Not enough overlapping observations in the requested window.", parse_mode=ParseMode.HTML)
+                return
+
+            series_dict = {col: df_var[col] for col in df_var.columns}
+
+            res = var_with_irf(series_dict)
+            formatted = format_var_irf_results(res)
+            full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+            await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "var", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing VAR query: {e}")
+            await update.message.reply_text(f"❌ Error running VAR: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "var", response_time, False, str(e), "kei")
+        return
+
+    # Event study queries
+    event_req = parse_event_study_query(lower_q)
+    if event_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import event_study, format_event_study
+            db = get_db()
+
+            @lru_cache(maxsize=16)
+            def load_series(name: str) -> Optional[pd.Series]:
+                if name.endswith('_year'):
+                    res = db.con.execute(f"""
+                        SELECT obs_date, AVG("yield") as avg_yield
+                        FROM ts
+                        WHERE tenor = '{name}'
+                          AND "yield" IS NOT NULL
+                        GROUP BY obs_date
+                        ORDER BY obs_date
+                    """).fetchall()
+                    if not res:
+                        return None
+                    dates = [r[0] for r in res]
+                    vals = [r[1] for r in res]
+                    return pd.Series(vals, index=pd.to_datetime(dates))
+                if name == 'idrusd':
+                    try:
+                        df_fx = pd.read_csv('database/idrusd.csv')
+                        df_fx['date'] = pd.to_datetime(df_fx['date'])
+                        return pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                    except Exception:
+                        return None
+                if name == 'vix':
+                    try:
+                        df_vix = pd.read_csv('database/vix.csv')
+                        df_vix['date'] = pd.to_datetime(df_vix['date'])
+                        return pd.Series(df_vix['close'].values, index=df_vix['date'])
+                    except Exception:
+                        return None
+                return None
+
+            target_series = load_series(event_req['target'])
+            if target_series is None:
+                await update.message.reply_text("❌ Could not load target series.", parse_mode=ParseMode.HTML)
+                return
+
+            market_series = None
+            if event_req.get('market'):
+                market_series = load_series(event_req['market'])
+                if market_series is None:
+                    await update.message.reply_text("❌ Could not load market series.", parse_mode=ParseMode.HTML)
+                    return
+
+            method = event_req.get('method') or ('risk' if market_series is not None else 'mean')
+
+            res = event_study(
+                target_series,
+                event_req['event_date'],
+                market=market_series,
+                estimation_window=event_req['estimation_window'],
+                window_pre=event_req['window_pre'],
+                window_post=event_req['window_post'],
+                method=method,
+            )
+            label = event_req['target'].replace('_', ' ')
+            formatted = format_event_study(res, label)
+            full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+            await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "event_study", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing event study query: {e}")
+            await update.message.reply_text(f"❌ Error running event study: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "event_study", response_time, False, str(e), "kei")
+        return
+    
+    # ARIMA queries
+    arima_req = parse_arima_query(lower_q)
+    if arima_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import arima_model, format_arima
+            db = get_db()
+            
+            tenor = arima_req['tenor']
+            res = db.con.execute(f"""
+                SELECT obs_date, AVG("yield") as avg_yield
+                FROM ts
+                WHERE tenor = '{tenor}' AND "yield" IS NOT NULL
+                GROUP BY obs_date
+                ORDER BY obs_date
+            """).fetchall()
+            
+            if not res or len(res) < 60:
+                await update.message.reply_text("❌ Insufficient data for ARIMA (need ≥60 observations).", parse_mode=ParseMode.HTML)
+                return
+            
+            dates = [r[0] for r in res]
+            vals = [r[1] for r in res]
+            series = pd.Series(vals, index=pd.to_datetime(dates))
+            
+            model_res = arima_model(series, order=arima_req['order'], 
+                                    start_date=arima_req['start_date'], 
+                                    end_date=arima_req['end_date'])
+            
+            if 'error' in model_res:
+                await update.message.reply_text(f"❌ ARIMA error: {model_res['error']}", parse_mode=ParseMode.HTML)
+            else:
+                formatted = format_arima(model_res)
+                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "arima", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing ARIMA query: {e}")
+            await update.message.reply_text(f"❌ Error running ARIMA: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "arima", response_time, False, str(e), "kei")
+        return
+    
+    # GARCH queries
+    garch_req = parse_garch_query(lower_q)
+    if garch_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import garch_volatility, format_garch
+            db = get_db()
+            
+            tenor = garch_req['tenor']
+            res = db.con.execute(f"""
+                SELECT obs_date, AVG("yield") as avg_yield
+                FROM ts
+                WHERE tenor = '{tenor}' AND "yield" IS NOT NULL
+                GROUP BY obs_date
+                ORDER BY obs_date
+            """).fetchall()
+            
+            if not res or len(res) < 60:
+                await update.message.reply_text("❌ Insufficient data for GARCH (need ≥60 observations).", parse_mode=ParseMode.HTML)
+                return
+            
+            dates = [r[0] for r in res]
+            vals = [r[1] for r in res]
+            series = pd.Series(vals, index=pd.to_datetime(dates))
+            
+            model_res = garch_volatility(series, p=garch_req['order'][0], q=garch_req['order'][1],
+                                        start_date=garch_req['start_date'], 
+                                        end_date=garch_req['end_date'])
+            
+            if 'error' in model_res:
+                await update.message.reply_text(f"❌ GARCH error: {model_res['error']}", parse_mode=ParseMode.HTML)
+            else:
+                formatted = format_garch(model_res)
+                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "garch", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing GARCH query: {e}")
+            await update.message.reply_text(f"❌ Error running GARCH: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "garch", response_time, False, str(e), "kei")
+        return
+    
+    # Cointegration queries
+    coint_req = parse_cointegration_query(lower_q)
+    if coint_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import cointegration_test, format_cointegration
+            db = get_db()
+            
+            series_dict = {}
+            for var in coint_req['variables']:
+                if var.endswith('_year'):
+                    res = db.con.execute(f"""
+                        SELECT obs_date, AVG("yield") as avg_yield
+                        FROM ts
+                        WHERE tenor = '{var}' AND "yield" IS NOT NULL
+                        GROUP BY obs_date
+                        ORDER BY obs_date
+                    """).fetchall()
+                    if res:
+                        dates = [r[0] for r in res]
+                        vals = [r[1] for r in res]
+                        series_dict[var] = pd.Series(vals, index=pd.to_datetime(dates))
+                elif var == 'idrusd':
+                    try:
+                        df_fx = pd.read_csv('database/idrusd.csv')
+                        df_fx['date'] = pd.to_datetime(df_fx['date'])
+                        series_dict['idrusd'] = pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                    except:
+                        pass
+                elif var == 'vix':
+                    try:
+                        df_vix = pd.read_csv('database/vix.csv')
+                        df_vix['date'] = pd.to_datetime(df_vix['date'])
+                        series_dict['vix'] = pd.Series(df_vix['close'].values, index=df_vix['date'])
+                    except:
+                        pass
+            
+            if len(series_dict) < 2:
+                await update.message.reply_text("❌ Could not load required series.", parse_mode=ParseMode.HTML)
+                return
+            
+            coint_res = cointegration_test(series_dict, 
+                                           start_date=coint_req['start_date'], 
+                                           end_date=coint_req['end_date'])
+            
+            if 'error' in coint_res:
+                await update.message.reply_text(f"❌ Cointegration error: {coint_res['error']}", parse_mode=ParseMode.HTML)
+            else:
+                formatted = format_cointegration(coint_res)
+                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "cointegration", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing cointegration query: {e}")
+            await update.message.reply_text(f"❌ Error running cointegration test: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "cointegration", response_time, False, str(e), "kei")
+        return
+    
+    # Rolling regression queries
+    rolling_req = parse_rolling_query(lower_q)
+    if rolling_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import rolling_regression, format_rolling_regression
+            db = get_db()
+            
+            # Load dependent variable
+            res = db.con.execute(f"""
+                SELECT obs_date, AVG("yield") as avg_yield
+                FROM ts
+                WHERE tenor = '{rolling_req['tenor']}' AND "yield" IS NOT NULL
+                GROUP BY obs_date
+                ORDER BY obs_date
+            """).fetchall()
+            
+            if not res:
+                await update.message.reply_text(f"❌ No data for {rolling_req['tenor']}.", parse_mode=ParseMode.HTML)
+                return
+            
+            dates = [r[0] for r in res]
+            vals = [r[1] for r in res]
+            y_series = pd.Series(vals, index=pd.to_datetime(dates))
+            
+            # Load predictors
+            X_dict = {}
+            for pred in rolling_req['predictors']:
+                if pred.endswith('_year'):
+                    res_x = db.con.execute(f"""
+                        SELECT obs_date, AVG("yield") as avg_yield
+                        FROM ts
+                        WHERE tenor = '{pred}' AND "yield" IS NOT NULL
+                        GROUP BY obs_date
+                        ORDER BY obs_date
+                    """).fetchall()
+                    if res_x:
+                        dates_x = [r[0] for r in res_x]
+                        vals_x = [r[1] for r in res_x]
+                        X_dict[pred] = pd.Series(vals_x, index=pd.to_datetime(dates_x))
+                elif pred == 'idrusd':
+                    try:
+                        df_fx = pd.read_csv('database/idrusd.csv')
+                        df_fx['date'] = pd.to_datetime(df_fx['date'])
+                        X_dict['idrusd'] = pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                    except:
+                        pass
+                elif pred == 'vix':
+                    try:
+                        df_vix = pd.read_csv('database/vix.csv')
+                        df_vix['date'] = pd.to_datetime(df_vix['date'])
+                        X_dict['vix'] = pd.Series(df_vix['close'].values, index=df_vix['date'])
+                    except:
+                        pass
+            
+            if not X_dict:
+                await update.message.reply_text("❌ Could not load predictor variables.", parse_mode=ParseMode.HTML)
+                return
+            
+            roll_res = rolling_regression(y_series, X_dict, window=rolling_req['window'],
+                                         start_date=rolling_req['start_date'], 
+                                         end_date=rolling_req['end_date'])
+            
+            if 'error' in roll_res:
+                await update.message.reply_text(f"❌ Rolling regression error: {roll_res['error']}", parse_mode=ParseMode.HTML)
+            else:
+                formatted = format_rolling_regression(roll_res)
+                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "rolling", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing rolling regression query: {e}")
+            await update.message.reply_text(f"❌ Error running rolling regression: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "rolling", response_time, False, str(e), "kei")
+        return
+    
+    # Structural break queries
+    break_req = parse_structural_break_query(lower_q)
+    if break_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import structural_break_test, format_structural_break
+            db = get_db()
+            
+            res = db.con.execute(f"""
+                SELECT obs_date, AVG("yield") as avg_yield
+                FROM ts
+                WHERE tenor = '{break_req['tenor']}' AND "yield" IS NOT NULL
+                GROUP BY obs_date
+                ORDER BY obs_date
+            """).fetchall()
+            
+            if not res or len(res) < 100:
+                await update.message.reply_text("❌ Insufficient data for structural break test (need ≥100).", parse_mode=ParseMode.HTML)
+                return
+            
+            dates = [r[0] for r in res]
+            vals = [r[1] for r in res]
+            series = pd.Series(vals, index=pd.to_datetime(dates))
+            
+            break_res = structural_break_test(series, 
+                                             break_date=break_req['break_date'],
+                                             start_date=break_req['start_date'], 
+                                             end_date=break_req['end_date'])
+            
+            if 'error' in break_res:
+                await update.message.reply_text(f"❌ Structural break error: {break_res['error']}", parse_mode=ParseMode.HTML)
+            else:
+                formatted = format_structural_break(break_res)
+                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "structural_break", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing structural break query: {e}")
+            await update.message.reply_text(f"❌ Error running structural break test: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "structural_break", response_time, False, str(e), "kei")
+        return
+    
+    # Frequency aggregation queries
+    agg_req = parse_aggregation_query(lower_q)
+    if agg_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import aggregate_frequency, format_aggregation
+            db = get_db()
+            
+            res = db.con.execute(f"""
+                SELECT obs_date, AVG("yield") as avg_yield
+                FROM ts
+                WHERE tenor = '{agg_req['tenor']}' AND "yield" IS NOT NULL
+                GROUP BY obs_date
+                ORDER BY obs_date
+            """).fetchall()
+            
+            if not res or len(res) < 10:
+                await update.message.reply_text("❌ Insufficient data for aggregation (need ≥10 observations).", parse_mode=ParseMode.HTML)
+                return
+            
+            dates = [r[0] for r in res]
+            vals = [r[1] for r in res]
+            series = pd.Series(vals, index=pd.to_datetime(dates))
+            
+            agg_res = aggregate_frequency(series, 
+                                         freq=agg_req['frequency'],
+                                         start_date=agg_req['start_date'], 
+                                         end_date=agg_req['end_date'])
+            
+            if 'error' in agg_res:
+                await update.message.reply_text(f"❌ Aggregation error: {agg_res['error']}", parse_mode=ParseMode.HTML)
+            else:
+                formatted = format_aggregation(agg_res)
+                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "aggregation", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing aggregation query: {e}")
+            await update.message.reply_text(f"❌ Error running aggregation: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "aggregation", response_time, False, str(e), "kei")
+        return
     
     # Detect 'tab' bond metric queries (yield/price data across periods)
     lower_q = question.lower()
@@ -4394,12 +5653,17 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if metric == 'idrusd':
                 table_text = formatter.format_idrusd_table(start_date, end_date)
+                headline = "📊 Macro Table — IDRUSD"
             elif metric == 'vix':
                 table_text = formatter.format_vix_table(start_date, end_date)
+                headline = "📊 Macro Table — VIX"
             else:  # 'both' or 'combined'
                 table_text = formatter.format_macro_combined_table(start_date, end_date)
+                headline = "📊 Macro Table — IDRUSD & VIX"
+
+            hook = f"Window: {start_date} to {end_date}"
+            full_response = f"{headline}\n\n<blockquote>{hook}</blockquote>\n\n" + table_text + "\n\n<blockquote>~ Kei</blockquote>"
             
-            full_response = table_text + "\n\n<blockquote>~ Kei</blockquote>"
             rendered = convert_markdown_code_fences_to_html(full_response)
             await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
@@ -4423,7 +5687,10 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # If this was a compare/vs query with explicit periods, render per-period stats
             if bond_tab_req.get('periods'):
                 table_text = format_bond_compare_periods(db, bond_tab_req['periods'], bond_tab_req['metrics'], bond_tab_req['tenors'])
-                full_response = table_text + "\n\n<blockquote>~ Kei</blockquote>"
+                metrics_display = " & ".join([m.capitalize() for m in bond_tab_req['metrics']])
+                tenor_display = ", ".join(t.replace('_', ' ') for t in bond_tab_req['tenors'])
+                hook = f"{metrics_display} | {tenor_display} | {len(bond_tab_req['periods'])} period(s)"
+                full_response = f"📊 INDOGB — Compare Periods\n\n<blockquote>{hook}</blockquote>\n\n" + table_text + "\n\n<blockquote>~ Kei</blockquote>"
                 rendered = convert_markdown_code_fences_to_html(full_response)
                 await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
             else:
@@ -4432,9 +5699,10 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Prepend dataset/source note to the table for clarity
                 tenor_display = ", ".join(t.replace('_', ' ') for t in bond_tab_req['tenors'])
                 metrics_display = " & ".join([m.capitalize() for m in bond_tab_req['metrics']])
-                header = f"📊 INDOGB: {metrics_display} | {tenor_display} | {bond_tab_req['start_date']} to {bond_tab_req['end_date']}\n\n"
+                headline = "📊 INDOGB — Bond Table"
+                hook = f"{metrics_display} | {tenor_display} | {bond_tab_req['start_date']} to {bond_tab_req['end_date']}"
                 # Add Kei signature
-                full_response = header + table_text + "\n\n<blockquote>~ Kei</blockquote>"
+                full_response = f"{headline}\n\n<blockquote>{hook}</blockquote>\n\n" + table_text + "\n\n<blockquote>~ Kei</blockquote>"
                 rendered = convert_markdown_code_fences_to_html(full_response)
                 await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
@@ -4479,7 +5747,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         table_text = format_auction_metrics_table(periods, tab_req['metrics'])
         
-        # Build title
+        # Build title + hook
         metrics_display = " & ".join([m.capitalize() for m in tab_req['metrics']])
         period_labels = []
         for p in tab_req['periods'][:3]:  # Show first 3 periods in title
@@ -4492,7 +5760,8 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(tab_req['periods']) > 3:
             period_labels.append(f"(+{len(tab_req['periods']) - 3} more)")
         period_range = " to ".join([period_labels[0], period_labels[-1]]) if len(period_labels) > 1 else period_labels[0]
-        title = f"📊 Auction: {metrics_display} | {period_range}\n\n"
+        headline = "📊 Auction Metrics"
+        hook = f"{metrics_display} | {period_range}"
         
         # Check if any periods are forecasts (after today)
         from datetime import datetime
@@ -4534,7 +5803,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             skipped_msg = ""
         
         # Add Kei signature
-        full_response = title + table_text + forecast_note + skipped_msg + "\n\n<blockquote>~ Kei</blockquote>"
+        full_response = f"{headline}\n\n<blockquote>{hook}</blockquote>\n\n" + table_text + forecast_note + skipped_msg + "\n\n<blockquote>~ Kei</blockquote>"
         # Convert markdown code fences to HTML for proper rendering
         rendered = convert_markdown_code_fences_to_html(full_response)
         
