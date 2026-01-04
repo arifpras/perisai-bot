@@ -5428,7 +5428,8 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"❌ ARIMA error: {model_res['error']}", parse_mode=ParseMode.HTML)
             else:
                 formatted = format_arima(model_res)
-                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+                full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+                await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "arima", response_time, True, "success", "kei")
         except Exception as e:
@@ -5474,7 +5475,8 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"❌ GARCH error: {model_res['error']}", parse_mode=ParseMode.HTML)
             else:
                 formatted = format_garch(model_res)
-                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+                full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+                await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "garch", response_time, True, "success", "kei")
         except Exception as e:
@@ -5536,7 +5538,8 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"❌ Cointegration error: {coint_res['error']}", parse_mode=ParseMode.HTML)
             else:
                 formatted = format_cointegration(coint_res)
-                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+                full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+                await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "cointegration", response_time, True, "success", "kei")
         except Exception as e:
@@ -5616,7 +5619,8 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"❌ Rolling regression error: {roll_res['error']}", parse_mode=ParseMode.HTML)
             else:
                 formatted = format_rolling_regression(roll_res)
-                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+                full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+                await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "rolling", response_time, True, "success", "kei")
         except Exception as e:
@@ -5662,7 +5666,8 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"❌ Structural break error: {break_res['error']}", parse_mode=ParseMode.HTML)
             else:
                 formatted = format_structural_break(break_res)
-                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+                full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+                await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "structural_break", response_time, True, "success", "kei")
         except Exception as e:
@@ -5708,7 +5713,8 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"❌ Aggregation error: {agg_res['error']}", parse_mode=ParseMode.HTML)
             else:
                 formatted = format_aggregation(agg_res)
-                await update.message.reply_text(formatted, parse_mode=ParseMode.HTML)
+                full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+                await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "aggregation", response_time, True, "success", "kei")
         except Exception as e:
