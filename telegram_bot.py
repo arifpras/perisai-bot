@@ -5088,9 +5088,9 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     elif base_name == 'idrusd':
                         # IDR/USD exchange rate
                         try:
-                            fx_df = pd.read_csv('database/idrusd.csv')
-                            fx_df['date'] = pd.to_datetime(fx_df['date'])
-                            fx_series = pd.Series(fx_df['rate'].values, index=fx_df['date'])
+                            fx_df = pd.read_csv('database/20260102_daily01.csv')
+                            fx_df['date'] = pd.to_datetime(fx_df['date'], format='%Y/%m/%d')
+                            fx_series = pd.Series(fx_df['idrusd'].values, index=fx_df['date'])
                             if is_lagged:
                                 fx_series = fx_series.shift(1)
                             X_dict[predictor] = fx_series
@@ -5100,9 +5100,9 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     elif base_name == 'vix':
                         # VIX volatility index
                         try:
-                            vix_df = pd.read_csv('database/vix.csv')
-                            vix_df['date'] = pd.to_datetime(vix_df['date'])
-                            vix_series = pd.Series(vix_df['close'].values, index=vix_df['date'])
+                            vix_df = pd.read_csv('database/20260102_daily01.csv')
+                            vix_df['date'] = pd.to_datetime(vix_df['date'], format='%Y/%m/%d')
+                            vix_series = pd.Series(vix_df['vix_index'].values, index=vix_df['date'])
                             if is_lagged:
                                 vix_series = vix_series.shift(1)
                             X_dict[predictor] = vix_series
@@ -5169,16 +5169,16 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     return pd.Series(vals, index=pd.to_datetime(dates))
                 if name == 'idrusd':
                     try:
-                        df_fx = pd.read_csv('database/idrusd.csv')
-                        df_fx['date'] = pd.to_datetime(df_fx['date'])
-                        return pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        return pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
                     except Exception:
                         return None
                 if name == 'vix':
                     try:
-                        df_vix = pd.read_csv('database/vix.csv')
-                        df_vix['date'] = pd.to_datetime(df_vix['date'])
-                        return pd.Series(df_vix['close'].values, index=df_vix['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        return pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
                     except Exception:
                         return None
                 return None
@@ -5244,16 +5244,16 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     return pd.Series(vals, index=pd.to_datetime(dates))
                 if name == 'idrusd':
                     try:
-                        df_fx = pd.read_csv('database/idrusd.csv')
-                        df_fx['date'] = pd.to_datetime(df_fx['date'])
-                        return pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        return pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
                     except Exception:
                         return None
                 if name == 'vix':
                     try:
-                        df_vix = pd.read_csv('database/vix.csv')
-                        df_vix['date'] = pd.to_datetime(df_vix['date'])
-                        return pd.Series(df_vix['close'].values, index=df_vix['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        return pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
                     except Exception:
                         return None
                 return None
@@ -5321,16 +5321,16 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     return pd.Series(vals, index=pd.to_datetime(dates))
                 if name == 'idrusd':
                     try:
-                        df_fx = pd.read_csv('database/idrusd.csv')
-                        df_fx['date'] = pd.to_datetime(df_fx['date'])
-                        return pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        return pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
                     except Exception:
                         return None
                 if name == 'vix':
                     try:
-                        df_vix = pd.read_csv('database/vix.csv')
-                        df_vix['date'] = pd.to_datetime(df_vix['date'])
-                        return pd.Series(df_vix['close'].values, index=df_vix['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        return pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
                     except Exception:
                         return None
                 return None
@@ -5492,16 +5492,16 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         series_dict[var] = pd.Series(vals, index=pd.to_datetime(dates))
                 elif var == 'idrusd':
                     try:
-                        df_fx = pd.read_csv('database/idrusd.csv')
-                        df_fx['date'] = pd.to_datetime(df_fx['date'])
-                        series_dict['idrusd'] = pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        series_dict['idrusd'] = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
                     except:
                         pass
                 elif var == 'vix':
                     try:
-                        df_vix = pd.read_csv('database/vix.csv')
-                        df_vix['date'] = pd.to_datetime(df_vix['date'])
-                        series_dict['vix'] = pd.Series(df_vix['close'].values, index=df_vix['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        series_dict['vix'] = pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
                     except:
                         pass
             
@@ -5573,16 +5573,16 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         X_dict[pred] = pd.Series(vals_x, index=pd.to_datetime(dates_x))
                 elif pred == 'idrusd':
                     try:
-                        df_fx = pd.read_csv('database/idrusd.csv')
-                        df_fx['date'] = pd.to_datetime(df_fx['date'])
-                        X_dict['idrusd'] = pd.Series(df_fx['rate'].values, index=df_fx['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        X_dict['idrusd'] = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
                     except:
                         pass
                 elif pred == 'vix':
                     try:
-                        df_vix = pd.read_csv('database/vix.csv')
-                        df_vix['date'] = pd.to_datetime(df_vix['date'])
-                        X_dict['vix'] = pd.Series(df_vix['close'].values, index=df_vix['date'])
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        X_dict['vix'] = pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
                     except:
                         pass
             
