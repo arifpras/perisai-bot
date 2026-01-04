@@ -5549,21 +5549,45 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db = get_db()
             
             tenor = arima_req['tenor']
-            res = db.con.execute(f"""
-                SELECT obs_date, AVG("yield") as avg_yield
-                FROM ts
-                WHERE tenor = '{tenor}' AND "yield" IS NOT NULL
-                GROUP BY obs_date
-                ORDER BY obs_date
-            """).fetchall()
             
-            if not res or len(res) < 60:
+            # Load data based on tenor type
+            if tenor == 'idrusd':
+                try:
+                    df_macro = pd.read_csv('database/20260102_daily01.csv')
+                    df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                    series = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Could not load IDRUSD data: {e}", parse_mode=ParseMode.HTML)
+                    return
+            elif tenor == 'vix':
+                try:
+                    df_macro = pd.read_csv('database/20260102_daily01.csv')
+                    df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                    series = pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Could not load VIX data: {e}", parse_mode=ParseMode.HTML)
+                    return
+            else:
+                # Bond yield data
+                res = db.con.execute(f"""
+                    SELECT obs_date, AVG("yield") as avg_yield
+                    FROM ts
+                    WHERE tenor = '{tenor}' AND "yield" IS NOT NULL
+                    GROUP BY obs_date
+                    ORDER BY obs_date
+                """).fetchall()
+                
+                if not res:
+                    await update.message.reply_text(f"❌ No yield data found for {tenor.replace('_', ' ')}.", parse_mode=ParseMode.HTML)
+                    return
+                    
+                dates = [r[0] for r in res]
+                vals = [r[1] for r in res]
+                series = pd.Series(vals, index=pd.to_datetime(dates))
+            
+            if not series or len(series) < 60:
                 await update.message.reply_text("❌ Insufficient data for ARIMA (need ≥60 observations).", parse_mode=ParseMode.HTML)
                 return
-            
-            dates = [r[0] for r in res]
-            vals = [r[1] for r in res]
-            series = pd.Series(vals, index=pd.to_datetime(dates))
             
             model_res = arima_model(series, order=arima_req['order'], 
                                     start_date=arima_req['start_date'], 
@@ -5596,21 +5620,45 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db = get_db()
             
             tenor = garch_req['tenor']
-            res = db.con.execute(f"""
-                SELECT obs_date, AVG("yield") as avg_yield
-                FROM ts
-                WHERE tenor = '{tenor}' AND "yield" IS NOT NULL
-                GROUP BY obs_date
-                ORDER BY obs_date
-            """).fetchall()
             
-            if not res or len(res) < 60:
+            # Load data based on tenor type
+            if tenor == 'idrusd':
+                try:
+                    df_macro = pd.read_csv('database/20260102_daily01.csv')
+                    df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                    series = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Could not load IDRUSD data: {e}", parse_mode=ParseMode.HTML)
+                    return
+            elif tenor == 'vix':
+                try:
+                    df_macro = pd.read_csv('database/20260102_daily01.csv')
+                    df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                    series = pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Could not load VIX data: {e}", parse_mode=ParseMode.HTML)
+                    return
+            else:
+                # Bond yield data
+                res = db.con.execute(f"""
+                    SELECT obs_date, AVG("yield") as avg_yield
+                    FROM ts
+                    WHERE tenor = '{tenor}' AND "yield" IS NOT NULL
+                    GROUP BY obs_date
+                    ORDER BY obs_date
+                """).fetchall()
+                
+                if not res:
+                    await update.message.reply_text(f"❌ No yield data found for {tenor.replace('_', ' ')}.", parse_mode=ParseMode.HTML)
+                    return
+                    
+                dates = [r[0] for r in res]
+                vals = [r[1] for r in res]
+                series = pd.Series(vals, index=pd.to_datetime(dates))
+            
+            if not series or len(series) < 60:
                 await update.message.reply_text("❌ Insufficient data for GARCH (need ≥60 observations).", parse_mode=ParseMode.HTML)
                 return
-            
-            dates = [r[0] for r in res]
-            vals = [r[1] for r in res]
-            series = pd.Series(vals, index=pd.to_datetime(dates))
             
             model_res = garch_volatility(series, p=garch_req['order'][0], q=garch_req['order'][1],
                                         start_date=garch_req['start_date'], 
