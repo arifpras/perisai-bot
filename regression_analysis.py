@@ -1232,6 +1232,17 @@ def format_arima(res: Dict) -> str:
     lines.append("<b>5-step ahead forecast:</b>")
     for i, fc in enumerate(res['forecast_next_5'], 1):
         lines.append(f"  t+{i}: {fc:.6f}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    lines.append(f"  * ARIMA({p},{d},{q}) captures: AR({p}) autoregression, I({d}) differencing, MA({q}) moving average.")
+    lines.append(f"  * The model uses past {p} values, {d} order of differencing, and {q} forecast errors.")
+    lines.append(f"  * RMSE of {res['rmse']:.6f} indicates average forecast error magnitude.")
+    if res['diagnostics']['ljung_box_pval'] > 0.05:
+        lines.append(f"  * Ljung-Box p={res['diagnostics']['ljung_box_pval']:.4f} suggests residuals are white noise (good fit).")
+    else:
+        lines.append(f"  * Ljung-Box p={res['diagnostics']['ljung_box_pval']:.4f} suggests residual correlation remains (consider higher order).")
     lines.append("")
     return "\n".join(lines)
 
@@ -1257,6 +1268,17 @@ def format_garch(res: Dict) -> str:
     lines.append("<b>5-day volatility forecast (%):</b>")
     for i, vol in enumerate(res['forecast_volatility_5d'], 1):
         lines.append(f"  t+{i}: {vol:.4f}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    lines.append(f"  * GARCH models time-varying volatility: how yield volatility changes over time.")
+    lines.append(f"  * Persistence of {persist:.4f} indicates volatility shocks take ~{-1/np.log(persist):.0f} days to half-decay.")
+    if persist < 1:
+        lines.append(f"  * Volatility is mean-reverting (returns to {res['mean_volatility']:.4f}% average).")
+    else:
+        lines.append(f"  * Volatility may be explosive (persistence > 1 suggests high regime change risk).")
+    lines.append(f"  * Current volatility {res['current_volatility']:.4f}% is {'above' if res['current_volatility'] > res['mean_volatility'] else 'below'} the long-run average.")
     lines.append("")
     return "\n".join(lines)
 
@@ -1314,6 +1336,13 @@ def format_rolling_regression(res: Dict) -> str:
         lines.append(f"  {reg_name}: mean={mean_c:.6f}, std={std_c:.6f}")
     lines.append("")
     lines.append(f"Period: {res['dates'][0]} to {res['dates'][-1]}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    lines.append(f"  * Rolling regression estimates coefficients in moving windows of {res['window']} days.")
+    lines.append(f"  * Shows how relationships between variables evolve over time (non-stationary behavior).")
+    lines.append(f"  * Mean R2 of {mean_r2:.4f} indicates average model fit; variations show regime changes.")
     lines.append("")
     return "\n".join(lines)
 
@@ -1336,6 +1365,18 @@ def format_structural_break(res: Dict) -> str:
     lines.append("")
     lines.append(f"<b>Chow test:</b> F-statistic = {res['chow_statistic']:.4f}, p-value = {res['chow_pval']:.4f}")
     lines.append(f"Result: Structural break is {sig_str} at 5% level")
+    lines.append("")
+    
+    # Plain English explanation
+    lines.append("<b>What This Means:</b>")
+    if res['significant_5pct']:
+        lines.append(f"  * A significant structural break was detected at {res['break_date']}.")
+        lines.append(f"  * Persistence changed from {res['beta_before']:.4f} to {res['beta_after']:.4f}.")
+        change_desc = "increased" if res['beta_after'] > res['beta_before'] else "decreased"
+        lines.append(f"  * The mean-reversion speed {change_desc} after the break (p={res['chow_pval']:.4f}).")
+    else:
+        lines.append(f"  * No structural break detected at {res['break_date']} (p={res['chow_pval']:.4f}).")
+        lines.append(f"  * The relationship remained stable; persistence consistent before and after.")
     lines.append("")
     return "\n".join(lines)
     return "\n".join(lines)
@@ -1361,5 +1402,13 @@ def format_aggregation(res: Dict) -> str:
     lines.append("<b>Autocorrelation at aggregated frequency:</b>")
     for i, acf in enumerate(res['autocorr'], 1):
         lines.append(f"  lag {i}: {acf:.4f}")
+    lines.append("")
+    
+    # Plain English explanation
+    lines.append("<b>What This Means:</b>")
+    acf_strength = "strong" if abs(res['autocorr'][0]) > 0.5 else "moderate" if abs(res['autocorr'][0]) > 0.2 else "weak"
+    lines.append(f"  * Aggregating {res['n_original']} daily observations to {res['n_aggregated']} {freq_full} periods reduces noise.")
+    lines.append(f"  * Autocorrelation at lag 1 is {acf_strength} ({res['autocorr'][0]:.4f}), indicating {'strong' if abs(res['autocorr'][0]) > 0.5 else 'moderate'} short-term persistence.")
+    lines.append(f"  * Volatility ({res['std']:.6f}) captures variation at the aggregated frequency.")
     lines.append("")
     return "\n".join(lines)
