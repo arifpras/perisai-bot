@@ -4544,26 +4544,17 @@ def generate_kin_harvard_hook(question: str, response: str) -> str:
 
 
 def generate_kei_harvard_hook(question: str, response_body: str) -> str:
-    """Generate a short hook for Kei by lifting the first sentence of the body.
+    """Generate a short hook for Kei as a summary of the question context.
 
-    Skips identity questions; truncates to ~180 chars.
+    Skips identity questions; uses the question as the hook, truncated to ~180 chars.
     """
     q_lower = question.lower()
     identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "describe yourself"]
     if any(kw in q_lower for kw in identity_keywords):
         return ""
 
-    text = response_body.strip()
-    hook = ""
-    if text:
-        parts = re.split(r"(?<=[.!?])\s+", text)
-        for part in parts:
-            candidate = part.strip()
-            if candidate:
-                hook = candidate
-                break
-    if not hook:
-        hook = question.strip()
+    # Use the question itself as the hook (summary of what was asked)
+    hook = question.strip()
     if len(hook) > 180:
         hook = hook[:177].rstrip() + "…"
     return hook
