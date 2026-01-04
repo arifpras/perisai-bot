@@ -2024,27 +2024,57 @@ def parse_rolling_query(q: str) -> Optional[Dict]:
 
 
 def parse_structural_break_query(q: str) -> Optional[Dict]:
-    """Parse structural break queries: '/kei chow 5 year' or '/kei chow 5 year on 2025-09-08 from 2023 to 2025'."""
+    """Parse structural break queries: '/kei chow 5 year' or '/kei chow idrusd in jan 2025'."""
     q_lower = q.lower()
     if 'chow' not in q_lower and 'break' not in q_lower and 'structural' not in q_lower:
         return None
     
-    tenor_match = re.search(r'(5|10)\s+year', q_lower)
-    if not tenor_match:
+    # Check for macro variables first
+    tenor = None
+    if 'idrusd' in q_lower or 'usdidr' in q_lower:
+        tenor = 'idrusd'
+    elif 'indogb' in q_lower or 'gbpidr' in q_lower:
+        tenor = 'indogb'
+    elif 'vix' in q_lower:
+        tenor = 'vix'
+    else:
+        # Check for bond tenors
+        tenor_match = re.search(r'(5|10)\s+year', q_lower)
+        if tenor_match:
+            tenor = f"{tenor_match.group(1):0>2}_year"
+    
+    if not tenor:
         return None
     
-    tenor = f"{tenor_match.group(1):0>2}_year"
-    
-    # Check for specific break date
-    break_date_match = re.search(r'on\s+(\d{4}-\d{2}-\d{2})', q_lower)
-    break_date = break_date_match.group(1) if break_date_match else None
-    
+    # Month mapping for date parsing
     month_map = {
         'jan':1,'january':1,'feb':2,'february':2,'mar':3,'march':3,
         'apr':4,'april':4,'may':5,'jun':6,'june':6,'jul':7,'july':7,
         'aug':8,'august':8,'sep':9,'sept':9,'september':9,'oct':10,'october':10,
         'nov':11,'november':11,'dec':12,'december':12,
     }
+    
+    # Check for specific break date - support multiple formats
+    break_date = None
+    
+    # Format 1: "on YYYY-MM-DD"
+    break_date_match = re.search(r'(?:on|in)\s+(\d{4}-\d{2}-\d{2})', q_lower)
+    if break_date_match:
+        break_date = break_date_match.group(1)
+    else:
+        # Format 2: "in day month year" or "on day month year" (e.g., "in 8 sep 2025")
+        day_month_year_match = re.search(r'(?:on|in)\s+(\d{1,2})\s+(\w+)\s+(\d{4})', q_lower)
+        if day_month_year_match:
+            day = int(day_month_year_match.group(1))
+            month_str = day_month_year_match.group(2)
+            year = int(day_month_year_match.group(3))
+            if month_str in month_map:
+                month = month_map[month_str]
+                try:
+                    break_date = date(year, month, day).isoformat()
+                except ValueError:
+                    # Invalid date, ignore
+                    pass
     
     def parse_period_spec(spec):
         spec = spec.strip()
@@ -2075,6 +2105,13 @@ def parse_structural_break_query(q: str) -> Optional[Dict]:
         to_res = parse_period_spec(from_match.group(2))
         if from_res and to_res:
             start_date, end_date = from_res[0], to_res[1]
+    else:
+        # Check for "in [period]" format (e.g., "in 2025", "in Q1 2025", "in jan 2025")
+        in_period_match = re.search(r'in\s+(q[1-4]\s+\d{4}|\w+\s+\d{4}|\d{4})(?:\s|$)', q_lower)
+        if in_period_match:
+            period_res = parse_period_spec(in_period_match.group(1))
+            if period_res:
+                start_date, end_date = period_res
     
     return {'tenor': tenor, 'break_date': break_date, 'start_date': start_date, 'end_date': end_date}
 
@@ -4842,7 +4879,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
-        f"<b>v.0476 (as of {current_date})</b>\n"
+        f"<b>v.0477 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
         "and policy-oriented insight.\n\n"
@@ -5815,21 +5852,55 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             from regression_analysis import structural_break_test, format_structural_break
             db = get_db()
             
-            res = db.con.execute(f"""
-                SELECT obs_date, AVG("yield") as avg_yield
-                FROM ts
-                WHERE tenor = '{break_req['tenor']}' AND "yield" IS NOT NULL
-                GROUP BY obs_date
-                ORDER BY obs_date
-            """).fetchall()
+            tenor = break_req['tenor']
             
-            if not res or len(res) < 100:
+            # Load data based on tenor type
+            if tenor == 'idrusd':
+                try:
+                    df_macro = pd.read_csv('database/20260102_daily01.csv')
+                    df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                    series = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Could not load IDRUSD data: {e}", parse_mode=ParseMode.HTML)
+                    return
+            elif tenor == 'indogb':
+                try:
+                    df_macro = pd.read_csv('database/20260102_daily01.csv')
+                    df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                    series = pd.Series(df_macro['indogb'].values, index=df_macro['date'])
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Could not load INDOGB data: {e}", parse_mode=ParseMode.HTML)
+                    return
+            elif tenor == 'vix':
+                try:
+                    df_macro = pd.read_csv('database/20260102_daily01.csv')
+                    df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                    series = pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Could not load VIX data: {e}", parse_mode=ParseMode.HTML)
+                    return
+            else:
+                # Bond yield data
+                res = db.con.execute(f"""
+                    SELECT obs_date, AVG("yield") as avg_yield
+                    FROM ts
+                    WHERE tenor = '{tenor}' AND "yield" IS NOT NULL
+                    GROUP BY obs_date
+                    ORDER BY obs_date
+                """).fetchall()
+                
+                if not res or len(res) < 100:
+                    await update.message.reply_text("❌ Insufficient data for structural break test (need ≥100).", parse_mode=ParseMode.HTML)
+                    return
+                
+                dates = [r[0] for r in res]
+                vals = [r[1] for r in res]
+                series = pd.Series(vals, index=pd.to_datetime(dates))
+            
+            # Check data length
+            if len(series) < 100:
                 await update.message.reply_text("❌ Insufficient data for structural break test (need ≥100).", parse_mode=ParseMode.HTML)
                 return
-            
-            dates = [r[0] for r in res]
-            vals = [r[1] for r in res]
-            series = pd.Series(vals, index=pd.to_datetime(dates))
             
             break_res = structural_break_test(series, 
                                              break_date=break_req['break_date'],
