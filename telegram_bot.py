@@ -4842,7 +4842,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
-        f"<b>v.0473 (as of {current_date})</b>\n"
+        f"<b>v.0476 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
         "and policy-oriented insight.\n\n"
