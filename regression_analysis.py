@@ -670,17 +670,29 @@ def format_event_study(res: Dict, label: str) -> str:
     hook = f"AR0={ar_event:.4f}, CAR={car_last:.4f}, method={method}"
     lines = _harvard_header(f"📈 Event Study — {label}", hook)
     lines.append(f"Event date: {event_date} | Window: -{window_pre} to +{window_post} days")
-    lines.append(f"Method: {method}-adjusted | Estimation: {res['estimation_window']} days | σ̂(resid)={sigma:.4f}")
+    lines.append(f"Method: {method}-adjusted | Estimation: {res['estimation_window']} days | sigma(resid)={sigma:.4f}")
     lines.append("")
     lines.append(f"Event-day abnormal return: {ar_event:.4f}")
     lines.append(f"Cumulative abnormal return (end of window): {car_last:.4f}")
     lines.append(f"Post-event AR range: [{min_post:.4f}, {max_post:.4f}]")
     lines.append("")
-    lines.append("Daily AR and t:")
+    lines.append("Daily AR and t-stat:")
     for ts, val in ar.items():
         tval = t_stats.get(ts, np.nan)
         day = int((ts.normalize() - event_ts.normalize()) / pd.Timedelta(days=1))
-        lines.append(f"  • Day {day:+d}: AR={val:.4f}, t={tval:.2f}")
+        lines.append(f"  * Day {day:+d}: AR={val:.4f}, t={tval:.2f}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    lines.append(f"  * Abnormal Return (AR): The security's return minus what was expected based on historical risk.")
+    lines.append(f"  * Cumulative Abnormal Return (CAR): Total abnormal return over the entire event window.")
+    if abs(car_last) > 0.01:
+        direction = "positive" if car_last > 0 else "negative"
+        lines.append(f"  * CAR of {car_last:.4f} suggests a {direction} market reaction to the event.")
+    else:
+        lines.append(f"  * CAR of {car_last:.4f} suggests minimal market reaction to the event.")
+    
     return "\n".join(lines)
 
 
@@ -727,7 +739,19 @@ def format_granger_results(res: Dict, x_name: str, y_name: str) -> str:
     lines.append("")
     lines.append("Lag-by-lag p-values (F-test):")
     for lag in sorted(res["pvalues"].keys()):
-        lines.append(f"  • lag {lag}: p={res['pvalues'][lag]:.4f}")
+        lines.append(f"  * lag {lag}: p={res['pvalues'][lag]:.4f}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    if best_p < 0.05:
+        lines.append(f"  * {x_name} Granger-causes {y_name} (p={best_p:.4f})")
+        lines.append(f"    Past values of {x_name} help predict {y_name} beyond its own history.")
+        lines.append(f"    Lag {best_lag} shows the strongest predictive power.")
+    else:
+        lines.append(f"  * {x_name} does NOT Granger-cause {y_name} (p={best_p:.4f})")
+        lines.append(f"    Past values of {x_name} do not significantly improve predictions of {y_name}.")
+    
     return "\n".join(lines)
 
 
@@ -782,7 +806,18 @@ def format_var_irf_results(res: Dict) -> str:
     lines.append("")
     lines.append("Peak impulse responses (shock → target):")
     for (shock, target), info in res["irf"].items():
-        lines.append(f"  • {shock} → {target}: peak {info['peak']:.4f} at horizon {info['peak_horizon']}")
+        lines.append(f"  * {shock} → {target}: peak {info['peak']:.4f} at horizon {info['peak_horizon']}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    lines.append(f"  * A VAR (Vector Autoregression) model captures dynamic relationships between variables.")
+    lines.append(f"  * Impulse responses show how a 1-unit shock to one variable affects others over time.")
+    if strongest:
+        _, shock_s, target_s, peak_val, horizon = strongest
+        direction = "increases" if peak_val > 0 else "decreases"
+        lines.append(f"  * Strongest effect: {shock_s} shock {direction} {target_s} by {abs(peak_val):.4f} at period {horizon}.")
+    
     return "\n".join(lines)
 
 
@@ -1197,6 +1232,17 @@ def format_arima(res: Dict) -> str:
     lines.append("5-step ahead forecast:")
     for i, fc in enumerate(res['forecast_next_5'], 1):
         lines.append(f"  t+{i}: {fc:.6f}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    lines.append(f"  * ARIMA({p},{d},{q}) captures: AR({p}) autoregression, I({d}) differencing, MA({q}) moving average.")
+    lines.append(f"  * The model uses past {p} values, {d} order of differencing, and {q} forecast errors.")
+    lines.append(f"  * RMSE of {res['rmse']:.6f} indicates average forecast error magnitude.")
+    if res['diagnostics']['ljung_box_pval'] > 0.05:
+        lines.append(f"  * Ljung-Box p={res['diagnostics']['ljung_box_pval']:.4f} suggests residuals are white noise (good fit).")
+    else:
+        lines.append(f"  * Ljung-Box p={res['diagnostics']['ljung_box_pval']:.4f} suggests residual correlation remains (consider higher order).")
     lines.append("")
     return "\n".join(lines)
 
@@ -1219,6 +1265,17 @@ def format_garch(res: Dict) -> str:
     lines.append("5-day volatility forecast (basis points):")
     for i, vol in enumerate(res['forecast_volatility_5d'], 1):
         lines.append(f"  t+{i}: {vol:.4f}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    lines.append(f"  * GARCH models time-varying volatility: how yield volatility changes over time.")
+    lines.append(f"  * Persistence of {persist:.4f} indicates volatility shocks take ~{-1/np.log(persist):.0f} days to half-decay.")
+    if persist < 1:
+        lines.append(f"  * Volatility is mean-reverting (returns to {res['mean_volatility']:.4f}% average).")
+    else:
+        lines.append(f"  * Volatility may be explosive (persistence > 1 suggests high regime change risk).")
+    lines.append(f"  * Current volatility {res['current_volatility']:.4f}% is {'above' if res['current_volatility'] > res['mean_volatility'] else 'below'} the long-run average.")
     lines.append("")
     return "\n".join(lines)
 
@@ -1239,12 +1296,21 @@ def format_cointegration(res: Dict) -> str:
     lines.append("Trace test statistics vs 5% critical values:")
     for i, (trace, crit) in enumerate(zip(res['trace_statistics'], res['critical_values_5pct'])):
         sig = "***" if trace > crit else ""
-        lines.append(f"  r≤{i}: Trace={trace:.2f}, CV={crit:.2f} {sig}")
+        lines.append(f"  r<={i}: Trace={trace:.2f}, CV={crit:.2f} {sig}")
     lines.append("")
     if rank > 0:
         lines.append(f"First {min(rank, 2)} cointegrating vector(s):")
         for i, vec in enumerate(res['cointegrating_vectors'][:min(rank, 2)]):
             lines.append(f"  CV{i+1}: {vec}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    if rank > 0:
+        lines.append(f"  * Variables share {rank} cointegrating relationship(s): they move together long-term.")
+        lines.append(f"  * Even if individual variables drift, cointegrating combinations revert to equilibrium.")
+    else:
+        lines.append(f"  * No cointegration found: variables drift independently with no long-run equilibrium.")
     lines.append("")
     return "\n".join(lines)
 
@@ -1255,18 +1321,25 @@ def format_rolling_regression(res: Dict) -> str:
         return res['error']
     
     mean_r2 = np.mean([r for r in res['rolling_r2'] if not np.isnan(r)])
-    hook = f"Rolling regression (window={res['window']}d): Mean R²={mean_r2:.4f}, {res['n_windows']} windows"
+    hook = f"Rolling regression (window={res['window']}d): Mean R2={mean_r2:.4f}, {res['n_windows']} windows"
     
     lines = _harvard_header(f"📊 Rolling Regression; {res['regressors']}", hook)
-    lines.append(f"Window size: {res['window']} days | Number of windows: {res['n_windows']} | Mean R²: {mean_r2:.4f}")
+    lines.append(f"Window size: {res['window']} days | Number of windows: {res['n_windows']} | Mean R2: {mean_r2:.4f}")
     lines.append("")
     lines.append("Time-varying coefficient estimates:")
     for reg_name, coefs in res['rolling_coef'].items():
         mean_c = np.nanmean(coefs)
         std_c = np.nanstd(coefs)
-        lines.append(f"  {reg_name}: μ={mean_c:.6f}, σ={std_c:.6f}")
+        lines.append(f"  {reg_name}: mean={mean_c:.6f}, std={std_c:.6f}")
     lines.append("")
     lines.append(f"Period: {res['dates'][0]} to {res['dates'][-1]}")
+    
+    # Plain English explanation
+    lines.append("")
+    lines.append("<b>What This Means:</b>")
+    lines.append(f"  * Rolling regression estimates coefficients in moving windows of {res['window']} days.")
+    lines.append(f"  * Shows how relationships between variables evolve over time (non-stationary behavior).")
+    lines.append(f"  * Mean R2 of {mean_r2:.4f} indicates average model fit; variations show regime changes.")
     lines.append("")
     return "\n".join(lines)
 
@@ -1283,13 +1356,26 @@ def format_structural_break(res: Dict) -> str:
     lines.append(f"Hypothesized break: {res['break_date']} | Before: {res['n_before']} obs | After: {res['n_after']} obs")
     lines.append("")
     lines.append("AR(1) persistence before vs after break:")
-    lines.append(f"  Before: β={res['beta_before']:.6f}, R²={res['r2_before']:.4f}")
-    lines.append(f"  After:  β={res['beta_after']:.6f}, R²={res['r2_after']:.4f}")
-    lines.append(f"  Full:   β=..., R²={res['r2_full']:.4f}")
+    lines.append(f"  Before: beta={res['beta_before']:.6f}, R2={res['r2_before']:.4f}")
+    lines.append(f"  After:  beta={res['beta_after']:.6f}, R2={res['r2_after']:.4f}")
+    lines.append(f"  Full:   R2={res['r2_full']:.4f}")
     lines.append("")
     lines.append(f"Chow test: F-statistic = {res['chow_statistic']:.4f}, p-value = {res['chow_pval']:.4f}")
     lines.append(f"Result: Structural break is {sig_str} at 5% level")
     lines.append("")
+    
+    # Plain English explanation
+    lines.append("<b>What This Means:</b>")
+    if res['significant_5pct']:
+        lines.append(f"  * A significant structural break was detected at {res['break_date']}.")
+        lines.append(f"  * Persistence changed from {res['beta_before']:.4f} to {res['beta_after']:.4f}.")
+        change_desc = "increased" if res['beta_after'] > res['beta_before'] else "decreased"
+        lines.append(f"  * The mean-reversion speed {change_desc} after the break (p={res['chow_pval']:.4f}).")
+    else:
+        lines.append(f"  * No structural break detected at {res['break_date']} (p={res['chow_pval']:.4f}).")
+        lines.append(f"  * The relationship remained stable; persistence consistent before and after.")
+    lines.append("")
+    return "\n".join(lines)
     return "\n".join(lines)
 
 
@@ -1299,7 +1385,7 @@ def format_aggregation(res: Dict) -> str:
         return res['error']
     
     freq_full = res['freq_full']
-    hook = f"Aggregated to {freq_full}: {res['n_original']} daily → {res['n_aggregated']} periods, μ={res['mean']:.6f}"
+    hook = f"Aggregated to {freq_full}: {res['n_original']} daily → {res['n_aggregated']} periods, mean={res['mean']:.6f}"
     
     lines = _harvard_header(f"📊 INDOGB {freq_full} Aggregation; {res['start']}–{res['end']}", hook)
     lines.append(f"Original (daily): {res['n_original']} obs | Aggregated ({freq_full}): {res['n_aggregated']} obs")
@@ -1313,5 +1399,13 @@ def format_aggregation(res: Dict) -> str:
     lines.append("Autocorrelation at aggregated frequency:")
     for i, acf in enumerate(res['autocorr'], 1):
         lines.append(f"  lag {i}: {acf:.4f}")
+    lines.append("")
+    
+    # Plain English explanation
+    lines.append("<b>What This Means:</b>")
+    acf_strength = "strong" if abs(res['autocorr'][0]) > 0.5 else "moderate" if abs(res['autocorr'][0]) > 0.2 else "weak"
+    lines.append(f"  * Aggregating {res['n_original']} daily observations to {res['n_aggregated']} {freq_full} periods reduces noise.")
+    lines.append(f"  * Autocorrelation at lag 1 is {acf_strength} ({res['autocorr'][0]:.4f}), indicating {'strong' if abs(res['autocorr'][0]) > 0.5 else 'moderate'} short-term persistence.")
+    lines.append(f"  * Volatility ({res['std']:.6f}) captures variation at the aggregated frequency.")
     lines.append("")
     return "\n".join(lines)
