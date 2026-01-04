@@ -419,7 +419,7 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
     start = results['start_date']
     end = results['end_date']
     
-    # Generate hook
+    # Generate hook from model statistics
     hook = f"R²={r2:.2f}, F-stat={f_stat:.2f}, n={n_obs}"
     
     # Build report
@@ -436,7 +436,7 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
         else:
             predictor_labels.append(var.replace('_', ' ').upper())
     
-    report.append(f"<b>Model:</b> {y_name} = α + " + " + ".join([f"β{i+1}·{name}" for i, name in enumerate(predictor_labels)]) + " + ε\n")
+    report.append(f"<b>Model:</b> {y_name} = a + " + " + ".join([f"b{i+1}*{name}" for i, name in enumerate(predictor_labels)]) + " + e\n")
     
     # Coefficients table
     report.append("<b>Regression Coefficients:</b>")
@@ -1207,7 +1207,6 @@ def format_arima(res: Dict) -> str:
     for i, fc in enumerate(res['forecast_next_5'], 1):
         lines.append(f"  t+{i}: {fc:.6f}")
     lines.append("")
-    lines.append("<blockquote>~ Kei</blockquote>")
     return "\n".join(lines)
 
 
@@ -1230,7 +1229,6 @@ def format_garch(res: Dict) -> str:
     for i, vol in enumerate(res['forecast_volatility_5d'], 1):
         lines.append(f"  t+{i}: {vol:.4f}")
     lines.append("")
-    lines.append("<blockquote>~ Kei</blockquote>")
     return "\n".join(lines)
 
 
@@ -1257,12 +1255,11 @@ def format_cointegration(res: Dict) -> str:
         for i, vec in enumerate(res['cointegrating_vectors'][:min(rank, 2)]):
             lines.append(f"  CV{i+1}: {vec}")
     lines.append("")
-    lines.append("<blockquote>~ Kei</blockquote>")
     return "\n".join(lines)
 
 
 def format_rolling_regression(res: Dict) -> str:
-    """Format rolling regression results."""
+    """Format rolling regression results in Harvard style."""
     if 'error' in res:
         return res['error']
     
@@ -1280,12 +1277,11 @@ def format_rolling_regression(res: Dict) -> str:
     lines.append("")
     lines.append(f"Period: {res['dates'][0]} to {res['dates'][-1]}")
     lines.append("")
-    lines.append("<blockquote>~ Kei</blockquote>")
     return "\n".join(lines)
 
 
 def format_structural_break(res: Dict) -> str:
-    """Format structural break (Chow test) results."""
+    """Format structural break (Chow test) results in Harvard style."""
     if 'error' in res:
         return res['error']
     
@@ -1303,12 +1299,11 @@ def format_structural_break(res: Dict) -> str:
     lines.append(f"Chow test: F-statistic = {res['chow_statistic']:.4f}, p-value = {res['chow_pval']:.4f}")
     lines.append(f"Result: Structural break is {sig_str} at 5% level")
     lines.append("")
-    lines.append("<blockquote>~ Kei</blockquote>")
     return "\n".join(lines)
 
 
 def format_aggregation(res: Dict) -> str:
-    """Format frequency aggregation results."""
+    """Format frequency aggregation results in Harvard style."""
     if 'error' in res:
         return res['error']
     
@@ -1328,5 +1323,4 @@ def format_aggregation(res: Dict) -> str:
     for i, acf in enumerate(res['autocorr'], 1):
         lines.append(f"  lag {i}: {acf:.4f}")
     lines.append("")
-    lines.append("<blockquote>~ Kei</blockquote>")
     return "\n".join(lines)
