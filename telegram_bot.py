@@ -4111,12 +4111,11 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
                 
                 if is_identity_question:
                     # For identity questions: fixed plain-text bio with Kei signature
-                    return (
+                    identity_response = (
                         "I'm Kei, your 24/7 quantitative partner. I work with market data to build clear, testable models, focusing on valuation, risk, and forecasting. CFA-trained with an MIT-style quantitative background, I concentrate on what the numbers show, why they matter, and where the risks lie.\n\n"
-                        "My recent work includes comprehensive regression analysis—rolling coefficients, structural break detection via Chow tests, ARIMA/GARCH volatility modeling, and cointegration analysis—plus frequency aggregation and persistence measurement across time scales.\n\n"
-                        "If you share prices, fundamentals, or a dataset, I'll help model what's driving returns, quantify uncertainty, stress-test the conclusions, and detect regime changes using rigorous statistical methods.\n\n"
                         "<blockquote>~ Kei</blockquote>"
                     )
+                    return html_quote_signature(convert_markdown_code_fences_to_html(identity_response))
                 # Generate Harvard-style hook for Kei responses
                 hook = generate_kei_harvard_hook(question, content)
 
@@ -4430,11 +4429,11 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "who am i", "describe yourself"]
         is_identity_question = any(kw in question.lower() for kw in identity_keywords)
         if is_identity_question:
-            return (
+            identity_response = (
                 "I'm Kin, your 24/7 macro and policy partner. I work across macroeconomics, policy, and markets to translate complex signals into clear insights. CFA-trained with a Harvard PhD background, I focus on context and trade-offs—what matters, why it matters, and where the uncertainties lie.\n\n"
-                "I enjoy connecting dots across data, incentives, and real-world policy constraints, then translating them into concise, headline-led updates for decision-makers. I'm grounded in Indonesia's macroeconomic fundamentals and policy frameworks. For quantitative forecasting and statistical modeling, my partner Kei handles those—I focus on the 'why' and 'what if' behind the numbers.\n\n"
                 "<blockquote>~ Kin</blockquote>"
             )
+            return html_quote_signature(convert_markdown_code_fences_to_html(identity_response))
         
         # If this is a bond query, note it for context (but don't prepend header to output)
         # Perplexity generates its own headline in the response
@@ -7991,6 +7990,24 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kei_answer = result["kei"]
             kin_answer = result["kin"]
             
+            # Check if this is an identity question response (kin_answer will be empty string for identity questions)
+            identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "who am i", "describe yourself"]
+            is_identity_question = any(kw in question.lower() for kw in identity_keywords)
+            
+            if is_identity_question:
+                # For identity questions, kei_answer contains the combined response, kin_answer is intentionally empty
+                if not kei_answer or not kei_answer.strip():
+                    await update.message.reply_text("⚠️ Response generation failed. Please try again.")
+                    response_time = time.time() - start_time
+                    metrics.log_query(user_id, username, question, "text", response_time, False, "Empty identity response", "both")
+                    return
+                # Send the identity response directly with HTML parse mode
+                await update.message.reply_text(kei_answer, parse_mode=ParseMode.HTML)
+                response_time = time.time() - start_time
+                metrics.log_query(user_id, username, question, "text", response_time, True, persona="both")
+                return
+            
+            # For non-identity questions, both answers should exist
             if not kei_answer or not kei_answer.strip():
                 await update.message.reply_text("⚠️ Kei returned an empty response. Please try again.")
                 response_time = time.time() - start_time
