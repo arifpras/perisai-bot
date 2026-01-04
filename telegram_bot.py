@@ -1360,6 +1360,38 @@ def parse_bond_table_query(q: str) -> Optional[Dict]:
                 'end_date': period_res[1],
             }
     
+    # "date-range vs date-range" pattern (e.g., "1 sep 2025 to 7 sep 2025 vs 8 sep 2025 to 15 sep 2025")
+    # This must come before simple "X vs Y" pattern to match more complex expressions first
+    range_vs_range_match = re.search(
+        r'(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4})\s+to\s+(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4})\s+vs\s+(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4})\s+to\s+(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4})',
+        q
+    )
+    if range_vs_range_match:
+        period1_start_spec = range_vs_range_match.group(1).strip()
+        period1_end_spec = range_vs_range_match.group(2).strip()
+        period2_start_spec = range_vs_range_match.group(3).strip()
+        period2_end_spec = range_vs_range_match.group(4).strip()
+        
+        period1_start_res = parse_period_spec(period1_start_spec)
+        period1_end_res = parse_period_spec(period1_end_spec)
+        period2_start_res = parse_period_spec(period2_start_spec)
+        period2_end_res = parse_period_spec(period2_end_spec)
+        
+        if period1_start_res and period1_end_res and period2_start_res and period2_end_res:
+            period1_label = f"{period1_start_spec} to {period1_end_spec}"
+            period2_label = f"{period2_start_spec} to {period2_end_spec}"
+            periods = [
+                {'label': period1_label, 'start_date': period1_start_res[0], 'end_date': period1_end_res[0]},
+                {'label': period2_label, 'start_date': period2_start_res[0], 'end_date': period2_end_res[0]},
+            ]
+            return {
+                'metrics': metrics,
+                'tenors': tenors,
+                'start_date': period1_start_res[0],
+                'end_date': period2_end_res[0],
+                'periods': periods,
+            }
+    
     # "X vs Y" pattern (e.g., "2024 vs 2025")
     # For 'compare' queries, capture each period separately
     vs_match = re.search(r'(\d{4}|q[1-4]\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4})\s+vs\s+(\d{4}|q[1-4]\s+\d{4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4})', q)
