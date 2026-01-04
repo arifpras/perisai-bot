@@ -13,6 +13,14 @@ from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
 from scipy import stats
 
 
+def _harvard_header(headline: str, hook: str) -> list[str]:
+    lines = [headline]
+    if hook:
+        lines.append(f"<blockquote>{hook}</blockquote>")
+        lines.append("")
+    return lines
+
+
 def ar1_regression(series: pd.Series, start_date: Optional[date] = None, end_date: Optional[date] = None) -> Dict:
     """
     Run AR(1) regression: y_t = α + β y_{t-1} + ε_t
@@ -133,7 +141,7 @@ def format_ar1_results(results: Dict, tenor: str) -> str:
     """
     if 'error' in results:
         return f"❌ {results['error']}"
-    
+
     # Extract values
     alpha = results['alpha']
     beta = results['beta']
@@ -158,10 +166,19 @@ def format_ar1_results(results: Dict, tenor: str) -> str:
     n_obs = results['n_obs']
     start = results['start_date']
     end = results['end_date']
+
+    # Build hook
+    sig_vars = [v for v in x_vars if coeffs[v]['pval'] < 0.05]
+    display_names = []
+    for var in sig_vars:
+        base = var.replace('_lag1', '').replace('_', ' ')
+        display_names.append(f"{base} lagged" if var.endswith('_lag1') else base)
+    drivers = ", ".join(display_names) if display_names else "no significant predictors"
+    hook = f"Adj R²={adj_r2:.2f}, n={n_obs}; drivers: {drivers}"
     
     # Build report
-    report = []
-    report.append(f"📊 INDOGB {tenor.upper()}: AR(1) Regression Analysis")
+    hook = f"β={beta:.2f}, R²={r2:.2f}, n={n_obs}"
+    report = _harvard_header(f"📊 INDOGB {tenor.upper()} — AR(1) Regression", hook)
     report.append(f"Period: {start} to {end} ({n_obs} observations)\n")
     
     # Model specification
@@ -403,8 +420,7 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
     end = results['end_date']
     
     # Build report
-    report = []
-    report.append(f"📊 INDOGB: Multiple Regression Analysis")
+    report = _harvard_header("📊 INDOGB — Multiple Regression", hook)
     report.append(f"<b>Dependent Variable:</b> {y_name}")
     report.append(f"Period: {start} to {end} ({n_obs} observations)\n")
     
@@ -469,7 +485,13 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
             report.append(f"  • <b>{var_display}</b> has no significant effect (p={coef_pval:.4f})")
     
     report.append("")
-    # Format with lag notation
+    
+    # Multicollinearity check
+    report.append("<b>Multicollinearity (VIF):</b>")
+    max_vif = max(vif.values()) if vif else 0
+    for var in x_vars:
+        vif_val = vif.get(var, np.nan)
+        # Format with lag notation
         if var.endswith('_lag1'):
             base = var.replace('_lag1', '').replace('_', ' ').upper()
             var_label = f"{base}(t-1)"
@@ -480,13 +502,7 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
             report.append(f"  • {var_label}: VIF = N/A")
         else:
             vif_status = "✓ OK" if vif_val < 5 else ("⚠ Moderate" if vif_val < 10 else "⛔ High")
-            report.append(f"  • {var_label
-        vif_val = vif.get(var, np.nan)
-        if np.isnan(vif_val):
-            report.append(f"  • {var.replace('_', ' ').upper()}: VIF = N/A")
-        else:
-            vif_status = "✓ OK" if vif_val < 5 else ("⚠ Moderate" if vif_val < 10 else "⛔ High")
-            report.append(f"  • {var.replace('_', ' ').upper()}: VIF = {vif_val:.2f} {vif_status}")
+            report.append(f"  • {var_label}: VIF = {vif_val:.2f} {vif_status}")
     
     if max_vif < 5:
         report.append(f"  → <b>No multicollinearity issues</b> (all VIF < 5)")
@@ -532,3 +548,782 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
     report.append(f"\n<i>*** p&lt;0.01, ** p&lt;0.05, * p&lt;0.10</i>")
     
     return "\n".join(report)
+
+
+# =============================
+# Granger Causality & VAR/IRF
+# =============================
+from statsmodels.tsa.stattools import grangercausalitytests
+from statsmodels.tsa.api import VAR
+
+
+def event_study(
+    target: pd.Series,
+    event_date: date,
+    market: Optional[pd.Series] = None,
+    estimation_window: int = 60,
+    window_pre: int = 5,
+    window_post: int = 5,
+    method: str = "risk",
+) -> Dict:
+    """Simple event study for a single series with optional market adjustment.
+
+    Args:
+        target: Price/return series indexed by datetime.
+        event_date: Event date.
+        market: Optional market index series (same frequency/index domain).
+        estimation_window: Days before the event used for estimation.
+        window_pre: Days before event included in observation window.
+        window_post: Days after event included in observation window.
+        method: 'mean' | 'market' | 'risk'.
+
+    Returns:
+        Dict with abnormal returns (AR), cumulative AR (CAR), t-stats, and metadata.
+    """
+    method = method.lower()
+    if method not in {"mean", "market", "risk"}:
+        return {"error": "Invalid method; choose mean, market, or risk."}
+
+    # Ensure chronological order and returns
+    target = target.sort_index().dropna()
+    target_ret = target.pct_change().dropna()
+
+    event_ts = pd.to_datetime(event_date)
+    est_start = event_ts - pd.Timedelta(days=estimation_window)
+    est_end = event_ts - pd.Timedelta(days=1)
+
+    est_ret = target_ret.loc[(target_ret.index >= est_start) & (target_ret.index <= est_end)]
+    if len(est_ret) < max(20, window_pre + window_post):
+        return {"error": "Insufficient estimation window data for event study."}
+
+    obs_start = event_ts - pd.Timedelta(days=window_pre)
+    obs_end = event_ts + pd.Timedelta(days=window_post)
+    obs_ret = target_ret.loc[(target_ret.index >= obs_start) & (target_ret.index <= obs_end)]
+    if obs_ret.empty:
+        return {"error": "No observations in event window."}
+
+    sigma = None
+    expected_obs = None
+
+    if method == "mean":
+        mu = est_ret.mean()
+        expected_obs = pd.Series(mu, index=obs_ret.index)
+        resid = est_ret - mu
+        sigma = resid.std(ddof=1)
+    else:
+        if market is None:
+            return {"error": "Market series required for market/risk methods."}
+        market = market.sort_index().dropna()
+        market_ret = market.pct_change().dropna()
+
+        est_join = pd.concat([est_ret.rename("y"), market_ret.rename("m")], axis=1).dropna()
+        obs_join = pd.concat([obs_ret.rename("y"), market_ret.rename("m")], axis=1).dropna()
+
+        if est_join.empty or obs_join.empty:
+            return {"error": "Insufficient overlapping data with market series."}
+
+        if method == "market":
+            expected_obs = obs_join["m"]
+            sigma = (est_join["y"] - est_join["m"]).std(ddof=1)
+        else:  # risk-adjusted
+            X = sm.add_constant(est_join["m"])
+            model = sm.OLS(est_join["y"], X).fit(cov_type="HC0")
+            expected_obs = model.predict(sm.add_constant(obs_join["m"], has_constant="add"))
+            sigma = model.resid.std(ddof=1)
+        # Align expected to obs_ret index
+        expected_obs = expected_obs.reindex(obs_ret.index).interpolate(limit_direction="both")
+
+    if sigma is None or sigma == 0:
+        sigma = np.nan
+
+    ar = obs_ret - expected_obs
+    car = ar.cumsum()
+    t_stats = ar / sigma if not np.isnan(sigma) else pd.Series([np.nan] * len(ar), index=ar.index)
+
+    return {
+        "event_date": event_ts.date(),
+        "method": method,
+        "estimation_window": estimation_window,
+        "window_pre": window_pre,
+        "window_post": window_post,
+        "ar": ar,
+        "car": car,
+        "t_stats": t_stats,
+        "sigma": sigma,
+    }
+
+
+def format_event_study(res: Dict, label: str) -> str:
+    if "error" in res:
+        return f"❌ {res['error']}"
+
+    ar = res["ar"]
+    car = res["car"]
+    t_stats = res["t_stats"]
+    event_date = res["event_date"]
+    window_pre = res["window_pre"]
+    window_post = res["window_post"]
+    method = res["method"]
+    sigma = res["sigma"]
+
+    # Extract key points
+    event_ts = pd.to_datetime(event_date)
+    ar_event = ar.get(event_ts, np.nan)
+    car_last = car.iloc[-1]
+    max_post = ar.iloc[ar.index >= event_ts].max()
+    min_post = ar.iloc[ar.index >= event_ts].min()
+
+    hook = f"AR0={ar_event:.4f}, CAR={car_last:.4f}, method={method}"
+    lines = _harvard_header(f"📈 Event Study — {label}", hook)
+    lines.append(f"Event date: {event_date} | Window: -{window_pre} to +{window_post} days")
+    lines.append(f"Method: {method}-adjusted | Estimation: {res['estimation_window']} days | σ̂(resid)={sigma:.4f}")
+    lines.append("")
+    lines.append(f"Event-day abnormal return: {ar_event:.4f}")
+    lines.append(f"Cumulative abnormal return (end of window): {car_last:.4f}")
+    lines.append(f"Post-event AR range: [{min_post:.4f}, {max_post:.4f}]")
+    lines.append("")
+    lines.append("Daily AR and t:")
+    for ts, val in ar.items():
+        tval = t_stats.get(ts, np.nan)
+        day = int((ts.normalize() - event_ts.normalize()) / pd.Timedelta(days=1))
+        lines.append(f"  • Day {day:+d}: AR={val:.4f}, t={tval:.2f}")
+    return "\n".join(lines)
+
+
+def granger_causality(y: pd.Series, x: pd.Series, max_lag: int = 5) -> Dict:
+    """Test if x Granger-causes y (does lagged x improve prediction?)."""
+    df = pd.concat([y.rename("y"), x.rename("x")], axis=1).dropna()
+    if len(df) < max_lag + 20:
+        return {"error": f"Insufficient data for Granger causality (need at least {max_lag + 20} observations)"}
+
+    results = grangercausalitytests(df[["y", "x"]], maxlag=max_lag, verbose=False)
+    pvals = {lag: res[0]["ssr_ftest"][1] for lag, res in results.items()}
+    best_lag = min(pvals, key=pvals.get)
+    best_p = pvals[best_lag]
+
+    return {
+        "pvalues": pvals,
+        "best_lag": best_lag,
+        "best_p": best_p,
+        "n_obs": len(df),
+    }
+
+
+def format_granger_results(res: Dict, x_name: str, y_name: str) -> str:
+    if "error" in res:
+        return f"❌ {res['error']}"
+
+    best_lag = res["best_lag"]
+    best_p = res["best_p"]
+    n_obs = res["n_obs"]
+
+    if best_p < 0.01:
+        sig = "strong evidence"
+    elif best_p < 0.05:
+        sig = "evidence"
+    elif best_p < 0.10:
+        sig = "weak evidence"
+    else:
+        sig = "no evidence"
+
+    hook = f"Lag {best_lag}, p={best_p:.3f}, n={n_obs} ({sig})"
+    lines = _harvard_header(f"📊 Granger: {x_name} → {y_name}?", hook)
+    lines.append(f"Sample: {n_obs} observations")
+    lines.append(f"Best lag: {best_lag} | p-value: {best_p:.4f} → {sig}")
+    lines.append("")
+    lines.append("Lag-by-lag p-values (F-test):")
+    for lag in sorted(res["pvalues"].keys()):
+        lines.append(f"  • lag {lag}: p={res['pvalues'][lag]:.4f}")
+    return "\n".join(lines)
+
+
+def var_with_irf(series_dict: Dict[str, pd.Series], max_lag: int = 5, horizon: int = 10) -> Dict:
+    """Fit VAR and compute impulse responses."""
+    df = pd.concat(series_dict.values(), axis=1)
+    df.columns = list(series_dict.keys())
+    df = df.dropna()
+    if len(df) < max_lag + 30:
+        return {"error": f"Insufficient data for VAR (need at least {max_lag + 30} observations)"}
+
+    model = VAR(df)
+    fit = model.fit(maxlags=max_lag, ic="aic")
+    irf = fit.irf(horizon)
+
+    irf_summary = {}
+    for shock in df.columns:
+        for target in df.columns:
+            path = irf.irfs[:, df.columns.get_loc(target), df.columns.get_loc(shock)]
+            peak_idx = int(np.argmax(np.abs(path)))
+            irf_summary[(shock, target)] = {
+                "peak": float(path[peak_idx]),
+                "peak_horizon": peak_idx,
+            }
+
+    return {
+        "n_obs": len(df),
+        "lag_order": fit.k_ar,
+        "aic": fit.aic,
+        "irf": irf_summary,
+    }
+
+
+def format_var_irf_results(res: Dict) -> str:
+    if "error" in res:
+        return f"❌ {res['error']}"
+
+    # Find strongest peak for hook
+    strongest = None
+    for (shock, target), info in res["irf"].items():
+        magnitude = abs(info["peak"])
+        if strongest is None or magnitude > strongest[0]:
+            strongest = (magnitude, shock, target, info["peak"], info["peak_horizon"])
+    if strongest:
+        _, shock_s, target_s, peak_val, horizon = strongest
+        hook = f"Peak {shock_s}→{target_s}={peak_val:.4f} at h{horizon}; lag k={res['lag_order']}"
+    else:
+        hook = f"Lag k={res['lag_order']} | AIC={res['aic']:.3f}"
+
+    lines = _harvard_header("📊 VAR with Impulse Responses", hook)
+    lines.append(f"Observations: {res['n_obs']} | Selected lag order: {res['lag_order']} | AIC={res['aic']:.3f}")
+    lines.append("")
+    lines.append("Peak impulse responses (shock → target):")
+    for (shock, target), info in res["irf"].items():
+        lines.append(f"  • {shock} → {target}: peak {info['peak']:.4f} at horizon {info['peak_horizon']}")
+    return "\n".join(lines)
+
+
+def arima_model(series: pd.Series, order: tuple = (1, 1, 1), 
+                start_date: Optional[date] = None, end_date: Optional[date] = None) -> Dict:
+    """
+    Run ARIMA(p, d, q) model for integrated differencing and forecasting.
+    
+    Args:
+        series: Time series with datetime index
+        order: (p, d, q) tuple; default (1,1,1)
+        start_date, end_date: Date range filters
+    
+    Returns:
+        Dictionary with ARIMA results
+    """
+    from statsmodels.tsa.arima.model import ARIMA
+    
+    if start_date or end_date:
+        if start_date:
+            series = series[series.index >= pd.to_datetime(start_date)]
+        if end_date:
+            series = series[series.index <= pd.to_datetime(end_date)]
+    
+    if len(series) < 60:
+        return {'error': 'Insufficient data (need ≥60 observations)'}
+    
+    try:
+        model = ARIMA(series, order=order)
+        result = model.fit()
+        
+        return {
+            'order': order,
+            'aic': result.aic,
+            'bic': result.bic,
+            'rmse': np.sqrt(result.mse),
+            'coef': dict(result.params),
+            'pvalues': dict(result.pvalues),
+            'diagnostics': {
+                'ljung_box_pval': acorr_ljungbox(result.resid, lags=5).iloc[-1, 0] if len(result.resid) > 5 else np.nan,
+                'mean_residual': result.resid.mean(),
+                'residual_std': result.resid.std()
+            },
+            'n_obs': len(series),
+            'start': series.index[0].strftime('%Y-%m-%d'),
+            'end': series.index[-1].strftime('%Y-%m-%d'),
+            'forecast_next_5': list(result.get_forecast(steps=5).predicted_mean)
+        }
+    except Exception as e:
+        return {'error': f'ARIMA fitting failed: {str(e)}'}
+
+
+def garch_volatility(series: pd.Series, p: int = 1, q: int = 1,
+                     start_date: Optional[date] = None, end_date: Optional[date] = None) -> Dict:
+    """
+    Run GARCH(p, q) model for time-varying volatility.
+    
+    Args:
+        series: Time series (returns or yield changes) with datetime index
+        p, q: GARCH order parameters
+        start_date, end_date: Date range filters
+    
+    Returns:
+        Dictionary with GARCH results
+    """
+    try:
+        from arch import arch_model
+    except ImportError:
+        return {'error': 'GARCH requires arch package. Install: pip install arch'}
+    
+    if start_date or end_date:
+        if start_date:
+            series = series[series.index >= pd.to_datetime(start_date)]
+        if end_date:
+            series = series[series.index <= pd.to_datetime(end_date)]
+    
+    if len(series) < 60:
+        return {'error': 'Insufficient data (need ≥60 observations)'}
+    
+    try:
+        # Convert yields to returns (daily changes)
+        returns = series.diff().dropna() * 100  # in basis points
+        
+        model = arch_model(returns, vol='Garch', p=p, q=q)
+        result = model.fit(disp='off')
+        
+        # Conditional volatility
+        cond_vol = result.conditional_volatility
+        
+        # Calculate persistence (α + β)
+        try:
+            alpha_vals = [v for k, v in result.params.items() if 'alpha' in k.lower()]
+            beta_vals = [v for k, v in result.params.items() if 'beta' in k.lower()]
+            persistence = sum(alpha_vals) + sum(beta_vals)
+        except:
+            persistence = np.nan
+        
+        # Forecast using variance forecast (different API for arch)
+        try:
+            forecast = result.forecast(horizon=5)
+            forecast_vol_5d = list((forecast.variance.values[-1, :] ** 0.5).flatten())
+        except:
+            forecast_vol_5d = [float(cond_vol.iloc[-1])] * 5  # Fallback to current vol
+        
+        return {
+            'order': (p, q),
+            'mean_volatility': float(cond_vol.mean()),
+            'max_volatility': float(cond_vol.max()),
+            'min_volatility': float(cond_vol.min()),
+            'alpha': dict(result.params.get('alpha', {})) if 'alpha' in result.params else {},
+            'beta': result.params.get('beta', {}) if 'beta' in result.params else {},
+            'aic': float(result.aic),
+            'bic': float(result.bic),
+            'log_likelihood': float(result.loglikelihood),
+            'persistence': float(persistence),
+            'n_obs': len(returns),
+            'start': series.index[0].strftime('%Y-%m-%d'),
+            'end': series.index[-1].strftime('%Y-%m-%d'),
+            'current_volatility': float(cond_vol.iloc[-1]),
+            'forecast_volatility_5d': forecast_vol_5d
+        }
+    except Exception as e:
+        return {'error': f'GARCH fitting failed: {str(e)}'}
+
+
+def cointegration_test(series_dict: Dict[str, pd.Series],
+                       start_date: Optional[date] = None, end_date: Optional[date] = None) -> Dict:
+    """
+    Test for cointegration (long-run relationships) between multiple series using Johansen test.
+    
+    Args:
+        series_dict: Dictionary of series {name: pd.Series}
+        start_date, end_date: Date range filters
+    
+    Returns:
+        Dictionary with Johansen test results
+    """
+    try:
+        from statsmodels.tsa.vector_ar.vecm import coint_johansen
+    except ImportError:
+        return {'error': 'Cointegration test requires statsmodels vector_ar module'}
+    
+    # Merge series and filter dates
+    df = pd.concat(series_dict, axis=1)
+    df.columns = list(series_dict.keys())
+    
+    if start_date or end_date:
+        if start_date:
+            df = df[df.index >= pd.to_datetime(start_date)]
+        if end_date:
+            df = df[df.index <= pd.to_datetime(end_date)]
+    
+    if len(df) < 60:
+        return {'error': 'Insufficient data (need ≥60 observations)'}
+    
+    df = df.dropna()
+    if len(df) < 60:
+        return {'error': 'Insufficient data after dropping NaN values'}
+    
+    try:
+        # Johansen test: trace and eigenvalue tests
+        result = coint_johansen(df, det_order=0, k_ar_diff=1)
+        
+        # Extract cointegrating rank at 5% significance
+        # result.trace_stat_crit_vals shape: (n_vars, 3) for different significance levels
+        trace_stats = result.trace_stat  # Test statistics
+        crit_vals = result.trace_stat_crit_vals[:, 0]  # 5% critical values (column 0)
+        rank = sum(trace_stats > crit_vals)  # Number of cointegrating relationships
+        
+        # Store eigenvalues and eigenvectors (cointegrating combinations)
+        eigen_vals = result._eig  # Eigenvalues
+        eigen_vecs = result.evec  # Eigenvectors (2D array)
+        
+        return {
+            'n_variables': len(series_dict),
+            'n_obs': len(df),
+            'rank': int(rank),
+            'trace_statistics': list(trace_stats),
+            'critical_values_5pct': list(crit_vals),
+            'eigenvalues': list(eigen_vals),
+            'cointegrating_vectors': eigen_vecs.tolist(),
+            'series_names': list(series_dict.keys()),
+            'start': df.index[0].strftime('%Y-%m-%d'),
+            'end': df.index[-1].strftime('%Y-%m-%d')
+        }
+    except Exception as e:
+        return {'error': f'Johansen test failed: {str(e)}'}
+
+
+def rolling_regression(y_series: pd.Series, X_dict: Dict[str, pd.Series], window: int = 90,
+                       start_date: Optional[date] = None, end_date: Optional[date] = None) -> Dict:
+    """
+    Run rolling regression with time-varying coefficients.
+    
+    Args:
+        y_series: Dependent variable
+        X_dict: Dictionary of regressors {name: pd.Series}
+        window: Rolling window size (days)
+        start_date, end_date: Date range filters
+    
+    Returns:
+        Dictionary with rolling coefficient estimates
+    """
+    # Merge data
+    df = pd.concat([y_series.rename('y')] + [s.rename(name) for name, s in X_dict.items()], axis=1)
+    
+    if start_date or end_date:
+        if start_date:
+            df = df[df.index >= pd.to_datetime(start_date)]
+        if end_date:
+            df = df[df.index <= pd.to_datetime(end_date)]
+    
+    df = df.dropna()
+    
+    if len(df) < window + 10:
+        return {'error': f'Insufficient data for rolling regression with window={window}'}
+    
+    rolling_params = {name: [] for name in X_dict.keys()}
+    rolling_r2 = []
+    rolling_dates = []
+    
+    for i in range(window, len(df)):
+        window_data = df.iloc[i - window:i]
+        y = window_data['y']
+        X = sm.add_constant(window_data[list(X_dict.keys())])
+        
+        try:
+            model = sm.OLS(y, X).fit()
+            for name in X_dict.keys():
+                rolling_params[name].append(model.params.get(name, np.nan))
+            rolling_r2.append(model.rsquared)
+            rolling_dates.append(window_data.index[-1].strftime('%Y-%m-%d'))
+        except:
+            for name in X_dict.keys():
+                rolling_params[name].append(np.nan)
+            rolling_r2.append(np.nan)
+            rolling_dates.append(window_data.index[-1].strftime('%Y-%m-%d'))
+    
+    return {
+        'window': window,
+        'n_windows': len(rolling_dates),
+        'dates': rolling_dates,
+        'rolling_coef': rolling_params,
+        'rolling_r2': rolling_r2,
+        'mean_coef': {name: np.nanmean(vals) for name, vals in rolling_params.items()},
+        'std_coef': {name: np.nanstd(vals) for name, vals in rolling_params.items()},
+        'regressors': list(X_dict.keys())
+    }
+
+
+def structural_break_test(series: pd.Series, break_date: Optional[str] = None,
+                          start_date: Optional[date] = None, end_date: Optional[date] = None) -> Dict:
+    """
+    Test for structural breaks using Chow test.
+    
+    Args:
+        series: Time series with datetime index
+        break_date: Hypothesized break date (YYYY-MM-DD); if None, test AR(1) break
+        start_date, end_date: Date range filters
+    
+    Returns:
+        Dictionary with Chow test results
+    """
+    if start_date or end_date:
+        if start_date:
+            series = series[series.index >= pd.to_datetime(start_date)]
+        if end_date:
+            series = series[series.index <= pd.to_datetime(end_date)]
+    
+    if len(series) < 100:
+        return {'error': 'Insufficient data for structural break test (need ≥100)'}
+    
+    # Prepare AR(1) data
+    df = pd.DataFrame({'y': series})
+    df['y_lag1'] = df['y'].shift(1)
+    df = df.dropna()
+    
+    if not break_date:
+        # Use midpoint as default break
+        break_idx = len(df) // 2
+    else:
+        break_dt = pd.to_datetime(break_date)
+        try:
+            break_idx = (df.index <= break_dt).sum()
+        except:
+            return {'error': 'Invalid break_date format'}
+    
+    if break_idx < 30 or len(df) - break_idx < 30:
+        return {'error': 'Break point too close to start or end; need ≥30 obs each side'}
+    
+    # Split data and fit AR(1) separately
+    df1 = df.iloc[:break_idx]
+    df2 = df.iloc[break_idx:]
+    
+    X1 = sm.add_constant(df1['y_lag1'])
+    y1 = df1['y']
+    model1 = sm.OLS(y1, X1).fit(cov_type='HC0')
+    
+    X2 = sm.add_constant(df2['y_lag1'])
+    y2 = df2['y']
+    model2 = sm.OLS(y2, X2).fit(cov_type='HC0')
+    
+    # Full model
+    X_full = sm.add_constant(df['y_lag1'])
+    y_full = df['y']
+    model_full = sm.OLS(y_full, X_full).fit(cov_type='HC0')
+    
+    # Chow test statistic
+    rss_full = np.sum(model_full.resid ** 2)
+    rss_restricted = np.sum(model1.resid ** 2) + np.sum(model2.resid ** 2)
+    k = 2  # Number of parameters in AR(1)
+    n = len(df)
+    
+    chow_stat = ((rss_full - rss_restricted) / k) / ((rss_restricted) / (n - 2 * k))
+    chow_pval = 1 - stats.f.cdf(chow_stat, k, n - 2 * k)
+    
+    return {
+        'break_date': df.index[break_idx].strftime('%Y-%m-%d') if break_idx < len(df) else 'end',
+        'break_index': break_idx,
+        'n_before': len(df1),
+        'n_after': len(df2),
+        'beta_before': model1.params['y_lag1'],
+        'beta_after': model2.params['y_lag1'],
+        'r2_before': model1.rsquared,
+        'r2_after': model2.rsquared,
+        'r2_full': model_full.rsquared,
+        'rss_full': rss_full,
+        'rss_restricted': rss_restricted,
+        'chow_statistic': chow_stat,
+        'chow_pval': chow_pval,
+        'significant_5pct': chow_pval < 0.05,
+        'start': df.index[0].strftime('%Y-%m-%d'),
+        'end': df.index[-1].strftime('%Y-%m-%d')
+    }
+
+
+def aggregate_frequency(series: pd.Series, freq: str = 'M',
+                        start_date: Optional[date] = None, end_date: Optional[date] = None) -> Dict:
+    """
+    Aggregate time series to different frequencies (monthly, quarterly, etc.)
+    
+    Args:
+        series: Time series with datetime index
+        freq: 'D'=daily, 'W'=weekly, 'M'=monthly, 'Q'=quarterly, 'Y'=yearly
+        start_date, end_date: Date range filters
+    
+    Returns:
+        Dictionary with aggregated series and descriptive stats
+    """
+    if start_date or end_date:
+        if start_date:
+            series = series[series.index >= pd.to_datetime(start_date)]
+        if end_date:
+            series = series[series.index <= pd.to_datetime(end_date)]
+    
+    freq_map = {'D': 'D', 'W': 'W', 'M': 'M', 'Q': 'Q', 'Y': 'A'}
+    if freq not in freq_map:
+        return {'error': f'Invalid frequency. Use: {", ".join(freq_map.keys())}'}
+    
+    # Resample: take last value of each period
+    agg = series.resample(freq_map[freq]).last()
+    agg = agg.dropna()
+    
+    if len(agg) < 10:
+        return {'error': f'Too few periods after aggregation (only {len(agg)})'}
+    
+    # Compute autocorrelation at aggregated frequency
+    acf_vals = [agg.autocorr(lag=i) for i in range(1, min(6, len(agg)))]
+    
+    return {
+        'frequency': freq,
+        'freq_full': {'D': 'Daily', 'W': 'Weekly', 'M': 'Monthly', 'Q': 'Quarterly', 'Y': 'Yearly'}.get(freq),
+        'n_original': len(series),
+        'n_aggregated': len(agg),
+        'values': agg.tolist(),
+        'dates': [d.strftime('%Y-%m-%d') for d in agg.index],
+        'mean': agg.mean(),
+        'std': agg.std(),
+        'min': agg.min(),
+        'max': agg.max(),
+        'autocorr': acf_vals,
+        'start': series.index[0].strftime('%Y-%m-%d'),
+        'end': series.index[-1].strftime('%Y-%m-%d')
+    }
+
+
+# ============================================================
+# Output Formatters for Advanced Methods
+# ============================================================
+
+
+def format_arima(res: Dict) -> str:
+    """Format ARIMA results in Harvard style."""
+    if 'error' in res:
+        return res['error']
+    
+    p, d, q = res['order']
+    hook = f"ARIMA({p},{d},{q}): AIC={res['aic']:.2f}, RMSE={res['rmse']:.6f}, LB p={res['diagnostics']['ljung_box_pval']:.4f}"
+    
+    lines = _harvard_header(f"📊 INDOGB ARIMA({p},{d},{q}) Model; {res['start']}–{res['end']}", hook)
+    lines.append(f"Observations: {res['n_obs']} | AIC={res['aic']:.2f} | BIC={res['bic']:.2f} | RMSE={res['rmse']:.6f}")
+    lines.append("")
+    lines.append("Model coefficients:")
+    for coef, val in res['coef'].items():
+        pval = res['pvalues'].get(coef, np.nan)
+        sig = "***" if pval < 0.01 else "**" if pval < 0.05 else "*" if pval < 0.10 else ""
+        lines.append(f"  {coef}: {val:.6f} (p={pval:.4f}) {sig}")
+    lines.append("")
+    lines.append(f"Diagnostics: Mean residual = {res['diagnostics']['mean_residual']:.6f}, Std = {res['diagnostics']['residual_std']:.6f}")
+    lines.append(f"Ljung-Box test (lag 5): p = {res['diagnostics']['ljung_box_pval']:.4f}")
+    lines.append("")
+    lines.append("5-step ahead forecast:")
+    for i, fc in enumerate(res['forecast_next_5'], 1):
+        lines.append(f"  t+{i}: {fc:.6f}")
+    lines.append("")
+    lines.append("<blockquote>~ Kei</blockquote>")
+    return "\n".join(lines)
+
+
+def format_garch(res: Dict) -> str:
+    """Format GARCH results in Harvard style."""
+    if 'error' in res:
+        return res['error']
+    
+    p, q = res['order']
+    persist = res.get('persistence', 0)
+    hook = f"GARCH({p},{q}): Mean vol={res['mean_volatility']:.4f}%, Persistence={persist:.4f}"
+    
+    lines = _harvard_header(f"📊 INDOGB Yield GARCH({p},{q}) Volatility; {res['start']}–{res['end']}", hook)
+    lines.append(f"Observations: {res['n_obs']} | AIC={res['aic']:.2f} | Current volatility: {res['current_volatility']:.4f}")
+    lines.append("")
+    lines.append(f"Mean volatility: {res['mean_volatility']:.4f}% | Max: {res['max_volatility']:.4f}% | Min: {res['min_volatility']:.4f}%")
+    lines.append(f"Persistence (α+β): {persist:.4f} {'[mean-reverting]' if persist < 1 else '[explosive]'}")
+    lines.append("")
+    lines.append("5-day volatility forecast (basis points):")
+    for i, vol in enumerate(res['forecast_volatility_5d'], 1):
+        lines.append(f"  t+{i}: {vol:.4f}")
+    lines.append("")
+    lines.append("<blockquote>~ Kei</blockquote>")
+    return "\n".join(lines)
+
+
+def format_cointegration(res: Dict) -> str:
+    """Format Johansen cointegration results in Harvard style."""
+    if 'error' in res:
+        return res['error']
+    
+    rank = res['rank']
+    hook = f"Johansen test: {res['n_variables']} variables, rank={rank}, {res['n_obs']} obs"
+    
+    lines = _harvard_header(f"📊 Cointegration (Johansen); {res['start']}–{res['end']}", hook)
+    lines.append(f"Variables: {', '.join(res['series_names'])} | Observations: {res['n_obs']}")
+    lines.append("")
+    lines.append("Cointegrating rank at 5% significance: " + str(rank))
+    lines.append("")
+    lines.append("Trace test statistics vs 5% critical values:")
+    for i, (trace, crit) in enumerate(zip(res['trace_statistics'], res['critical_values_5pct'])):
+        sig = "***" if trace > crit else ""
+        lines.append(f"  r≤{i}: Trace={trace:.2f}, CV={crit:.2f} {sig}")
+    lines.append("")
+    if rank > 0:
+        lines.append(f"First {min(rank, 2)} cointegrating vector(s):")
+        for i, vec in enumerate(res['cointegrating_vectors'][:min(rank, 2)]):
+            lines.append(f"  CV{i+1}: {vec}")
+    lines.append("")
+    lines.append("<blockquote>~ Kei</blockquote>")
+    return "\n".join(lines)
+
+
+def format_rolling_regression(res: Dict) -> str:
+    """Format rolling regression results in Harvard style."""
+    if 'error' in res:
+        return res['error']
+    
+    mean_r2 = np.mean([r for r in res['rolling_r2'] if not np.isnan(r)])
+    hook = f"Rolling regression (window={res['window']}d): Mean R²={mean_r2:.4f}, {res['n_windows']} windows"
+    
+    lines = _harvard_header(f"📊 Rolling Regression; {res['regressors']}", hook)
+    lines.append(f"Window size: {res['window']} days | Number of windows: {res['n_windows']} | Mean R²: {mean_r2:.4f}")
+    lines.append("")
+    lines.append("Time-varying coefficient estimates:")
+    for reg_name, coefs in res['rolling_coef'].items():
+        mean_c = np.nanmean(coefs)
+        std_c = np.nanstd(coefs)
+        lines.append(f"  {reg_name}: μ={mean_c:.6f}, σ={std_c:.6f}")
+    lines.append("")
+    lines.append(f"Period: {res['dates'][0]} to {res['dates'][-1]}")
+    lines.append("")
+    lines.append("<blockquote>~ Kei</blockquote>")
+    return "\n".join(lines)
+
+
+def format_structural_break(res: Dict) -> str:
+    """Format structural break (Chow test) results in Harvard style."""
+    if 'error' in res:
+        return res['error']
+    
+    sig_str = "SIGNIFICANT" if res['significant_5pct'] else "NOT significant"
+    hook = f"Chow test at {res['break_date']}: F={res['chow_statistic']:.4f}, p={res['chow_pval']:.4f} [{sig_str}]"
+    
+    lines = _harvard_header(f"📊 Structural Break Test (Chow); {res['start']}–{res['end']}", hook)
+    lines.append(f"Hypothesized break: {res['break_date']} | Before: {res['n_before']} obs | After: {res['n_after']} obs")
+    lines.append("")
+    lines.append("AR(1) persistence before vs after break:")
+    lines.append(f"  Before: β={res['beta_before']:.6f}, R²={res['r2_before']:.4f}")
+    lines.append(f"  After:  β={res['beta_after']:.6f}, R²={res['r2_after']:.4f}")
+    lines.append(f"  Full:   β=..., R²={res['r2_full']:.4f}")
+    lines.append("")
+    lines.append(f"Chow test: F-statistic = {res['chow_statistic']:.4f}, p-value = {res['chow_pval']:.4f}")
+    lines.append(f"Result: Structural break is {sig_str} at 5% level")
+    lines.append("")
+    lines.append("<blockquote>~ Kei</blockquote>")
+    return "\n".join(lines)
+
+
+def format_aggregation(res: Dict) -> str:
+    """Format frequency aggregation results in Harvard style."""
+    if 'error' in res:
+        return res['error']
+    
+    freq_full = res['freq_full']
+    hook = f"Aggregated to {freq_full}: {res['n_original']} daily → {res['n_aggregated']} periods, μ={res['mean']:.6f}"
+    
+    lines = _harvard_header(f"📊 INDOGB {freq_full} Aggregation; {res['start']}–{res['end']}", hook)
+    lines.append(f"Original (daily): {res['n_original']} obs | Aggregated ({freq_full}): {res['n_aggregated']} obs")
+    lines.append("")
+    lines.append(f"Summary statistics ({freq_full}):")
+    lines.append(f"  Mean:   {res['mean']:.6f}")
+    lines.append(f"  Std:    {res['std']:.6f}")
+    lines.append(f"  Min:    {res['min']:.6f}")
+    lines.append(f"  Max:    {res['max']:.6f}")
+    lines.append("")
+    lines.append("Autocorrelation at aggregated frequency:")
+    for i, acf in enumerate(res['autocorr'], 1):
+        lines.append(f"  lag {i}: {acf:.4f}")
+    lines.append("")
+    lines.append("<blockquote>~ Kei</blockquote>")
+    return "\n".join(lines)
