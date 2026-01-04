@@ -1717,6 +1717,112 @@ def parse_bond_return_query(q: str) -> Optional[Dict]:
     return None
 
 
+def parse_regression_query(q: str) -> Optional[Dict]:
+    """Parse regression queries for AR(1) and other time series models.
+    Supported patterns:
+    - '/kei regres yield 5 year on 5 year at t-1 from 2023 to 2025'
+    - '/kei regres yield 5 year on 5 year at t-1 in 2025'
+    - '/kei regression 10 year from jan 2023 to dec 2025'
+    - '/kei ar1 5 year in q1 2025'
+    
+    Returns Dict with tenor and optional date range, or None if no match.
+    """
+    q_lower = q.lower()
+    
+    # Must contain regression keywords
+    if not any(kw in q_lower for kw in ['regres', 'regression', 'ar(1)', 'ar1', 'autoregressive']):
+        return None
+    
+    # Extract tenor (5 or 10 year) - yield keyword is optional
+    tenor_match = re.search(r'(5|10)\s+year', q_lower)
+    if not tenor_match:
+        return None
+    
+    tenor_num = tenor_match.group(1)
+    tenor = f'{tenor_num:0>2}_year'  # "05_year" or "10_year"
+    
+    # Date parsing helpers
+    month_map = {
+        'jan': 1, 'january': 1,
+        'feb': 2, 'february': 2,
+        'mar': 3, 'march': 3,
+        'apr': 4, 'april': 4,
+        'may': 5,
+        'jun': 6, 'june': 6,
+        'jul': 7, 'july': 7,
+        'aug': 8, 'august': 8,
+        'sep': 9, 'september': 9,
+        'oct': 10, 'october': 10,
+        'nov': 11, 'november': 11,
+        'dec': 12, 'december': 12,
+    }
+    
+    def parse_period_spec(spec):
+        """Parse period: YYYY, Q[1-4] YYYY, Month YYYY"""
+        spec = spec.strip()
+        
+        # Year only: 2025
+        if re.match(r'^\d{4}$', spec):
+            year = int(spec)
+            return date(year, 1, 1), date(year, 12, 31)
+        
+        # Quarter: q1 2025
+        q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_match:
+            quarter = int(q_match.group(1))
+            year = int(q_match.group(2))
+            start_month = 1 + (quarter - 1) * 3
+            start = date(year, start_month, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        
+        # Month year: jan 2023
+        m_match = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_match:
+            month_str = m_match.group(1)
+            year = int(m_match.group(2))
+            if month_str in month_map:
+                month = month_map[month_str]
+                start = date(year, month, 1)
+                end = start + relativedelta(months=1) - timedelta(days=1)
+                return start, end
+        
+        return None
+    
+    # Pattern 1: "from X to Y"
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\.|$)', q_lower)
+    if from_match:
+        from_spec = from_match.group(1).strip()
+        to_spec = from_match.group(2).strip()
+        from_res = parse_period_spec(from_spec)
+        to_res = parse_period_spec(to_spec)
+        if from_res and to_res:
+            return {
+                'tenor': tenor,
+                'start_date': from_res[0],
+                'end_date': to_res[1],
+            }
+    
+    # Pattern 2: "in X"
+    in_match = re.search(r'in\s+(q[1-4]\s+\d{4}|\w+\s+\d{4}|\d{4})', q_lower)
+    if in_match:
+        period_spec = in_match.group(1).strip()
+        period_res = parse_period_spec(period_spec)
+        if period_res:
+            return {
+                'tenor': tenor,
+                'start_date': period_res[0],
+                'end_date': period_res[1],
+            }
+    
+    # No date range - return tenor only (will use all available data)
+    return {
+        'tenor': tenor,
+        'start_date': None,
+        'end_date': None,
+    }
+
+
 def parse_macro_table_query(q: str) -> Optional[Dict]:
     """Parse '/kei tab' macroeconomic data queries for FX/VIX.
     Supported patterns:
@@ -4098,6 +4204,64 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ Error analyzing bond returns: {e}")
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "bond_return", response_time, False, str(e), "kei")
+        return
+    
+    # Detect regression queries (AR(1) and other time series models)
+    lower_q = question.lower()
+    regression_req = parse_regression_query(lower_q)
+    if regression_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import ar1_regression, format_ar1_results
+            
+            tenor = regression_req['tenor']
+            start_date = regression_req.get('start_date')
+            end_date = regression_req.get('end_date')
+            
+            # Get yield series
+            db = get_db()
+            series_result = db.con.execute(f"""
+                SELECT obs_date, AVG("yield") as avg_yield
+                FROM ts
+                WHERE tenor = '{tenor}'
+                  AND "yield" IS NOT NULL
+                GROUP BY obs_date
+                ORDER BY obs_date
+            """).fetchall()
+            
+            if not series_result:
+                await update.message.reply_text(
+                    f"❌ No yield data found for {tenor.replace('_', ' ')}.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+            
+            # Convert to pandas Series
+            dates = [row[0] for row in series_result]
+            yields = [row[1] for row in series_result]
+            series = pd.Series(yields, index=pd.to_datetime(dates))
+            
+            # Run regression
+            results = ar1_regression(series, start_date, end_date)
+            
+            # Format output
+            tenor_display = tenor.replace('_', ' ')
+            formatted_results = format_ar1_results(results, tenor_display)
+            
+            # Add Kei signature
+            full_response = formatted_results + "\n\n<blockquote>~ Kei</blockquote>"
+            
+            await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "regression", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing regression query: {e}")
+            await update.message.reply_text(f"❌ Error running regression: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "regression", response_time, False, str(e), "kei")
         return
     
     # Detect 'tab' bond metric queries (yield/price data across periods)
