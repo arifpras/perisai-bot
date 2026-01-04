@@ -1743,26 +1743,45 @@ def parse_regression_query(q: str) -> Optional[Dict]:
     tenor = f'{tenor_num:0>2}_year'  # "05_year" or "10_year"
     
     # Check for multiple regression pattern: "X on Y and Z" or "X on Y, Z"
+    # Also support lagged predictors: "X on Y at t-1, Z at t-1"
     predictors = []
     on_match = re.search(r'on\s+(.+?)(?:\s+from|\s+in|$)', q_lower)
     if on_match:
         predictors_str = on_match.group(1).strip()
-        # Skip AR(1) patterns
-        if 't-1' not in predictors_str and 'lag' not in predictors_str:
-            # Split by "and" or comma
+        
+        # Check if this is a simple AR(1): "5 year on 5 year at t-1"
+        is_ar1 = (f'{tenor_num} year' in predictors_str and 
+                  ('t-1' in predictors_str or 'lag' in predictors_str) and
+                  'and' not in predictors_str and ',' not in predictors_str)
+        
+        if not is_ar1:
+            # Multiple regression - split by "and" or comma
             predictor_parts = re.split(r'\s+and\s+|,\s*', predictors_str)
             for part in predictor_parts:
                 part = part.strip()
+                
+                # Check for lag specification (at t-1, lagged, lag 1)
+                is_lagged = 't-1' in part or 'lag' in part
+                
                 # Check for other tenor (5 or 10 year)
                 other_tenor_match = re.search(r'(5|10)\s+year', part)
                 if other_tenor_match:
                     other_tenor_num = other_tenor_match.group(1)
-                    predictors.append(f'{other_tenor_num:0>2}_year')
+                    var_name = f'{other_tenor_num:0>2}_year'
+                    if is_lagged:
+                        var_name += '_lag1'
+                    predictors.append(var_name)
                 # Check for macro variables
                 elif 'idrusd' in part or 'fx' in part or 'idr' in part:
-                    predictors.append('idrusd')
+                    var_name = 'idrusd'
+                    if is_lagged:
+                        var_name += '_lag1'
+                    predictors.append(var_name)
                 elif 'vix' in part:
-                    predictors.append('vix')
+                    var_name = 'vix'
+                    if is_lagged:
+                        var_name += '_lag1'
+                    predictors.append(var_name)
     
     # Date parsing helpers
     month_map = {
@@ -4277,12 +4296,16 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 X_dict = {}
                 
                 for predictor in predictors:
-                    if predictor.endswith('_year'):
+                    # Check if this is a lagged variable
+                    is_lagged = predictor.endswith('_lag1')
+                    base_name = predictor.replace('_lag1', '') if is_lagged else predictor
+                    
+                    if base_name.endswith('_year'):
                         # Bond yield predictor
                         X_result = db.con.execute(f"""
                             SELECT obs_date, AVG("yield") as avg_yield
                             FROM ts
-                            WHERE tenor = '{predictor}'
+                            WHERE tenor = '{base_name}'
                               AND "yield" IS NOT NULL
                             GROUP BY obs_date
                             ORDER BY obs_date
@@ -4291,25 +4314,32 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         if X_result:
                             X_dates = [row[0] for row in X_result]
                             X_values = [row[1] for row in X_result]
-                            X_dict[predictor] = pd.Series(X_values, index=pd.to_datetime(X_dates))
+                            X_series = pd.Series(X_values, index=pd.to_datetime(X_dates))
+                            if is_lagged:
+                                X_series = X_series.shift(1)
+                            X_dict[predictor] = X_series
                     
-                    elif predictor == 'idrusd':
+                    elif base_name == 'idrusd':
                         # IDR/USD exchange rate
                         try:
                             fx_df = pd.read_csv('database/idrusd.csv')
                             fx_df['date'] = pd.to_datetime(fx_df['date'])
                             fx_series = pd.Series(fx_df['rate'].values, index=fx_df['date'])
-                            X_dict['idrusd'] = fx_series
+                            if is_lagged:
+                                fx_series = fx_series.shift(1)
+                            X_dict[predictor] = fx_series
                         except Exception as e:
                             logger.warning(f"Could not load IDRUSD data: {e}")
                     
-                    elif predictor == 'vix':
+                    elif base_name == 'vix':
                         # VIX volatility index
                         try:
                             vix_df = pd.read_csv('database/vix.csv')
                             vix_df['date'] = pd.to_datetime(vix_df['date'])
                             vix_series = pd.Series(vix_df['close'].values, index=vix_df['date'])
-                            X_dict['vix'] = vix_series
+                            if is_lagged:
+                                vix_series = vix_series.shift(1)
+                            X_dict[predictor] = vix_series
                         except Exception as e:
                             logger.warning(f"Could not load VIX data: {e}")
                 

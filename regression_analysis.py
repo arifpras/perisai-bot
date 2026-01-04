@@ -408,9 +408,16 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
     report.append(f"<b>Dependent Variable:</b> {y_name}")
     report.append(f"Period: {start} to {end} ({n_obs} observations)\n")
     
-    # Model specification
-    predictor_names = [var.replace('_', ' ').upper() for var in x_vars]
-    report.append(f"<b>Model:</b> {y_name} = α + " + " + ".join([f"β{i+1}·{name}" for i, name in enumerate(predictor_names)]) + " + ε\n")
+    # Model specification with proper lag notation
+    predictor_labels = []
+    for var in x_vars:
+        if var.endswith('_lag1'):
+            base = var.replace('_lag1', '').replace('_', ' ').upper()
+            predictor_labels.append(f"{base}(t-1)")
+        else:
+            predictor_labels.append(var.replace('_', ' ').upper())
+    
+    report.append(f"<b>Model:</b> {y_name} = α + " + " + ".join([f"β{i+1}·{name}" for i, name in enumerate(predictor_labels)]) + " + ε\n")
     
     # Coefficients table
     report.append("<b>Regression Coefficients:</b>")
@@ -424,7 +431,12 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
     for i, var in enumerate(x_vars):
         coef = coeffs[var]
         sig = "***" if coef['pval'] < 0.01 else ("**" if coef['pval'] < 0.05 else ("*" if coef['pval'] < 0.10 else ""))
-        var_display = var.replace('_', ' ').upper()
+        # Format with lag notation if applicable
+        if var.endswith('_lag1'):
+            base = var.replace('_lag1', '').replace('_', ' ').upper()
+            var_display = f"{base}(t-1)"
+        else:
+            var_display = var.replace('_', ' ').upper()
         report.append(f"  β{i+1} ({var_display}) = {coef['coef']:.6f} (SE: {coef['se']:.6f}, t={coef['tstat']:.2f}, p={coef['pval']:.4f}) {sig}")
     
     report.append("")
@@ -442,7 +454,13 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
     for i, var in enumerate(x_vars):
         coef_val = coeffs[var]['coef']
         coef_pval = coeffs[var]['pval']
-        var_display = var.replace('_', ' ')
+        
+        # Format variable name with lag notation
+        if var.endswith('_lag1'):
+            base = var.replace('_lag1', '').replace('_', ' ')
+            var_display = f"{base} (lagged 1 period)"
+        else:
+            var_display = var.replace('_', ' ')
         
         if coef_pval < 0.05:
             direction = "increases" if coef_val > 0 else "decreases"
@@ -451,11 +469,18 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
             report.append(f"  • <b>{var_display}</b> has no significant effect (p={coef_pval:.4f})")
     
     report.append("")
-    
-    # Multicollinearity check
-    report.append("<b>Multicollinearity (VIF):</b>")
-    max_vif = max(vif.values()) if vif else 0
-    for var in x_vars:
+    # Format with lag notation
+        if var.endswith('_lag1'):
+            base = var.replace('_lag1', '').replace('_', ' ').upper()
+            var_label = f"{base}(t-1)"
+        else:
+            var_label = var.replace('_', ' ').upper()
+        
+        if np.isnan(vif_val):
+            report.append(f"  • {var_label}: VIF = N/A")
+        else:
+            vif_status = "✓ OK" if vif_val < 5 else ("⚠ Moderate" if vif_val < 10 else "⛔ High")
+            report.append(f"  • {var_label
         vif_val = vif.get(var, np.nan)
         if np.isnan(vif_val):
             report.append(f"  • {var.replace('_', ' ').upper()}: VIF = N/A")
