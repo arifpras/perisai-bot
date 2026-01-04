@@ -8121,10 +8121,6 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{kin_clean}"
             )
             
-            # Add unified hook before signature
-            if unified_hook:
-                response = f"{response}\n\n<blockquote>{unified_hook}</blockquote>"
-            
             response = f"{response}\n\n<blockquote>~ Kei x Kin</blockquote>"
             
             await update.message.reply_text(response, parse_mode=ParseMode.HTML)
