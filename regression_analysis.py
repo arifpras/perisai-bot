@@ -419,6 +419,9 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
     start = results['start_date']
     end = results['end_date']
     
+    # Generate hook
+    hook = f"R²={r2:.2f}, F-stat={f_stat:.2f}, n={n_obs}"
+    
     # Build report
     report = _harvard_header("📊 INDOGB — Multiple Regression", hook)
     report.append(f"<b>Dependent Variable:</b> {y_name}")
