@@ -290,20 +290,20 @@ KEY METRICS:
 ┌─────────────────────┬──────────────┐
 │ Metric              │        Value │
 ├─────────────────────┼──────────────┤
-│ Price (Start)       │ {m['start_price']:>12.2f}% │
-│ Price (End)         │ {m['end_price']:>12.2f}% │
-│ Price Change        │ {price_change:>12.2f}% │
+│ Price (Start)       │ {m['start_price']:>11.2f}% │
+│ Price (End)         │ {m['end_price']:>11.2f}% │
+│ Price Change        │ {price_change:>11.2f}% │
 ├─────────────────────┼──────────────┤
-│ Yield (Start)       │ {m['start_yield']:>12.2f}% │
-│ Yield (End)         │ {m['end_yield']:>12.2f}% │
-│ Yield Change        │{yield_change_bp:>12.0f} bp │
+│ Yield (Start)       │ {m['start_yield']:>11.2f}% │
+│ Yield (End)         │ {m['end_yield']:>11.2f}% │
+│ Yield Change        │ {yield_change_bp:>9.0f} bp │
 ├─────────────────────┼──────────────┤
-│ Modified Duration   │ {m['modified_duration']:>12.2f}  │
-│ Coupon              │ {m['coupon']:>12.3f}% │
+│ Modified Duration   │ {m['modified_duration']:>11.2f}  │
+│ Coupon              │ {m['coupon']:>11.3f}% │
 ├─────────────────────┼──────────────┤
-│ IDR/USD (Start)     │{int(m['start_fx']):>14,} │
-│ IDR/USD (End)       │{int(m['end_fx']):>14,} │
-│ IDR Depreciation    │ {results['fx_depreciation']:>12.2f}% │
+│ IDR/USD (Start)     │{int(m['start_fx']):>13,} │
+│ IDR/USD (End)       │{int(m['end_fx']):>13,} │
+│ IDR Depreciation    │ {results['fx_depreciation']:>11.2f}% │
 └─────────────────────┴──────────────┘
 ```
 
