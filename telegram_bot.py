@@ -3600,10 +3600,31 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         except Exception:
             is_bond_intent = False
 
-        # Generate Harvard-style hook and prepend to response (if applicable)
+        # Generate Harvard-style hook and insert between headline and content (if applicable)
         hook = generate_kin_harvard_hook(question, content)
         if hook:
-            content = f"{hook}\n\n{content}"
+            # Extract headline (first line starting with emoji or all-caps/title case)
+            lines = content.split('\n')
+            headline = ""
+            content_remainder = content
+            
+            # Look for headline: line with emoji or short headline pattern (max ~80 chars with emoji)
+            for i, line in enumerate(lines):
+                if any(ord(char) > 0x1F300 for char in line):  # Contains emoji
+                    headline = line
+                    content_remainder = '\n'.join(lines[i+1:]).strip()
+                    break
+                elif i == 0 and len(line.strip()) < 100 and line.strip():  # First short line without emoji
+                    headline = line
+                    content_remainder = '\n'.join(lines[i+1:]).strip()
+                    break
+            
+            # Reconstruct with hook in blockquote between headline and content
+            if headline:
+                content = f"{headline}\n\n<blockquote>{hook}</blockquote>\n\n{content_remainder}"
+            else:
+                # No headline detected, just prepend hook as blockquote
+                content = f"<blockquote>{hook}</blockquote>\n\n{content}"
 
         # Convert Markdown code fences to HTML <pre> before wrapping signature
         content = convert_markdown_code_fences_to_html(content)
