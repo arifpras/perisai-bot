@@ -1081,11 +1081,12 @@ def structural_break_test(series: pd.Series, break_date: Optional[str] = None,
     Returns:
         Dictionary with Chow test results
     """
+    # Apply date range filters BEFORE any analysis
     if start_date or end_date:
         if start_date:
-            series = series[series.index >= pd.to_datetime(start_date)]
+            series = series[series.index >= pd.Timestamp(start_date)]
         if end_date:
-            series = series[series.index <= pd.to_datetime(end_date)]
+            series = series[series.index <= pd.Timestamp(end_date)]
     
     if len(series) < 100:
         return {'error': 'Insufficient data for structural break test (need ≥100)'}
