@@ -5601,7 +5601,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 vals = [r[1] for r in res]
                 series = pd.Series(vals, index=pd.to_datetime(dates))
             
-            if not series or len(series) < 60:
+            if len(series) < 60:
                 await update.message.reply_text("❌ Insufficient data for ARIMA (need ≥60 observations).", parse_mode=ParseMode.HTML)
                 return
             
@@ -5672,7 +5672,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 vals = [r[1] for r in res]
                 series = pd.Series(vals, index=pd.to_datetime(dates))
             
-            if not series or len(series) < 60:
+            if len(series) < 60:
                 await update.message.reply_text("❌ Insufficient data for GARCH (need ≥60 observations).", parse_mode=ParseMode.HTML)
                 return
             
