@@ -4445,12 +4445,6 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         except Exception:
             is_bond_intent = False
 
-        hook = generate_kin_harvard_hook(question, content)
-        
-        # Add hook before signature if present
-        if hook:
-            content = f"{content}\n\n<blockquote>{hook}</blockquote>"
-
         # Convert Markdown code fences to HTML <pre> before wrapping signature
         content = convert_markdown_code_fences_to_html(content)
         return html_quote_signature(content)
