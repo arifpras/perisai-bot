@@ -2103,6 +2103,7 @@ def parse_regression_query(q: str) -> Optional[Dict]:
     Supported patterns:
     - '/kei regres yield 5 year on 5 year at t-1 from 2023 to 2025' (AR1)
     - '/kei regres 5 year on 10 year and idrusd in 2025' (Multiple)
+    - '/kei regres 5 year with 10 year and idrusd from 2023 to 2025' (Multiple - 'with' variant)
     - '/kei regres 5 year on 10 year, vix, idrusd from 2023 to 2025' (Multiple)
     - '/kei regression 10 year from jan 2023 to dec 2025' (AR1)
     - '/kei ar1 5 year in q1 2025' (AR1)
@@ -2123,46 +2124,56 @@ def parse_regression_query(q: str) -> Optional[Dict]:
     tenor_num = tenor_match.group(1)
     tenor = f'{tenor_num:0>2}_year'  # "05_year" or "10_year"
     
-    # Check for multiple regression pattern: "X on Y and Z" or "X on Y, Z"
+    # Check for multiple regression pattern: "X on Y and Z" or "X with Y and Z" or "X on Y, Z"
     # Also support lagged predictors: "X on Y at t-1, Z at t-1"
     predictors = []
-    on_match = re.search(r'on\s+(.+?)(?:\s+from|\s+in|$)', q_lower)
-    if on_match:
-        predictors_str = on_match.group(1).strip()
+    
+    # Build a pattern that captures after "dependent tenor on/with predictors"
+    # Find the first occurrence of the dependent tenor, then look for "on" or "with" after it
+    tenor_pattern = f'{tenor_num}\\s+year'
+    tenor_first_match = re.search(tenor_pattern, q_lower)
+    if tenor_first_match:
+        # Search for 'on' or 'with' starting from after the dependent tenor
+        search_start = tenor_first_match.end()
+        remaining = q_lower[search_start:]
+        on_with_match = re.search(r'(?:on|with)\s+(.+?)(?:\s+from|\s+in|$)', remaining)
         
-        # Check if this is a simple AR(1): "5 year on 5 year at t-1"
-        is_ar1 = (f'{tenor_num} year' in predictors_str and 
-                  ('t-1' in predictors_str or 'lag' in predictors_str) and
-                  'and' not in predictors_str and ',' not in predictors_str)
-        
-        if not is_ar1:
-            # Multiple regression - split by "and" or comma
-            predictor_parts = re.split(r'\s+and\s+|,\s*', predictors_str)
-            for part in predictor_parts:
-                part = part.strip()
-                
-                # Check for lag specification (at t-1, lagged, lag 1)
-                is_lagged = 't-1' in part or 'lag' in part
-                
-                # Check for other tenor (5 or 10 year)
-                other_tenor_match = re.search(r'(5|10)\s+year', part)
-                if other_tenor_match:
-                    other_tenor_num = other_tenor_match.group(1)
-                    var_name = f'{other_tenor_num:0>2}_year'
-                    if is_lagged:
-                        var_name += '_lag1'
-                    predictors.append(var_name)
-                # Check for macro variables
-                elif 'idrusd' in part or 'fx' in part or 'idr' in part:
-                    var_name = 'idrusd'
-                    if is_lagged:
-                        var_name += '_lag1'
-                    predictors.append(var_name)
-                elif 'vix' in part:
-                    var_name = 'vix'
-                    if is_lagged:
-                        var_name += '_lag1'
-                    predictors.append(var_name)
+        if on_with_match:
+            predictors_str = on_with_match.group(1).strip()
+            
+            # Check if this is a simple AR(1): "5 year on 5 year at t-1"
+            is_ar1 = (f'{tenor_num} year' in predictors_str and 
+                      ('t-1' in predictors_str or 'lag' in predictors_str) and
+                      'and' not in predictors_str and ',' not in predictors_str)
+            
+            if not is_ar1:
+                # Multiple regression - split by "and" or comma
+                predictor_parts = re.split(r'\s+and\s+|,\s*', predictors_str)
+                for part in predictor_parts:
+                    part = part.strip()
+                    
+                    # Check for lag specification (at t-1, lagged, lag 1)
+                    is_lagged = 't-1' in part or 'lag' in part
+                    
+                    # Check for other tenor (5 or 10 year)
+                    other_tenor_match = re.search(r'(5|10)\s+year', part)
+                    if other_tenor_match:
+                        other_tenor_num = other_tenor_match.group(1)
+                        var_name = f'{other_tenor_num:0>2}_year'
+                        if is_lagged:
+                            var_name += '_lag1'
+                        predictors.append(var_name)
+                    # Check for macro variables
+                    elif 'idrusd' in part or 'fx' in part or 'idr' in part:
+                        var_name = 'idrusd'
+                        if is_lagged:
+                            var_name += '_lag1'
+                        predictors.append(var_name)
+                    elif 'vix' in part:
+                        var_name = 'vix'
+                        if is_lagged:
+                            var_name += '_lag1'
+                        predictors.append(var_name)
     
     # Date parsing helpers
     month_map = {
