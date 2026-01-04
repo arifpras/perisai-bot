@@ -1181,7 +1181,7 @@ def aggregate_frequency(series: pd.Series, freq: str = 'M',
 
 
 def format_arima(res: Dict) -> str:
-    """Format ARIMA results in Harvard style."""
+    """Format ARIMA results."""
     if 'error' in res:
         return res['error']
     
@@ -1209,7 +1209,7 @@ def format_arima(res: Dict) -> str:
 
 
 def format_garch(res: Dict) -> str:
-    """Format GARCH results in Harvard style."""
+    """Format GARCH results."""
     if 'error' in res:
         return res['error']
     
@@ -1232,7 +1232,7 @@ def format_garch(res: Dict) -> str:
 
 
 def format_cointegration(res: Dict) -> str:
-    """Format Johansen cointegration results in Harvard style."""
+    """Format Johansen cointegration results."""
     if 'error' in res:
         return res['error']
     
@@ -1259,7 +1259,7 @@ def format_cointegration(res: Dict) -> str:
 
 
 def format_rolling_regression(res: Dict) -> str:
-    """Format rolling regression results in Harvard style."""
+    """Format rolling regression results."""
     if 'error' in res:
         return res['error']
     
@@ -1282,7 +1282,7 @@ def format_rolling_regression(res: Dict) -> str:
 
 
 def format_structural_break(res: Dict) -> str:
-    """Format structural break (Chow test) results in Harvard style."""
+    """Format structural break (Chow test) results."""
     if 'error' in res:
         return res['error']
     
@@ -1305,7 +1305,7 @@ def format_structural_break(res: Dict) -> str:
 
 
 def format_aggregation(res: Dict) -> str:
-    """Format frequency aggregation results in Harvard style."""
+    """Format frequency aggregation results."""
     if 'error' in res:
         return res['error']
     

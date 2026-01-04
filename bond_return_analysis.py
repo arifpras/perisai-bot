@@ -252,7 +252,7 @@ class ReturnDecomposition:
         price_change = m['end_price'] - m['start_price']
         yield_change_bp = m['yield_move_bp']
         
-        # Generate Harvard-style hook based on key findings
+        # Generate hook based on key findings
         if results['total_idr_pct'] > 0:
             if abs(results['fx_depreciation']) > abs(results['total_idr_pct']) * 0.5:
                 hook = f"IDR bonds delivered {results['total_idr_pct']:.2f}% returns despite FX headwinds from {abs(results['fx_depreciation']):.2f}% currency depreciation."

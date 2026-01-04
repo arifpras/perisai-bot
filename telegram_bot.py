@@ -4116,7 +4116,6 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
                         "<blockquote>~ Kei</blockquote>"
                     )
                     return html_quote_signature(convert_markdown_code_fences_to_html(identity_response))
-                # Generate Harvard-style hook for Kei responses
                 hook = generate_kei_harvard_hook(question, content)
 
                 # Identify headline and body to insert hook cleanly
@@ -4446,7 +4445,6 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         except Exception:
             is_bond_intent = False
 
-        # Generate Harvard-style hook from content (first meaningful sentence) to place before signature
         hook = generate_kin_harvard_hook(question, content)
         
         # Add hook before signature if present
@@ -4469,10 +4467,7 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
 
 
 def generate_kin_harvard_hook(question: str, response: str) -> str:
-    """Generate a Harvard-style hook for /kin responses — summary of the question context.
-    
-    Skips identity/pantun questions; uses the question as the hook, truncated to ~180 chars.
-    """
+    """Extract hook from response — first meaningful sentence."""
     q_lower = question.lower()
     
     # Identity/personality questions - no hook needed
@@ -4522,10 +4517,7 @@ def generate_kin_harvard_hook(question: str, response: str) -> str:
 
 
 def generate_kei_harvard_hook(question: str, response_body: str) -> str:
-    """Generate a short hook for Kei — extract key insight from response content.
-
-    Skips identity questions; extracts first meaningful sentence from response, truncated to ~180 chars.
-    """
+    """Extract hook from response — first meaningful sentence."""
     q_lower = question.lower()
     identity_keywords = ["who are you", "what is your role", "what do you do", "tell me about yourself", "describe yourself"]
     if any(kw in q_lower for kw in identity_keywords):
@@ -4569,11 +4561,7 @@ def generate_kei_harvard_hook(question: str, response_body: str) -> str:
 
 
 def generate_unified_hook_for_both(combined_content: str) -> str:
-    """Generate a unified Harvard-style hook from combined Kei + Kin content.
-    
-    Extracts the first meaningful sentence after skipping headlines and the separator.
-    For /both, we want a hook that captures the essence of the combined analysis.
-    """
+    """Extract hook from combined Kei + Kin content."""
     if not combined_content:
         return ""
     
@@ -5001,7 +4989,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             analysis_text = analyze_bond_returns(tenor, start_date, end_date)
             
-            # Add Harvard-style hook (question summary)
+            # Add hook
             hook = generate_kei_harvard_hook(question, analysis_text)
             if hook:
                 # Insert hook between headline and content
@@ -8112,12 +8100,12 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Strip individual persona signatures and hooks from both answers
             # Remove both old-style (________) and new-style (<blockquote>) signatures and hooks
             def strip_signature_and_hook(answer):
-                """Remove trailing signature lines and Harvard-style hooks."""
+                """Remove trailing signature lines and hooks."""
                 # Remove all blockquote signatures (anywhere, not just end of string)
                 answer = re.sub(r'<blockquote>~\s+(Kei|Kin|Kei x Kin|Kei & Kin)</blockquote>', '', answer, flags=re.IGNORECASE)
                 # Remove any remaining plain text signatures (~ Kei, ~ Kin, ~ Kei x Kin)
                 answer = re.sub(r'\n*~\s+(Kei|Kin|Kei x Kin|Kei & Kin)\s*$', '', answer, flags=re.IGNORECASE | re.MULTILINE)
-                # Remove Harvard-style hooks (blockquoted text before signature that's not a signature itself)
+                # Remove hooks (blockquoted text before signature that's not a signature itself)
                 # Find and remove <blockquote>...any content...</blockquote> that appears near the end
                 answer = re.sub(r'\n*<blockquote>(?!~)(.*?)</blockquote>\s*$', '', answer, flags=re.IGNORECASE | re.DOTALL)
                 # Then remove old-style ________ signatures
@@ -8130,7 +8118,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kei_clean = strip_signature_and_hook(kei_answer)
             kin_clean = strip_signature_and_hook(kin_answer)
             
-            # Generate unified Harvard-style hook from combined content
+            # Generate unified hook from combined content
             combined_content = f"{kei_clean}\n\n---\n\n{kin_clean}"
             unified_hook = generate_unified_hook_for_both(combined_content)
             
