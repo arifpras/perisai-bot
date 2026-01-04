@@ -1780,6 +1780,14 @@ def parse_arima_query(q: str) -> Optional[Dict]:
         to_res = parse_period_spec(from_match.group(2))
         if from_res and to_res:
             start_date, end_date = from_res[0], to_res[1]
+    else:
+        # Check for 'in YYYY' or 'in month YYYY' or 'in qN YYYY' format
+        in_match = re.search(r'in\s+(.+?)(?:\s|$)', q_lower)
+        if in_match:
+            in_spec = in_match.group(1).strip()
+            in_res = parse_period_spec(in_spec)
+            if in_res:
+                start_date, end_date = in_res
     
     return {'tenor': tenor, 'order': (p, d, q), 'start_date': start_date, 'end_date': end_date}
 
@@ -1849,6 +1857,14 @@ def parse_garch_query(q: str) -> Optional[Dict]:
         to_res = parse_period_spec(from_match.group(2))
         if from_res and to_res:
             start_date, end_date = from_res[0], to_res[1]
+    else:
+        # Check for 'in YYYY' or 'in month YYYY' or 'in qN YYYY' format
+        in_match = re.search(r'in\s+(.+?)(?:\s|$)', q_lower)
+        if in_match:
+            in_spec = in_match.group(1).strip()
+            in_res = parse_period_spec(in_spec)
+            if in_res:
+                start_date, end_date = in_res
     
     return {'tenor': tenor, 'order': (p, q), 'start_date': start_date, 'end_date': end_date}
 
