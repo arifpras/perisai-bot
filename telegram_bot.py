@@ -3731,36 +3731,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning("Unauthorized access attempt from user_id=%s", user_id)
         return
     
+    # Generate current date dynamically
+    from datetime import datetime
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    
     welcome_text = (
-        "<b>PerisAI</b> — Indonesian Bond & Auction Analysis\n"
-        "<b>v.0427 (as of 2026-01-03)</b>\n"
-        f"© Arif P. Sulistiono\n\n"
-        "<b>Two Personas</b>\n"
-        "<b>/kei</b> — Kei: Quantitative partner (CFA, MIT-style); tables, stats, modeling\n"
-        "<b>/kin</b> — Kin: Macro storyteller (CFA, Harvard PhD); plots, context, strategy\n"
-        "<b>/both</b> — Dual analysis: Kei table → Kin strategic insight (clean single headline)\n\n"
-        "<b>Data Commands</b>\n"
-        "<b>/check</b> — Quick single-date lookup (with business day info)\n"
-        "<b>/examples</b> — Full query syntax reference\n\n"
-        "<b>Quick Examples</b>\n"
-        "• /kei tab yield 5 and 10 year from dec 2023 to jan 2024\n"
-        "• /kei tab incoming bid from 2020 to 2024\n"        
-        "• /kin plot yield 5 year from oct 2024 to mar 2025\n"
-        "• /both auction demand in 2026\n"
-        "• /both compare yield 5 and 10 year 2024 vs 2025\n"
-        "• /check 2025-12-08 5 and 10 year\n\n"
-        "<b>Response Format</b>\n"
-        "<b>Tables:</b> Economist-style with Min/Max/Avg statistics\n"
-        "<b>Plots:</b> Multi-tenor curves\n"
-        "<b>Dual:</b> Kei table + Kin analysis (strategic, via Perplexity)\n"
-        "<b>💡 Try asking:</b> /kin who are you? · /kei buatkan pantun · /both what matters?\n\n"
-        "<b>📊 Data Coverage</b>\n"
-        "• <b>Bond Prices & Yields:</b> 2023–2026 (INDOGB, FR-series, 5Y/10Y tenors)\n"
-        "• <b>Auction Historical:</b> 2010–2025 (incoming + awarded bids)\n"
-        "• <b>Auction Forecast 2026:</b> ML Ensemble (4 models)\n"
-        "  - Random Forest (R²=0.7753) | Gradient Boosting (R²=0.7548) | AdaBoost (R²=0.7697) | Stepwise (R²=0.7588)\n"
-        "• <b>Updates:</b> Daily (weekdays only, excluding Indonesian public holidays)"
-    )
+        "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
+        f"<b>v.0432 (as of {current_date})</b>\n"
+        "© Arif P. Sulistiono\n\n"
+        "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
+        "and policy-oriented insight.\n\n"
+        "<b>Personas</b>\n"
+        "<b>/kei</b> — Quant partner (CFA, MIT-style): tables, stats, models\n"
+        "<b>/kin</b> — Macro & policy lens (CFA, Harvard PhD-style): context, trade-offs\n"
+        "<b>/both</b> — Evidence → insight, one clear headline\n\n"
+        "<b>Core Commands</b>\n"
+        "<b>/check</b> — Single-date lookup\n"
+        "<b>/examples</b> — Query guide & use cases\n\n"
+        "Always on. Fast, structured, and transparent."
+        )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
 
 
