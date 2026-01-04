@@ -2510,13 +2510,18 @@ def parse_macro_table_query(q: str) -> Optional[Dict]:
         return None
     
     # Extract metric: 'idrusd', 'fx', 'vix', or 'both'
+    # Check for 'both' case FIRST (either explicit 'both' or both series mentioned with 'and')
     metric = None
-    if 'idrusd' in q or 'fx' in q:
-        metric = 'idrusd'
-    elif 'vix' in q and 'idrusd' not in q and 'fx' not in q:
-        metric = 'vix'
-    elif 'both' in q or ('idrusd' in q and 'vix' in q) or ('fx' in q and 'vix' in q):
+    has_idrusd = 'idrusd' in q or 'fx' in q
+    has_vix = 'vix' in q
+    
+    if 'both' in q or (has_idrusd and has_vix and ' and ' in q):
+        # Explicit 'both' or 'idrusd and vix' pattern
         metric = 'both'
+    elif has_idrusd and not has_vix:
+        metric = 'idrusd'
+    elif has_vix and not has_idrusd:
+        metric = 'vix'
     else:
         return None
     
