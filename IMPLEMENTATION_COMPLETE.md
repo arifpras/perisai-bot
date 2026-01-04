@@ -38,9 +38,10 @@ Successfully added 6 new advanced time-series and regression analysis methods to
 
 ### 5. **Structural Break** — Chow Test
 - **Purpose**: Formally test coefficient changes at hypothesized break point
-- **Syntax**: `/kei chow 5 year [on YYYY-MM-DD] [from START to END]`
+- **Syntax**: `/kei chow 5 year [in 8 sep 2025] [from START to END | in YYYY | in Q1 2025 | in jan 2025]`
+- **Assets**: Bonds (5/10 year), currencies (idrusd, indogb), volatility (vix)
 - **Output**: Chow F-statistic, p-value, β before/after, significance
-- **Status**: ✅ Working
+- **Status**: ✅ Working (v.0477: added macro variables + period filtering)
 
 ### 6. **Frequency Aggregation** — Resampling
 - **Purpose**: Resample daily yields to weekly/monthly/quarterly/yearly frequencies
@@ -134,7 +135,10 @@ Successfully added 6 new advanced time-series and regression analysis methods to
 
 # Structural Break
 /kei chow 5 year from 2023 to 2025
-/kei chow 5 year on 2025-09-08 in 2024
+/kei chow 10 year in 8 sep 2025 in 2025
+/kei break idrusd in jan 2025
+/kei break vix from q1 2024 to q4 2024
+/kei structural indogb in 2025
 
 # Frequency Aggregation
 /kei agg 5 year monthly from 2023 to 2025
