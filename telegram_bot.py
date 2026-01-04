@@ -5631,69 +5631,6 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             metrics.log_query(user_id, username, question, "garch", response_time, False, str(e), "kei")
         return
     
-    # Cointegration queries
-    coint_req = parse_cointegration_query(lower_q)
-    if coint_req:
-        try:
-            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
-        except Exception:
-            pass
-        try:
-            from regression_analysis import cointegration_test, format_cointegration
-            db = get_db()
-            
-            series_dict = {}
-            for var in coint_req['variables']:
-                if var.endswith('_year'):
-                    res = db.con.execute(f"""
-                        SELECT obs_date, AVG("yield") as avg_yield
-                        FROM ts
-                        WHERE tenor = '{var}' AND "yield" IS NOT NULL
-                        GROUP BY obs_date
-                        ORDER BY obs_date
-                    """).fetchall()
-                    if res:
-                        dates = [r[0] for r in res]
-                        vals = [r[1] for r in res]
-                        series_dict[var] = pd.Series(vals, index=pd.to_datetime(dates))
-                elif var == 'idrusd':
-                    try:
-                        df_macro = pd.read_csv('database/20260102_daily01.csv')
-                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
-                        series_dict['idrusd'] = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
-                    except:
-                        pass
-                elif var == 'vix':
-                    try:
-                        df_macro = pd.read_csv('database/20260102_daily01.csv')
-                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
-                        series_dict['vix'] = pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
-                    except:
-                        pass
-            
-            if len(series_dict) < 2:
-                await update.message.reply_text("❌ Could not load required series.", parse_mode=ParseMode.HTML)
-                return
-            
-            coint_res = cointegration_test(series_dict, 
-                                           start_date=coint_req['start_date'], 
-                                           end_date=coint_req['end_date'])
-            
-            if 'error' in coint_res:
-                await update.message.reply_text(f"❌ Cointegration error: {coint_res['error']}", parse_mode=ParseMode.HTML)
-            else:
-                formatted = format_cointegration(coint_res)
-                full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
-                await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
-            response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "cointegration", response_time, True, "success", "kei")
-        except Exception as e:
-            logger.error(f"Error processing cointegration query: {e}")
-            await update.message.reply_text(f"❌ Error running cointegration test: {e}", parse_mode=ParseMode.HTML)
-            response_time = time.time() - start_time
-            metrics.log_query(user_id, username, question, "cointegration", response_time, False, str(e), "kei")
-        return
-    
     # Rolling regression queries
     rolling_req = parse_rolling_query(lower_q)
     if rolling_req:
@@ -5888,6 +5825,69 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ Error running aggregation: {e}", parse_mode=ParseMode.HTML)
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "aggregation", response_time, False, str(e), "kei")
+        return
+    
+    # Cointegration queries (must be BEFORE auction table queries to avoid "from" keyword collision)
+    coint_req = parse_cointegration_query(lower_q)
+    if coint_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            from regression_analysis import cointegration_test, format_cointegration
+            db = get_db()
+            
+            series_dict = {}
+            for var in coint_req['variables']:
+                if var.endswith('_year'):
+                    res = db.con.execute(f"""
+                        SELECT obs_date, AVG("yield") as avg_yield
+                        FROM ts
+                        WHERE tenor = '{var}' AND "yield" IS NOT NULL
+                        GROUP BY obs_date
+                        ORDER BY obs_date
+                    """).fetchall()
+                    if res:
+                        dates = [r[0] for r in res]
+                        vals = [r[1] for r in res]
+                        series_dict[var] = pd.Series(vals, index=pd.to_datetime(dates))
+                elif var == 'idrusd':
+                    try:
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        series_dict['idrusd'] = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
+                    except:
+                        pass
+                elif var == 'vix':
+                    try:
+                        df_macro = pd.read_csv('database/20260102_daily01.csv')
+                        df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                        series_dict['vix'] = pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
+                    except:
+                        pass
+            
+            if len(series_dict) < 2:
+                await update.message.reply_text("❌ Could not load required series.", parse_mode=ParseMode.HTML)
+                return
+            
+            coint_res = cointegration_test(series_dict, 
+                                           start_date=coint_req['start_date'], 
+                                           end_date=coint_req['end_date'])
+            
+            if 'error' in coint_res:
+                await update.message.reply_text(f"❌ Cointegration error: {coint_res['error']}", parse_mode=ParseMode.HTML)
+            else:
+                formatted = format_cointegration(coint_res)
+                full_response = formatted + "\n\n<blockquote>~ Kei</blockquote>"
+                await update.message.reply_text(full_response, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "cointegration", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing cointegration query: {e}")
+            await update.message.reply_text(f"❌ Error running cointegration test: {e}", parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "cointegration", response_time, False, str(e), "kei")
         return
     
     # Detect 'tab' bond metric queries (yield/price data across periods)
