@@ -1998,10 +1998,6 @@ def parse_rolling_query(q: str) -> Optional[Dict]:
             start_date, end_date = from_res[0], to_res[1]
     
     return {'tenor': tenor, 'predictors': predictors, 'window': window, 'start_date': start_date, 'end_date': end_date}
-        if from_res and to_res:
-            start_date, end_date = from_res[0], to_res[1]
-    
-    return {'tenor': tenor, 'predictors': predictors, 'window': window, 'start_date': start_date, 'end_date': end_date}
 
 
 def parse_structural_break_query(q: str) -> Optional[Dict]:
@@ -4823,7 +4819,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
-        f"<b>v.0466 (as of {current_date})</b>\n"
+        f"<b>v.0469 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
         "and policy-oriented insight.\n\n"
