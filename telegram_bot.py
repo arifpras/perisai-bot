@@ -1774,7 +1774,7 @@ def parse_arima_query(q: str) -> Optional[Dict]:
         return None
     
     start_date = end_date = None
-    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q_lower)
     if from_match:
         from_res = parse_period_spec(from_match.group(1))
         to_res = parse_period_spec(from_match.group(2))
@@ -1926,7 +1926,7 @@ def parse_cointegration_query(q: str) -> Optional[Dict]:
         return None
     
     start_date = end_date = None
-    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q_lower)
     if from_match:
         from_res = parse_period_spec(from_match.group(1))
         to_res = parse_period_spec(from_match.group(2))
@@ -2013,7 +2013,7 @@ def parse_rolling_query(q: str) -> Optional[Dict]:
         return None
     
     start_date = end_date = None
-    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q_lower)
     if from_match:
         from_res = parse_period_spec(from_match.group(1))
         to_res = parse_period_spec(from_match.group(2))
@@ -2099,7 +2099,7 @@ def parse_structural_break_query(q: str) -> Optional[Dict]:
         return None
     
     start_date = end_date = None
-    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q_lower)
     if from_match:
         from_res = parse_period_spec(from_match.group(1))
         to_res = parse_period_spec(from_match.group(2))
@@ -2171,7 +2171,7 @@ def parse_aggregation_query(q: str) -> Optional[Dict]:
         return None
     
     start_date = end_date = None
-    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\s|$)', q_lower)
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q_lower)
     if from_match:
         from_res = parse_period_spec(from_match.group(1))
         to_res = parse_period_spec(from_match.group(2))
@@ -2307,7 +2307,7 @@ def parse_regression_query(q: str) -> Optional[Dict]:
         return None
     
     # Pattern 1: "from X to Y"
-    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+?)(?:\.|$)', q_lower)
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q_lower)
     if from_match:
         from_spec = from_match.group(1).strip()
         to_spec = from_match.group(2).strip()
