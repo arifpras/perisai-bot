@@ -4867,7 +4867,8 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>3. Bond Plots (Multi-tenor curves with clean analysis)</b>\n"
         "• /kin plot yield 5 and 10 year from oct 2024 to mar 2025\n"
         "• /kin plot price 5 year from q3 2023 to q2 2024\n"
-        "• /kin plot yield 5 and 10 year from 2023 to 2024\n\n"
+        "• /kin plot yield 5 and 10 year from 2023 to 2024\n"
+        "• /kin plot price 10 year with fx and vix from 2023 to 2025\n\n"
         
         "<b>4. Dual Analysis (Kei table → Kin strategic insight)</b>\n"
         "<i>For bonds:</i>\n"
@@ -4885,14 +4886,40 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /check price 5 year 6 Dec 2024\n"
         "• /check yield 5 and 10 year 2025-12-06 ← Shows 'Saturday — markets closed'\n\n"
         
-        "<b>6. Persona Conversations</b>\n"
+        "<b>6. Advanced Statistical Analysis</b>\n"
+        "<u>ARIMA Time-Series Forecasting:</u>\n"
+        "• /kei arima 5 year p=1 d=1 q=1 from 2023 to 2025\n"
+        "• /kei arima idrusd p=1 d=1 q=2 from 2023 to 2025\n"
+        "<u>GARCH Volatility Modeling:</u>\n"
+        "• /kei garch 5 year p=1 q=1 from 2024 to 2025\n"
+        "• /kei garch usdidr p=1 q=1 from 2023 to 2025\n"
+        "• /kei garch vix p=1 q=1 from 2023 to 2025\n"
+        "<u>Rolling Regression with Predictors:</u>\n"
+        "• /kei rolling 5 year with vix window=90 from 2023 to 2025\n"
+        "• /kei rolling usdidr with vix window=90 from 2023 to 2025\n"
+        "<u>Cointegration & Long-Run Relationships:</u>\n"
+        "• /kei coint 5 year and 10 year from 2023 to 2025\n"
+        "• /kei coint 5 year and usdidr from 2023 to 2025\n"
+        "<u>Structural Break Detection:</u>\n"
+        "• /kei break 5 year from 2023 to 2025\n"
+        "• /kei break usdidr from 2023 to 2025\n\n"
+        
+        "<b>7. Persona Conversations</b>\n"
         "• /kei who are you? → Learn Kei's quantitative approach\n"
         "• /kin buatkan pantun tentang pagi → Kin creates 4-line ABAB pantun\n"
         "• /both what matters for Indonesia bonds? → Dual perspective\n\n"
         
+        "<b>8. Bond Return Decomposition</b>\n"
+        "• /kei analyze indonesia 5 year bond returns → Carry + Duration + Roll-Down + FX\n"
+        "• /kei bond return attribution 2023 to 2025\n\n"
+        
         "<b>Output Formats Explained</b>\n"
         "<u>Tables:</u> Economist-style borders, right-aligned numbers, summary stats\n"
-        "<u>Plots:</u> Professional styling, multi-tenor overlays\n"
+        "<u>Plots:</u> Professional styling, multi-tenor overlays with macro context\n"
+        "<u>ARIMA:</u> Model diagnostics, coefficients, forecast with confidence intervals\n"
+        "<u>GARCH:</u> Conditional volatility, persistence coefficient, mean-reversion\n"
+        "<u>Rolling Reg:</u> Time-varying coefficients, R² evolution, regime changes\n"
+        "<u>Cointegration:</u> Trace/eigenvalue test results, cointegrating vector\n"
         "<u>Dual:</u> Kei table → Kin strategic analysis\n\n"
         
         "<b>Date Formats Supported</b>\n"
@@ -4902,13 +4929,18 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Year ranges: from 2020 to 2024 OR 2020-2024 (both work)\n"
         "• Single years: in 2026 OR just 2026 (both work)\n\n"
         
-        "<b>Tenors Available</b>\n"
-        "5 year, 10 year\n\n"
+        "<b>Assets & Tenors Available</b>\n"
+        "<u>Bonds:</u> 5 year, 10 year\n"
+        "<u>Currencies:</u> usdidr, idrusd, indogb, gbpidr\n"
+        "<u>Macro:</u> vix (volatility index)\n\n"
         
         "<b>Tips & Tricks</b>\n"
-        "• /kei: Tables only, strict quantitative analysis\n"
+        "• /kei: Tables & statistical analysis, strict quantitative\n"
         "• /kin: Plots + macro context, Perplexity web search enabled\n"
         "• /both: Chains Kei (numbers) → Kin (strategy)\n"
+        "• Rolling regression supports currency pairs + VIX predictor\n"
+        "• ARIMA/GARCH work on bonds and macro assets (usdidr, vix)\n"
+        "• Cointegration tests any pair of supported assets\n"
         "• Date ranges auto-expand (q3 2023 to q2 2024 = 4 quarters)\n"
         "• Forecast detection automatic (2026+ periods show as projections)\n"
         "• /check shows business day status automatically\n"
@@ -4924,7 +4956,7 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Each persona will firmly but politely decline and reaffirm who they are.\n\n"
         
         "<b>Data Coverage</b>\n"
-        "Bonds: 2023–2025 (historical) · Auctions: 2010–2026 (forecast) · Updates daily"
+        "Bonds: 2023–2025 (historical) · Currencies: 2023–2025 · Auctions: 2010–2026 (forecast) · Updates daily"
     )
     await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
 

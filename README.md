@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0467 (as of 2026-01-04)
+**Version:** Perisai v.0468 (as of 2026-01-04)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -125,6 +125,40 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 /check 2025-12-08 10 year
 /check price 5 year 6 Dec 2024
 /check yield 5 and 10 year 2025-12-06  # Shows "Saturday — markets closed"
+
+# Advanced Statistical Analysis
+
+## ARIMA Time-Series Forecasting
+/kei arima 5 year p=1 d=1 q=1 from 2023 to 2025
+/kei arima 10 year p=2 d=1 q=1 from 2024 to 2025
+/kei arima idrusd p=1 d=1 q=2 from 2023 to 2025
+# Output: AR/I/MA components, model diagnostics, forecast with confidence intervals
+
+## GARCH Volatility Modeling
+/kei garch 5 year p=1 q=1 from 2024 to 2025
+/kei garch 10 year p=1 q=1 from 2023 to 2025
+/kei garch usdidr p=1 q=1 from 2023 to 2025
+/kei garch vix p=1 q=1 from 2023 to 2025
+# Output: Conditional volatility, persistence coefficient, mean-reversion analysis
+
+## Rolling Regression with Market Predictors
+/kei rolling 5 year with vix window=90 from 2023 to 2025
+/kei rolling 10 year with vix window=60 from 2024 to 2025
+/kei rolling usdidr with vix window=90 from 2023 to 2025
+/kei rolling indogb with vix window=120 from 2023 to 2025
+# Output: Time-varying regression coefficients, regime changes, rolling R²
+
+## Cointegration & Long-Run Relationships
+/kei coint 5 year and 10 year from 2023 to 2025
+/kei coint 5 year and usdidr from 2023 to 2025
+/kei coint usdidr and vix from 2023 to 2025
+# Output: Cointegration test results, Johansen trace/eigenvalue statistics, beta estimates
+
+## Structural Break Detection
+/kei break 5 year from 2023 to 2025
+/kei break 10 year from 2023 to 2025
+/kei break usdidr from 2023 to 2025
+# Output: Break dates, persistence before/after, statistical significance tests
 
 # Bond return decomposition (quantitative)
 /kei analyze indonesia 5 year bond returns
