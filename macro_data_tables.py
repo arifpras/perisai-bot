@@ -240,10 +240,6 @@ class MacroDataFormatter:
         if df.empty:
             return "⚠️ No valid IDR/USD data found for the specified period (may be holiday)."
         
-        # Select every Nth row to limit table size (show ~20 rows max)
-        step = max(1, len(df) // 20)
-        df = df.iloc[::step].reset_index(drop=True)
-        
         rows = []
         for _, row in df.iterrows():
             rows.append([
@@ -274,10 +270,6 @@ class MacroDataFormatter:
         if df.empty:
             return "⚠️ No valid VIX data found for the specified period (may be holiday)."
         
-        # Select every Nth row to limit table size (show ~20 rows max)
-        step = max(1, len(df) // 20)
-        df = df.iloc[::step].reset_index(drop=True)
-        
         rows = []
         for _, row in df.iterrows():
             rows.append([
@@ -307,10 +299,6 @@ class MacroDataFormatter:
         
         if df.empty:
             return "⚠️ No valid macro data found for the specified period (may be holiday)."
-        
-        # Select every Nth row to limit table size (show ~20 rows max)
-        step = max(1, len(df) // 20)
-        df = df.iloc[::step].reset_index(drop=True)
         
         rows = []
         for _, row in df.iterrows():
