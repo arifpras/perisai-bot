@@ -1875,19 +1875,26 @@ def parse_cointegration_query(q: str) -> Optional[Dict]:
     if 'coint' not in q_lower and 'cointegr' not in q_lower:
         return None
     
-    # Extract two variables to test
+    # Extract variables: tenors and/or macro variables
+    variables = []
+    
+    # Check for bond tenors
     tenor_matches = re.findall(r'(5|10)\s+year', q_lower)
-    if len(tenor_matches) < 2:
+    for tenor in tenor_matches:
+        variables.append(f"{tenor:0>2}_year")
+    
+    # Check for macro variables
+    if 'idrusd' in q_lower or 'fx' in q_lower:
+        variables.append('idrusd')
+    if 'vix' in q_lower:
+        variables.append('vix')
+    
+    # Need at least 2 variables for cointegration
+    if len(variables) < 2:
         return None
     
-    var1 = f"{tenor_matches[0]:0>2}_year"
-    var2 = f"{tenor_matches[1]:0>2}_year"
-    
-    # Check for other variables
-    if 'idrusd' in q_lower or 'fx' in q_lower:
-        var2 = 'idrusd'
-    elif 'vix' in q_lower:
-        var2 = 'vix'
+    # Take first two variables
+    var1, var2 = variables[0], variables[1]
     
     month_map = {
         'jan':1,'january':1,'feb':2,'february':2,'mar':3,'march':3,
