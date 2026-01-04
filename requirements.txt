@@ -17,4 +17,4 @@ openai
 # Forecasting models
 statsmodels
 prophet
-scikit-learn
+scikit-learnarch
