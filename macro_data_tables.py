@@ -311,6 +311,80 @@ class MacroDataFormatter:
         return "🌍 Macroeconomic Indicators: Currency & Volatility\n```\n" + \
                self._format_economist_table(rows, ['Date', 'IDR/USD', 'VIX'], {1: 'fx', 2: 'vix'}) + \
                "\n```"
+    
+    def format_macro_comparison_table(self, start_date: str, end_date: str, series_list: list) -> str:
+        """Format comparison table for multiple macro series side-by-side.
+        
+        Parameters:
+        -----------
+        start_date : str
+            'YYYY-MM-DD' format
+        end_date : str
+            'YYYY-MM-DD' format
+        series_list : list
+            List of series names to compare (e.g., ['idrusd', 'vix'])
+        
+        Returns:
+        --------
+        str : Formatted economist-style comparison table
+        """
+        if not series_list or len(series_list) < 2:
+            return "❌ Please provide at least 2 series to compare (e.g., 'idrusd and vix')."
+        
+        start = self._parse_date(start_date)
+        end = self._parse_date(end_date)
+        
+        # Validate series names
+        valid_series = {'idrusd', 'fx', 'vix', 'vix_index'}
+        series_normalized = []
+        for s in series_list:
+            s_lower = s.lower().strip()
+            if s_lower in ['idrusd', 'fx']:
+                series_normalized.append('idrusd')
+            elif s_lower in ['vix', 'vix_index']:
+                series_normalized.append('vix_index')
+            else:
+                return f"❌ Unknown series: {s}. Supported: idrusd/fx, vix"
+        
+        # Remove duplicates while preserving order
+        series_normalized = list(dict.fromkeys(series_normalized))
+        
+        # Get data
+        df = self.macro_data[
+            (self.macro_data['date'] >= start) &
+            (self.macro_data['date'] <= end)
+        ].copy()
+        
+        if df.empty:
+            return "⚠️ No macro data found for the specified period."
+        
+        # Filter out rows with any NaN in requested series
+        df = df.dropna(subset=series_normalized).copy()
+        
+        if df.empty:
+            return "⚠️ No valid data found for the specified series and period (may be holiday)."
+        
+        # Prepare rows for table
+        rows = []
+        for _, row in df.iterrows():
+            row_data = [row['date'].strftime('%d %b %Y')]
+            for series in series_normalized:
+                row_data.append(row[series])
+            rows.append(row_data)
+        
+        # Create headers and format spec
+        headers = ['Date'] + [('IDR/USD' if s == 'idrusd' else 'VIX') for s in series_normalized]
+        col_formats = {}
+        for idx, series in enumerate(series_normalized, start=1):
+            col_formats[idx] = 'fx' if series == 'idrusd' else 'vix'
+        
+        # Generate title
+        series_names = ' & '.join([('IDR/USD' if s == 'idrusd' else 'VIX') for s in series_normalized])
+        title = f"📊 Comparison: {series_names}"
+        
+        return f"{title}\n```\n" + \
+               self._format_economist_table(rows, headers, col_formats) + \
+               "\n```"
 
 
 def format_macro_table(metric: str, start_date: str, end_date: str) -> str:

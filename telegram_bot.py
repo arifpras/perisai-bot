@@ -2597,6 +2597,121 @@ def parse_macro_table_query(q: str) -> Optional[Dict]:
     return None
 
 
+def parse_macro_comparison_query(q: str) -> Optional[Dict]:
+    """Parse macro series comparison queries: '/kei tab idrusd and vix in jan 2024'
+    
+    Supported patterns:
+    - '/kei tab idrusd and vix in jan 2024'
+    - '/kei tab idrusd and vix from dec 2023 to jan 2024'
+    - '/kei tab vix and idrusd in 2024'
+    - '/kei tab idrusd and vix from q1 2023 to q4 2024'
+    
+    Returns dict: {'series': ['idrusd', 'vix'], 'start_date': date, 'end_date': date} or None
+    """
+    q_lower = q.lower()
+    if 'tab' not in q_lower or ' and ' not in q_lower:
+        return None
+    
+    # Check if this looks like a multi-series query (has 'and' between series names)
+    has_idrusd = 'idrusd' in q_lower or 'fx' in q_lower
+    has_vix = 'vix' in q_lower
+    
+    if not (has_idrusd and has_vix):
+        return None  # Not a comparison query
+    
+    # Extract the series in order
+    series = []
+    if 'idrusd' in q_lower:
+        series.append('idrusd')
+    if 'vix' in q_lower:
+        series.append('vix')
+    
+    # Remove 'tab' and 'and' to simplify date extraction
+    q_clean = q_lower.replace('tab', '').replace(' and ', ' ')
+    for s in ['idrusd', 'fx', 'vix']:
+        q_clean = q_clean.replace(s, '')
+    
+    # Month and quarter mappings
+    month_map = {
+        'jan':1, 'january':1, 'feb':2, 'february':2, 'mar':3, 'march':3,
+        'apr':4, 'april':4, 'may':5, 'jun':6, 'june':6, 'jul':7, 'july':7,
+        'aug':8, 'august':8, 'sep':9, 'sept':9, 'september':9, 'oct':10,
+        'october':10, 'nov':11, 'november':11, 'dec':12, 'december':12
+    }
+    
+    def parse_period_spec(spec: str) -> Optional[tuple]:
+        spec = spec.strip().lower()
+        
+        # ISO date pattern: 2024-12-01
+        iso_match = re.match(r'^(\d{4})-(\d{2})-(\d{2})$', spec)
+        if iso_match:
+            year, month, day = map(int, iso_match.groups())
+            try:
+                d = date(year, month, day)
+                return d, d
+            except ValueError:
+                return None
+        
+        # Quarter pattern: q1 2024
+        q_match = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_match:
+            q_num = int(q_match.group(1))
+            year = int(q_match.group(2))
+            month_start = 1 + (q_num - 1) * 3
+            start = date(year, month_start, 1)
+            end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        
+        # Month-year pattern: jan 2024 or january 2024
+        month_match = re.search(r'(\w+)\s+(\d{4})', spec)
+        if month_match:
+            month_name = month_match.group(1).lower()
+            year = int(month_match.group(2))
+            if month_name in month_map:
+                month_num = month_map[month_name]
+                start = date(year, month_num, 1)
+                end = start + relativedelta(months=1) - timedelta(days=1)
+                return start, end
+        
+        # Year only pattern: 2024
+        year_match = re.match(r'^(\d{4})$', spec)
+        if year_match:
+            year = int(year_match.group(1))
+            start = date(year, 1, 1)
+            end = date(year, 12, 31)
+            return start, end
+        
+        return None
+    
+    # Try "from X to Y" pattern
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q_clean)
+    if from_match:
+        start_spec = from_match.group(1).strip()
+        end_spec = from_match.group(2).strip()
+        start_res = parse_period_spec(start_spec)
+        end_res = parse_period_spec(end_spec)
+        if start_res and end_res:
+            return {
+                'series': series,
+                'start_date': start_res[0],
+                'end_date': end_res[1],
+            }
+    
+    # Try "in X" pattern
+    in_match = re.search(r'in\s+(.+)$', q_clean)
+    if in_match:
+        period_spec = in_match.group(1).strip()
+        period_res = parse_period_spec(period_spec)
+        if period_res:
+            return {
+                'series': series,
+                'start_date': period_res[0],
+                'end_date': period_res[1],
+            }
+    
+    return None
+
+
 def format_bond_metrics_table(db, start_date: date, end_date: date, metrics: List[str], tenors: List[str]) -> str:
     """Format bond yield/price data as economist-style table.
     
@@ -5743,7 +5858,39 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             metrics.log_error(user_id, username, question, "macro_tab", response_time, str(e), "kei")
         return
     
-    # Then check for bond table queries
+    # Check for macro series comparison queries (e.g., "tab idrusd and vix in jan 2024")
+    macro_comp_req = parse_macro_comparison_query(lower_q)
+    if macro_comp_req:
+        try:
+            await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        except Exception:
+            pass
+        try:
+            formatter = MacroDataFormatter()
+            start_date = macro_comp_req['start_date'].isoformat()
+            end_date = macro_comp_req['end_date'].isoformat()
+            series_list = macro_comp_req['series']
+            
+            table_text = formatter.format_macro_comparison_table(start_date, end_date, series_list)
+            
+            # Create appropriate headline
+            series_display = ' & '.join([('IDR/USD' if s.lower() in ['idrusd', 'fx'] else 'VIX') for s in series_list])
+            headline = f"📊 Macro Comparison — {series_display}"
+            
+            hook = f"Window: {start_date} to {end_date}"
+            full_response = f"{headline}\n\n<blockquote>{hook}</blockquote>\n\n" + table_text + "\n\n<blockquote>~ Kei</blockquote>"
+            
+            rendered = convert_markdown_code_fences_to_html(full_response)
+            await update.message.reply_text(rendered, parse_mode=ParseMode.HTML)
+            response_time = time.time() - start_time
+            metrics.log_query(user_id, username, question, "macro_comparison", response_time, True, "success", "kei")
+        except Exception as e:
+            logger.error(f"Error processing macro comparison query: {e}")
+            await update.message.reply_text(f"❌ Error formatting macro comparison: {e}")
+            response_time = time.time() - start_time
+            metrics.log_error(user_id, username, question, "macro_comparison", response_time, str(e), "kei")
+        return
+    
     bond_tab_req = parse_bond_table_query(lower_q)
     if bond_tab_req:
         try:
