@@ -168,34 +168,25 @@ def format_ar1_results(results: Dict, tenor: str) -> str:
     end = results['end_date']
 
     # Build hook
-    sig_vars = [v for v in x_vars if coeffs[v]['pval'] < 0.05]
-    display_names = []
-    for var in sig_vars:
-        base = var.replace('_lag1', '').replace('_', ' ')
-        display_names.append(f"{base} lagged" if var.endswith('_lag1') else base)
-    drivers = ", ".join(display_names) if display_names else "no significant predictors"
-    hook = f"Adj R²={adj_r2:.2f}, n={n_obs}; drivers: {drivers}"
-    
-    # Build report
-    hook = f"β={beta:.2f}, R²={r2:.2f}, n={n_obs}"
+    hook = f"b={beta:.2f}, R2={r2:.2f}, n={n_obs}"
     report = _harvard_header(f"📊 INDOGB {tenor.upper()} — AR(1) Regression", hook)
     report.append(f"Period: {start} to {end} ({n_obs} observations)\n")
     
     # Model specification
-    report.append("<b>Model:</b> y<sub>t</sub> = α + β y<sub>t-1</sub> + ε<sub>t</sub>\n")
+    report.append("<b>Model:</b> y_t = a + b*y_(t-1) + e\n")
     
     # Coefficients
     report.append("<b>Regression Results:</b>")
     
     # Alpha (intercept)
     alpha_sig = "***" if alpha_pval < 0.01 else ("**" if alpha_pval < 0.05 else ("*" if alpha_pval < 0.10 else ""))
-    report.append(f"  α (intercept) = {alpha:.6f} (SE: {alpha_se:.6f}, p={alpha_pval:.4f}) {alpha_sig}")
+    report.append(f"  a (intercept) = {alpha:.6f} (SE: {alpha_se:.6f}, p={alpha_pval:.4f}) {alpha_sig}")
     
     # Beta (persistence)
     beta_sig = "***" if beta_pval < 0.01 else ("**" if beta_pval < 0.05 else ("*" if beta_pval < 0.10 else ""))
-    report.append(f"  β (persistence) = {beta:.6f} (SE: {beta_se:.6f}, p={beta_pval:.4f}) {beta_sig}")
+    report.append(f"  b (persistence) = {beta:.6f} (SE: {beta_se:.6f}, p={beta_pval:.4f}) {beta_sig}")
     
-    report.append(f"  R² = {r2:.4f} | Adjusted R² = {adj_r2:.4f}\n")
+    report.append(f"  R2 = {r2:.4f} | Adjusted R2 = {adj_r2:.4f}\n")
     
     # Interpretation
     report.append("<b>Interpretation:</b>")
@@ -210,50 +201,50 @@ def format_ar1_results(results: Dict, tenor: str) -> str:
     else:
         persistence_desc = "low persistence (mean-reverting)"
     
-    report.append(f"  • The coefficient β = {beta:.4f} indicates <b>{persistence_desc}</b>.")
+    report.append(f"  * The coefficient b = {beta:.4f} indicates <b>{persistence_desc}</b>.")
     report.append(f"    Yesterday's yield explains {r2*100:.1f}% of today's yield variation.")
     
     # Mean-reversion or random walk
     if beta >= 0.98:
-        report.append(f"  • Process is close to a <b>random walk</b> (β ≈ 1), with little mean reversion.")
+        report.append(f"  * Process is close to a <b>random walk</b> (b approx 1), with little mean reversion.")
     elif beta < 0.80:
         half_life = -np.log(2) / np.log(beta) if beta > 0 and beta < 1 else np.inf
-        report.append(f"  • <b>Half-life of shocks:</b> ~{half_life:.1f} days (time for a shock to decay by 50%).")
+        report.append(f"  * <b>Half-life of shocks:</b> ~{half_life:.1f} days (time for shock decay to 50%).")
     
     # Series description
     report.append(f"\n<b>Yield Characteristics:</b>")
-    report.append(f"  • Average: {y_mean:.2f}% | Std Dev: {y_std:.2f}%")
-    report.append(f"  • Range: {y_min:.2f}% to {y_max:.2f}%")
+    report.append(f"  * Average: {y_mean:.2f}% | Std Dev: {y_std:.2f}%")
+    report.append(f"  * Range: {y_min:.2f}% to {y_max:.2f}%")
     
     # Residual diagnostics
     report.append(f"\n<b>Residual Diagnostics:</b>")
-    report.append(f"  • Mean: {resid_mean:.6f} (should be ~0)")
-    report.append(f"  • Std Dev: {resid_std:.4f}%")
+    report.append(f"  * Mean: {resid_mean:.6f} (should be ~0)")
+    report.append(f"  * Std Dev: {resid_std:.4f}%")
     
     # Normality
     if jb_pval < 0.05:
-        report.append(f"  • <b>Normality:</b> Rejected (Jarque-Bera p={jb_pval:.4f})")
+        report.append(f"  * <b>Normality:</b> Rejected (Jarque-Bera p={jb_pval:.4f})")
         report.append(f"    → Residuals have fat tails or skewness (common during regime shifts)")
     else:
-        report.append(f"  • <b>Normality:</b> Not rejected (Jarque-Bera p={jb_pval:.4f})")
+        report.append(f"  * <b>Normality:</b> Not rejected (Jarque-Bera p={jb_pval:.4f})")
     
     # Autocorrelation
     if lb_pval < 0.05:
-        report.append(f"  • <b>Autocorrelation:</b> Detected (Ljung-Box p={lb_pval:.4f})")
+        report.append(f"  * <b>Autocorrelation:</b> Detected (Ljung-Box p={lb_pval:.4f})")
         report.append(f"    → Residuals show serial correlation; AR(1) may be insufficient")
     else:
-        report.append(f"  • <b>Autocorrelation:</b> None (Ljung-Box p={lb_pval:.4f})")
+        report.append(f"  * <b>Autocorrelation:</b> None (Ljung-Box p={lb_pval:.4f})")
     
     # Heteroskedasticity
     if not np.isnan(arch_pval):
         if arch_pval < 0.05:
-            report.append(f"  • <b>Heteroskedasticity:</b> Detected (ARCH test p={arch_pval:.4f})")
+            report.append(f"  * <b>Heteroskedasticity:</b> Detected (ARCH test p={arch_pval:.4f})")
             report.append(f"    → Volatility clustering present (variance changes over time)")
         else:
-            report.append(f"  • <b>Heteroskedasticity:</b> None (ARCH test p={arch_pval:.4f})")
+            report.append(f"  * <b>Heteroskedasticity:</b> None (ARCH test p={arch_pval:.4f})")
     
     # Conclusion
-    report.append(f"\n<i>*** p&lt;0.01, ** p&lt;0.05, * p&lt;0.10</i>")
+    report.append(f"\n<i>*** p less than 0.01, ** p less than 0.05, * p less than 0.10</i>")
     
     return "\n".join(report)
 
@@ -444,7 +435,7 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
     # Intercept
     alpha_coef = coeffs['const']
     alpha_sig = "***" if alpha_coef['pval'] < 0.01 else ("**" if alpha_coef['pval'] < 0.05 else ("*" if alpha_coef['pval'] < 0.10 else ""))
-    report.append(f"  α (intercept) = {alpha_coef['coef']:.6f} (SE: {alpha_coef['se']:.6f}, t={alpha_coef['tstat']:.2f}, p={alpha_coef['pval']:.4f}) {alpha_sig}")
+    report.append(f"  a (intercept) = {alpha_coef['coef']:.6f} (SE: {alpha_coef['se']:.6f}, t={alpha_coef['tstat']:.2f}, p={alpha_coef['pval']:.4f}) {alpha_sig}")
     
     # Independent variables
     for i, var in enumerate(x_vars):
@@ -456,17 +447,17 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
             var_display = f"{base}(t-1)"
         else:
             var_display = var.replace('_', ' ').upper()
-        report.append(f"  β{i+1} ({var_display}) = {coef['coef']:.6f} (SE: {coef['se']:.6f}, t={coef['tstat']:.2f}, p={coef['pval']:.4f}) {sig}")
+        report.append(f"  b{i+1} ({var_display}) = {coef['coef']:.6f} (SE: {coef['se']:.6f}, t={coef['tstat']:.2f}, p={coef['pval']:.4f}) {sig}")
     
     report.append("")
     
     # Model fit
     report.append("<b>Model Fit:</b>")
-    report.append(f"  • R² = {r2:.4f} | Adjusted R² = {adj_r2:.4f}")
-    report.append(f"  • F-statistic = {f_stat:.2f} (p={f_pval:.4f})")
+    report.append(f"  * R2 = {r2:.4f} | Adjusted R2 = {adj_r2:.4f}")
+    report.append(f"  * F-statistic = {f_stat:.2f} (p={f_pval:.4f})")
     f_sig = "highly significant" if f_pval < 0.01 else ("significant" if f_pval < 0.05 else "not significant")
-    report.append(f"  • Overall model is <b>{f_sig}</b>")
-    report.append(f"  • Predictors explain {adj_r2*100:.1f}% of yield variation\n")
+    report.append(f"  * Overall model is <b>{f_sig}</b>")
+    report.append(f"  * Predictors explain {adj_r2*100:.1f}% of yield variation\n")
     
     # Economic interpretation
     report.append("<b>Economic Interpretation:</b>")
@@ -483,9 +474,9 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
         
         if coef_pval < 0.05:
             direction = "increases" if coef_val > 0 else "decreases"
-            report.append(f"  • A 1-unit increase in <b>{var_display}</b> {direction} {y_name} by {abs(coef_val):.4f} percentage points (significant)")
+            report.append(f"  * A 1-unit increase in <b>{var_display}</b> {direction} {y_name} by {abs(coef_val):.4f} percentage points (significant)")
         else:
-            report.append(f"  • <b>{var_display}</b> has no significant effect (p={coef_pval:.4f})")
+            report.append(f"  * <b>{var_display}</b> has no significant effect (p={coef_pval:.4f})")
     
     report.append("")
     
@@ -502,50 +493,50 @@ def format_multiple_regression_results(results: Dict, y_name: str) -> str:
             var_label = var.replace('_', ' ').upper()
         
         if np.isnan(vif_val):
-            report.append(f"  • {var_label}: VIF = N/A")
+            report.append(f"  * {var_label}: VIF = N/A")
         else:
-            vif_status = "✓ OK" if vif_val < 5 else ("⚠ Moderate" if vif_val < 10 else "⛔ High")
-            report.append(f"  • {var_label}: VIF = {vif_val:.2f} {vif_status}")
+            vif_status = "OK" if vif_val < 5 else ("Moderate" if vif_val < 10 else "High")
+            report.append(f"  * {var_label}: VIF = {vif_val:.2f} {vif_status}")
     
     if max_vif < 5:
-        report.append(f"  → <b>No multicollinearity issues</b> (all VIF < 5)")
+        report.append(f"  → <b>No multicollinearity issues</b> (all VIF less than 5)")
     elif max_vif < 10:
         report.append(f"  → <b>Moderate multicollinearity</b> (some VIF between 5-10)")
     else:
-        report.append(f"  → <b>High multicollinearity</b> (VIF > 10 detected)")
+        report.append(f"  → <b>High multicollinearity</b> (VIF greater than 10 detected)")
     
     report.append("")
     
     # Dependent variable description
     report.append(f"<b>{y_name.title()} Characteristics:</b>")
-    report.append(f"  • Average: {y_mean:.2f}% | Std Dev: {y_std:.2f}%")
+    report.append(f"  * Average: {y_mean:.2f}% | Std Dev: {y_std:.2f}%")
     
     # Residual diagnostics
     report.append(f"\n<b>Residual Diagnostics:</b>")
-    report.append(f"  • Mean: {resid_mean:.6f} (should be ~0)")
-    report.append(f"  • Std Dev: {resid_std:.4f}%")
+    report.append(f"  * Mean: {resid_mean:.6f} (should be ~0)")
+    report.append(f"  * Std Dev: {resid_std:.4f}%")
     
     # Normality
     if jb_pval < 0.05:
-        report.append(f"  • <b>Normality:</b> Rejected (Jarque-Bera p={jb_pval:.4f})")
+        report.append(f"  * <b>Normality:</b> Rejected (Jarque-Bera p={jb_pval:.4f})")
         report.append(f"    → Residuals have fat tails or skewness")
     else:
-        report.append(f"  • <b>Normality:</b> Not rejected (Jarque-Bera p={jb_pval:.4f})")
+        report.append(f"  * <b>Normality:</b> Not rejected (Jarque-Bera p={jb_pval:.4f})")
     
     # Autocorrelation
     if lb_pval < 0.05:
-        report.append(f"  • <b>Autocorrelation:</b> Detected (Ljung-Box p={lb_pval:.4f})")
+        report.append(f"  * <b>Autocorrelation:</b> Detected (Ljung-Box p={lb_pval:.4f})")
         report.append(f"    → Consider adding lagged dependent variable")
     else:
-        report.append(f"  • <b>Autocorrelation:</b> None (Ljung-Box p={lb_pval:.4f})")
+        report.append(f"  * <b>Autocorrelation:</b> None (Ljung-Box p={lb_pval:.4f})")
     
     # Heteroskedasticity
     if not np.isnan(arch_pval):
         if arch_pval < 0.05:
-            report.append(f"  • <b>Heteroskedasticity:</b> Detected (ARCH test p={arch_pval:.4f})")
+            report.append(f"  * <b>Heteroskedasticity:</b> Detected (ARCH test p={arch_pval:.4f})")
             report.append(f"    → Robust standard errors used (HC0)")
         else:
-            report.append(f"  • <b>Heteroskedasticity:</b> None (ARCH test p={arch_pval:.4f})")
+            report.append(f"  * <b>Heteroskedasticity:</b> None (ARCH test p={arch_pval:.4f})")
     
     # Conclusion
     report.append(f"\n<i>*** p&lt;0.01, ** p&lt;0.05, * p&lt;0.10</i>")
