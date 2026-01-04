@@ -2621,8 +2621,13 @@ def parse_macro_comparison_query(q: str) -> Optional[Dict]:
     
     # Extract the series in order
     series = []
+    # Check for idrusd first, then vix, then fx (which is an alias)
     if 'idrusd' in q_lower:
         series.append('idrusd')
+    elif 'fx' in q_lower:
+        # fx is an alias for idrusd
+        series.append('idrusd')
+    
     if 'vix' in q_lower:
         series.append('vix')
     
