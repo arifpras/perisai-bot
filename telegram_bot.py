@@ -4143,17 +4143,14 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
                     headline = first_line
                     remainder = "\n".join(lines[1:]).strip() if len(lines) > 1 else ""
 
-                # Reconstruct: headline + body, then add hook before signature
+                # Reconstruct: headline + body
                 if headline:
                     content = f"{headline}\n\n{remainder}" if remainder else headline
                 else:
                     content = remainder if remainder else content
                 
-                # Add hook before signature if present
-                if hook:
-                    content = f"{content}\n\n<blockquote>{hook}</blockquote>"
-                elif not is_data_query and not content.startswith("📊"):
-                    # Preserve legacy emoji headline for generic replies without hook
+                if not is_data_query and not content.startswith("📊"):
+                    # Preserve legacy emoji headline for generic replies
                     content = f"📊 {content}"
                 
                 # Convert any Markdown code fences to HTML <pre> for HTML parse mode
