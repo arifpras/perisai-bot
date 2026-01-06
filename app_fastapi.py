@@ -569,9 +569,18 @@ async def chat_endpoint(req: ChatRequest):
             parse_bond_return_query(user_query)
         )
     
-    # Only route non-analytics queries to personas
+    # Also check for explicit data query keywords (plot, show, table, etc.) which should bypass personas
+    # Use only keywords that clearly indicate a data query, not interpretive questions
+    # Keywords like 'yield' or 'price' alone in a question might be interpretive, not data
+    data_keywords = ('plot', 'chart', 'show', 'table', 'data', 'compare', 'visualize', 'graph')
+    has_explicit_data_keywords = any(k in user_query.lower() for k in data_keywords)
+    
+    # Combined: treat as data query if it matches a special parser OR has explicit data keywords
+    is_data_query = is_analytics_query or has_explicit_data_keywords
+    
+    # Only route non-analytics/non-data queries to personas
     # This ensures /kei agg ... computes the aggregation table, not an LLM interpretation
-    if persona_prefix and not is_analytics_query:
+    if persona_prefix and not is_data_query:
         if persona_prefix == "kei":
             if _has_personas:
                 try:
