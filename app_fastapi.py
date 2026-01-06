@@ -592,7 +592,7 @@ async def chat_endpoint(req: ChatRequest):
             parse_arima_query, parse_garch_query, parse_cointegration_query,
             parse_rolling_query, parse_aggregation_query,
             parse_auction_table_query, parse_auction_compare_query,
-            parse_bond_return_query
+            parse_bond_return_query, load_auction_period, load_auction_2026_forecast
         )
         _has_advanced_parsers = True
     except ImportError as e:
@@ -662,6 +662,26 @@ async def chat_endpoint(req: ChatRequest):
                 except Exception as e:
                     logger.error(f"Error handling bond return with /kei: {e}")
                     raise HTTPException(status_code=500, detail=f"Error processing bond return query: {e}")
+        
+        # Check for Auction table queries (demand, incoming bid, awarded bid, etc.)
+        if parse_auction_table_query(user_query):
+            if _has_personas:
+                try:
+                    result = await ask_kei(user_query)
+                    return JSONResponse({"text": result, "analysis": result})
+                except Exception as e:
+                    logger.error(f"Error handling auction table with /kei: {e}")
+                    raise HTTPException(status_code=500, detail=f"Error processing auction query: {e}")
+        
+        # Check for Auction compare queries
+        if parse_auction_compare_query(user_query):
+            if _has_personas:
+                try:
+                    result = await ask_kei(user_query)
+                    return JSONResponse({"text": result, "analysis": result})
+                except Exception as e:
+                    logger.error(f"Error handling auction compare with /kei: {e}")
+                    raise HTTPException(status_code=500, detail=f"Error processing auction compare query: {e}")
     
     try:
         intent: Intent = parse_intent(user_query)
