@@ -487,30 +487,57 @@ class AuctionDB:
             CREATE TEMPORARY VIEW raw_auction AS
             SELECT * FROM read_csv_auto('{csv}', header=True)
         """)
-        
-        # Create view with proper column mapping
-        # incoming_trillions and awarded_trillions are already in trillions (Rp T)
-        # Convert to billions for compatibility with existing output format
-        self.con.execute(f"""
-            CREATE VIEW auction_forecast AS
-            SELECT
-                TRY_CAST(date AS DATE) AS forecast_date,
-                TRY_CAST(auction_month AS INTEGER) AS auction_month,
-                TRY_CAST(auction_year AS INTEGER) AS auction_year,
-                TRY_CAST(incoming_trillions AS DOUBLE) * 1000.0 AS incoming_billions,
-                TRY_CAST(awarded_trillions AS DOUBLE) * 1000.0 AS awarded_billions,
-                TRY_CAST(bid_to_cover AS DOUBLE) AS bid_to_cover,
-                NULL AS bi_rate,
-                NULL AS yield01_ibpa,
-                NULL AS yield05_ibpa,
-                NULL AS yield10_ibpa,
-                NULL AS inflation_rate,
-                NULL AS idprod_rate,
-                NULL AS number_series,
-                NULL AS move,
-                NULL AS forh_avg
-            FROM raw_auction
-        """)
+
+        # Detect schema to support both legacy (incoming_trillions) and new ensemble forecast files
+        cols = [row[1] for row in self.con.execute("PRAGMA table_info('raw_auction')").fetchall()]
+
+        if 'incoming_trillions' in cols:
+            # Legacy schema with incoming/awarded in trillions and bid-to-cover
+            self.con.execute("""
+                CREATE VIEW auction_forecast AS
+                SELECT
+                    TRY_CAST(date AS DATE) AS forecast_date,
+                    TRY_CAST(auction_month AS INTEGER) AS auction_month,
+                    TRY_CAST(auction_year AS INTEGER) AS auction_year,
+                    TRY_CAST(incoming_trillions AS DOUBLE) * 1000.0 AS incoming_billions,
+                    TRY_CAST(awarded_trillions AS DOUBLE) * 1000.0 AS awarded_billions,
+                    TRY_CAST(bid_to_cover AS DOUBLE) AS bid_to_cover,
+                    NULL AS bi_rate,
+                    NULL AS yield01_ibpa,
+                    NULL AS yield05_ibpa,
+                    NULL AS yield10_ibpa,
+                    NULL AS inflation_rate,
+                    NULL AS idprod_rate,
+                    NULL AS number_series,
+                    NULL AS move,
+                    NULL AS forh_avg
+                FROM raw_auction
+            """)
+        elif 'Ensemble Mean (Rp T)' in cols:
+            # New ensemble-only forecast file (database/auction_forecast.csv)
+            # Treat "Ensemble Mean (Rp T)" as billions (naming in source is legacy)
+            self.con.execute("""
+                CREATE VIEW auction_forecast AS
+                SELECT
+                    TRY_CAST(TRY_STRPTIME(date, '%d/%m/%Y') AS DATE) AS forecast_date,
+                    TRY_CAST(auction_month AS INTEGER) AS auction_month,
+                    TRY_CAST(auction_year AS INTEGER) AS auction_year,
+                    TRY_CAST("Ensemble Mean (Rp T)" AS DOUBLE) AS incoming_billions,
+                    NULL AS awarded_billions,
+                    0.0 AS bid_to_cover,
+                    NULL AS bi_rate,
+                    NULL AS yield01_ibpa,
+                    NULL AS yield05_ibpa,
+                    NULL AS yield10_ibpa,
+                    NULL AS inflation_rate,
+                    NULL AS idprod_rate,
+                    NULL AS number_series,
+                    NULL AS move,
+                    NULL AS forh_avg
+                FROM raw_auction
+            """)
+        else:
+            raise RuntimeError("Unrecognized auction forecast schema; expected incoming_trillions or Ensemble Mean (Rp T)")
 
     def query_forecast(self, intent: Intent):
         """Query auction forecasts based on intent."""

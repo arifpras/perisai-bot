@@ -16,7 +16,7 @@ def approx_equal(a, b, tol=1e-2):
 
 
 def test_q2_2026_forecast_totals_and_btc():
-    db = AuctionDB('database/20251224_auction_forecast.csv')
+    db = AuctionDB('database/auction_forecast.csv')
 
     # Collect rows for Q2 2026
     months = [4, 5, 6]
@@ -33,10 +33,10 @@ def test_q2_2026_forecast_totals_and_btc():
     incoming_total = sum(r['incoming_billions'] for r in rows)
     btc_avg = sum(r['bid_to_cover'] for r in rows) / len(rows)
 
-    # From CSV values: ~236.85 + 236.91 + 250.50 = 724.27T
-    assert approx_equal(incoming_total, 724.27, tol=0.2)
-    # Average bid-to-cover ~ 1.53x
-    assert approx_equal(btc_avg, 1.53, tol=0.05)
+    # From current forecast CSV (Ensemble Mean)
+    assert approx_equal(incoming_total, 943582.88, tol=1.0)
+    # Forecast file has no bid-to-cover column; default is 0.0
+    assert btc_avg == 0.0
 
 
 def test_comparison_formatter_q2_2025_vs_q2_2026():
@@ -44,7 +44,7 @@ def test_comparison_formatter_q2_2025_vs_q2_2026():
     assert hist is not None
 
     # Build forecast_data dict from AuctionDB for Q2 2026
-    db = AuctionDB('20251224_auction_forecast.csv')
+    db = AuctionDB('database/auction_forecast.csv')
     months = [4, 5, 6]
     monthly = []
     total_incoming = 0.0
@@ -69,7 +69,7 @@ def test_comparison_formatter_q2_2025_vs_q2_2026():
         'quarter': 2,
         'monthly': monthly,
         'total_incoming': total_incoming,
-        'avg_bid_to_cover': sum(btc_vals) / len(btc_vals)
+        'avg_bid_to_cover': sum(btc_vals) / len(btc_vals) if btc_vals else 0.0
     }
 
     html = format_auction_comparison(hist, forecast)

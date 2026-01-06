@@ -471,6 +471,7 @@ async def chat_endpoint(req: ChatRequest):
     # Extract persona prefix and clean query for processing
     persona_prefix = None
     lowered = user_query.strip().lower()
+    original_query = user_query
     
     if lowered.startswith("/kei "):
         persona_prefix = "kei"
@@ -552,39 +553,58 @@ async def chat_endpoint(req: ChatRequest):
             logger.error(f"Structural break processing error: {e}")
             raise HTTPException(status_code=500, detail=f"Error running structural break test: {e}")
     
-    # Handle persona-only requests (non-data queries)
-    if persona_prefix == "kei":
-        if _has_personas:
-            try:
-                result = await ask_kei(user_query)
-                return JSONResponse({"text": result, "analysis": result})
-            except Exception as e:
-                logger.error(f"Error handling /kei: {e}")
-                raise HTTPException(status_code=500, detail=f"Error processing /kei query: {e}")
-        else:
-            raise HTTPException(status_code=503, detail="Kei persona unavailable (OpenAI not configured)")
+    # Check if this is an analytics query (data analysis, aggregation, forecasting, etc.)
+    # If so, skip persona routing and let parse_intent() handle it
+    # Analytics queries should compute first, then optionally route results to personas for interpretation
+    is_analytics_query = False
+    if _has_advanced_parsers:
+        is_analytics_query = bool(
+            parse_arima_query(user_query) or
+            parse_garch_query(user_query) or
+            parse_cointegration_query(user_query) or
+            parse_rolling_query(user_query) or
+            parse_aggregation_query(user_query) or
+            parse_auction_table_query(user_query) or
+            parse_auction_compare_query(user_query) or
+            parse_bond_return_query(user_query)
+        )
     
-    if persona_prefix == "kin":
-        if _has_personas:
-            try:
-                result = await ask_kin(user_query)
-                return JSONResponse({"text": result, "analysis": result})
-            except Exception as e:
-                logger.error(f"Error handling /kin: {e}")
-                raise HTTPException(status_code=500, detail=f"Error processing /kin query: {e}")
-        else:
-            raise HTTPException(status_code=503, detail="Kin persona unavailable (Perplexity not configured)")
+    # Only route non-analytics queries to personas
+    # This ensures /kei agg ... computes the aggregation table, not an LLM interpretation
+    if persona_prefix and not is_analytics_query:
+        if persona_prefix == "kei":
+            if _has_personas:
+                try:
+                    result = await ask_kei(user_query)
+                    return JSONResponse({"text": result, "analysis": result})
+                except Exception as e:
+                    logger.error(f"Error handling /kei: {e}")
+                    raise HTTPException(status_code=500, detail=f"Error processing /kei query: {e}")
+            else:
+                raise HTTPException(status_code=503, detail="Kei persona unavailable (OpenAI not configured)")
+        
+        if persona_prefix == "kin":
+            if _has_personas:
+                try:
+                    result = await ask_kin(user_query)
+                    return JSONResponse({"text": result, "analysis": result})
+                except Exception as e:
+                    logger.error(f"Error handling /kin: {e}")
+                    raise HTTPException(status_code=500, detail=f"Error processing /kin query: {e}")
+            else:
+                raise HTTPException(status_code=503, detail="Kin persona unavailable (Perplexity not configured)")
+        
+        if persona_prefix == "both":
+            if _has_personas:
+                try:
+                    result = await ask_kei_then_kin(user_query)
+                    return JSONResponse({"text": result, "analysis": result})
+                except Exception as e:
+                    logger.error(f"Error handling /both: {e}")
+                    raise HTTPException(status_code=500, detail=f"Error processing /both query: {e}")
+            else:
+                raise HTTPException(status_code=503, detail="Persona analysis unavailable")
     
-    if persona_prefix == "both":
-        if _has_personas:
-            try:
-                result = await ask_kei_then_kin(user_query)
-                return JSONResponse({"text": result, "analysis": result})
-            except Exception as e:
-                logger.error(f"Error handling /both: {e}")
-                raise HTTPException(status_code=500, detail=f"Error processing /both query: {e}")
-        else:
-            raise HTTPException(status_code=503, detail="Persona analysis unavailable")
     
     # Import special query parsers from telegram_bot for advanced analytics
     try:
@@ -599,89 +619,52 @@ async def chat_endpoint(req: ChatRequest):
         logger.warning(f"Could not import advanced parsers: {e}")
         _has_advanced_parsers = False
     
-    # Check for advanced analytics queries (only if persona_prefix exists, meaning /kei or /kin or /both was used)
-    if persona_prefix and _has_advanced_parsers:
-        lower_q = user_query.lower()
-        
-        # Check for ARIMA
-        if parse_arima_query(user_query):
-            if _has_personas:
-                try:
-                    result = await ask_kei(user_query)
-                    return JSONResponse({"text": result, "analysis": result})
-                except Exception as e:
-                    logger.error(f"Error handling ARIMA with /kei: {e}")
-                    raise HTTPException(status_code=500, detail=f"Error processing ARIMA query: {e}")
-        
-        # Check for GARCH
-        if parse_garch_query(user_query):
-            if _has_personas:
-                try:
-                    result = await ask_kei(user_query)
-                    return JSONResponse({"text": result, "analysis": result})
-                except Exception as e:
-                    logger.error(f"Error handling GARCH with /kei: {e}")
-                    raise HTTPException(status_code=500, detail=f"Error processing GARCH query: {e}")
-        
-        # Check for Cointegration
-        if parse_cointegration_query(user_query):
-            if _has_personas:
-                try:
-                    result = await ask_kei(user_query)
-                    return JSONResponse({"text": result, "analysis": result})
-                except Exception as e:
-                    logger.error(f"Error handling cointegration with /kei: {e}")
-                    raise HTTPException(status_code=500, detail=f"Error processing cointegration query: {e}")
-        
-        # Check for Rolling regression
-        if parse_rolling_query(user_query):
-            if _has_personas:
-                try:
-                    result = await ask_kei(user_query)
-                    return JSONResponse({"text": result, "analysis": result})
-                except Exception as e:
-                    logger.error(f"Error handling rolling regression with /kei: {e}")
-                    raise HTTPException(status_code=500, detail=f"Error processing rolling query: {e}")
-        
-        # Check for Aggregation
-        if parse_aggregation_query(user_query):
-            if _has_personas:
-                try:
-                    result = await ask_kei(user_query)
-                    return JSONResponse({"text": result, "analysis": result})
-                except Exception as e:
-                    logger.error(f"Error handling aggregation with /kei: {e}")
-                    raise HTTPException(status_code=500, detail=f"Error processing aggregation query: {e}")
-        
-        # Check for Bond returns
-        if parse_bond_return_query(user_query):
-            if _has_personas:
-                try:
-                    result = await ask_kei(user_query)
-                    return JSONResponse({"text": result, "analysis": result})
-                except Exception as e:
-                    logger.error(f"Error handling bond return with /kei: {e}")
-                    raise HTTPException(status_code=500, detail=f"Error processing bond return query: {e}")
-        
-        # Check for Auction table queries (demand, incoming bid, awarded bid, etc.)
-        if parse_auction_table_query(user_query):
-            if _has_personas:
-                try:
-                    result = await ask_kei(user_query)
-                    return JSONResponse({"text": result, "analysis": result})
-                except Exception as e:
-                    logger.error(f"Error handling auction table with /kei: {e}")
-                    raise HTTPException(status_code=500, detail=f"Error processing auction query: {e}")
-        
-        # Check for Auction compare queries
-        if parse_auction_compare_query(user_query):
-            if _has_personas:
-                try:
-                    result = await ask_kei(user_query)
-                    return JSONResponse({"text": result, "analysis": result})
-                except Exception as e:
-                    logger.error(f"Error handling auction compare with /kei: {e}")
-                    raise HTTPException(status_code=500, detail=f"Error processing auction compare query: {e}")
+    # NOTE: Advanced analytics queries (ARIMA, GARCH, coint, rolling, agg, auction, bond_return)
+    # should NOT route to personas. They should be processed as data queries and return
+    # actual computational results (tables, statistics), not LLM interpretation.
+    # The personas (/kei, /kin, /both) are for interpretive questions, not analytics.
+    # Therefore, we strip the persona prefix and let these queries fall through to parse_intent().
+    
+    # Get database connection early for all query types
+    db = get_db(req.csv)
+    
+    # Handle frequency aggregation queries (agg 5 year monthly from 2023 to 2024)
+    # This must be done BEFORE parse_intent because parse_aggregation_query is more specific
+    agg_req = parse_aggregation_query(user_query)
+    if agg_req:
+        try:
+            from regression_analysis import aggregate_frequency, format_aggregation
+            
+            res = db.con.execute(f"""
+                SELECT obs_date, AVG("yield") as avg_yield
+                FROM ts
+                WHERE tenor = ? AND "yield" IS NOT NULL
+                GROUP BY obs_date
+                ORDER BY obs_date
+            """, [agg_req['tenor']]).fetchall()
+            
+            if not res or len(res) < 10:
+                raise HTTPException(status_code=400, detail="Insufficient data for aggregation (need ≥10 observations).")
+            
+            dates = [r[0] for r in res]
+            vals = [r[1] for r in res]
+            series = pd.Series(vals, index=pd.to_datetime(dates))
+            
+            agg_res = aggregate_frequency(series, 
+                                         freq=agg_req['frequency'],
+                                         start_date=agg_req['start_date'], 
+                                         end_date=agg_req['end_date'])
+            
+            if 'error' in agg_res:
+                raise HTTPException(status_code=400, detail=f"Aggregation error: {agg_res['error']}")
+            
+            formatted = format_aggregation(agg_res)
+            return JSONResponse({"text": formatted, "analysis": formatted})
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error processing aggregation query: {e}")
+            raise HTTPException(status_code=500, detail=f"Error running aggregation: {e}")
     
     try:
         intent: Intent = parse_intent(user_query)
@@ -690,8 +673,6 @@ async def chat_endpoint(req: ChatRequest):
         error_msg = str(e)
         metrics.log_query(0, "api", user_query, "parse_error", time.time() - start_time, False, error_msg, "api")
         raise HTTPException(status_code=400, detail=f"Could not parse intent: {e}")
-
-    db = get_db(req.csv)
 
     # POINT
     if intent.type == 'POINT':
