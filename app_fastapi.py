@@ -9,6 +9,7 @@ Endpoints:
 This file reuses parse_intent and BondDB from the existing module.
 """
 from typing import Optional, Dict, Any, List
+import re
 from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
@@ -18,7 +19,7 @@ import uvicorn
 import time
 import logging
 
-from datetime import date
+from datetime import date, timedelta
 import os
 import io
 import base64
@@ -26,6 +27,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from dateutil.relativedelta import relativedelta
 try:
     import seaborn as sns
     _HAS_SEABORN = True
@@ -109,6 +111,88 @@ def get_db(csv: str) -> BondDB:
     if key not in _DB_CACHE:
         _DB_CACHE[key] = BondDB(str(csv_path))
     return _DB_CACHE[key]
+
+
+def parse_structural_break_query(q: str) -> Optional[Dict]:
+    """Lightweight parser for Chow / structural break queries.
+
+    Mirrors telegram_bot.parse_structural_break_query so API and bot stay aligned.
+    Returns a dict with tenor, optional break_date, start_date, end_date or None if not a match.
+    """
+    q_lower = q.lower()
+    if 'chow' not in q_lower and 'break' not in q_lower and 'structural' not in q_lower:
+        return None
+
+    tenor = None
+    if 'idrusd' in q_lower or 'usdidr' in q_lower:
+        tenor = 'idrusd'
+    elif 'indogb' in q_lower or 'gbpidr' in q_lower:
+        tenor = 'indogb'
+    elif 'vix' in q_lower:
+        tenor = 'vix'
+    else:
+        tenor_match = re.search(r'(5|10)\s+year', q_lower)
+        if tenor_match:
+            tenor = f"{tenor_match.group(1):0>2}_year"
+
+    if not tenor:
+        return None
+
+    month_map = {
+        'jan': 1, 'january': 1, 'feb': 2, 'february': 2, 'mar': 3, 'march': 3,
+        'apr': 4, 'april': 4, 'may': 5, 'jun': 6, 'june': 6, 'jul': 7, 'july': 7,
+        'aug': 8, 'august': 8, 'sep': 9, 'sept': 9, 'september': 9, 'oct': 10, 'october': 10,
+        'nov': 11, 'november': 11, 'dec': 12, 'december': 12,
+    }
+
+    break_date = None
+    md_iso = re.search(r'(?:on|in)\s+(\d{4}-\d{2}-\d{2})', q_lower)
+    if md_iso:
+        break_date = md_iso.group(1)
+    else:
+        md_natural = re.search(r'(?:on|in)\s+(\d{1,2})\s+(\w+)\s+(\d{4})', q_lower)
+        if md_natural:
+            day = int(md_natural.group(1))
+            month_str = md_natural.group(2)
+            year = int(md_natural.group(3))
+            if month_str in month_map:
+                try:
+                    break_date = date(year, month_map[month_str], day).isoformat()
+                except ValueError:
+                    pass
+
+    def parse_period_spec(spec: str):
+        spec = spec.strip()
+        if re.match(r'^\d{4}$', spec):
+            y = int(spec); return date(y, 1, 1), date(y, 12, 31)
+        q_m = re.match(r'q([1-4])\s+(\d{4})', spec)
+        if q_m:
+            q_num = int(q_m.group(1)); y = int(q_m.group(2))
+            m_start = 1 + (q_num - 1) * 3
+            start = date(y, m_start, 1); end = start + relativedelta(months=3) - timedelta(days=1)
+            return start, end
+        m_m = re.match(r'(\w+)\s+(\d{4})', spec)
+        if m_m and m_m.group(1) in month_map:
+            m = month_map[m_m.group(1)]; y = int(m_m.group(2))
+            start = date(y, m, 1); end = start + relativedelta(months=1) - timedelta(days=1)
+            return start, end
+        return None
+
+    start_date = end_date = None
+    from_match = re.search(r'from\s+(.+?)\s+to\s+(.+)$', q_lower)
+    if from_match:
+        from_res = parse_period_spec(from_match.group(1))
+        to_res = parse_period_spec(from_match.group(2))
+        if from_res and to_res:
+            start_date, end_date = from_res[0], to_res[1]
+    else:
+        in_match = re.search(r'in\s+(q[1-4]\s+\d{4}|\w+\s+\d{4}|\d{4})(?:\s|$)', q_lower)
+        if in_match:
+            period_res = parse_period_spec(in_match.group(1))
+            if period_res:
+                start_date, end_date = period_res
+
+    return {'tenor': tenor, 'break_date': break_date, 'start_date': start_date, 'end_date': end_date}
 
 
 class QueryRequest(BaseModel):
@@ -381,6 +465,68 @@ async def chat_endpoint(req: ChatRequest):
             _has_personas = False
     else:
         _has_personas = False
+
+    # Structural break (Chow) handling to mirror Telegram bot behavior
+    sb_req = parse_structural_break_query(req.q)
+    if sb_req:
+        try:
+            from regression_analysis import structural_break_test, format_structural_break
+            db = get_db(req.csv)
+
+            tenor = sb_req['tenor']
+            data_dir = Path(__file__).with_name("database")
+            macro_file = data_dir / "20260102_daily01.csv"
+
+            if tenor in ('idrusd', 'indogb', 'vix'):
+                if not macro_file.exists():
+                    raise HTTPException(status_code=500, detail=f"Macro file not found: {macro_file}")
+                df_macro = pd.read_csv(macro_file)
+                df_macro['date'] = pd.to_datetime(df_macro['date'], format='%Y/%m/%d')
+                if tenor == 'idrusd':
+                    series = pd.Series(df_macro['idrusd'].values, index=df_macro['date'])
+                elif tenor == 'indogb':
+                    if 'indogb' not in df_macro.columns:
+                        raise HTTPException(status_code=400, detail="INDOGB series unavailable in macro file")
+                    series = pd.Series(df_macro['indogb'].values, index=df_macro['date'])
+                else:  # vix
+                    series = pd.Series(df_macro['vix_index'].values, index=df_macro['date'])
+            else:
+                res = db.con.execute(
+                    """
+                    SELECT obs_date, AVG("yield") as avg_yield
+                    FROM ts
+                    WHERE tenor = ? AND "yield" IS NOT NULL
+                    GROUP BY obs_date
+                    ORDER BY obs_date
+                    """,
+                    [tenor],
+                ).fetchall()
+                if not res:
+                    raise HTTPException(status_code=400, detail="No data for requested tenor")
+                dates = [r[0] for r in res]
+                vals = [r[1] for r in res]
+                series = pd.Series(vals, index=pd.to_datetime(dates))
+
+            if len(series) < 100:
+                return JSONResponse({"text": "❌ Insufficient data for structural break test (need ≥100)."}, status_code=400)
+
+            break_res = structural_break_test(
+                series,
+                break_date=sb_req['break_date'],
+                start_date=sb_req['start_date'],
+                end_date=sb_req['end_date'],
+            )
+
+            if 'error' in break_res:
+                return JSONResponse({"text": f"❌ Structural break error: {break_res['error']}"}, status_code=400)
+
+            formatted = format_structural_break(break_res)
+            return JSONResponse({"text": formatted, "analysis": formatted})
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Structural break processing error: {e}")
+            raise HTTPException(status_code=500, detail=f"Error running structural break test: {e}")
     
     try:
         intent: Intent = parse_intent(req.q)
