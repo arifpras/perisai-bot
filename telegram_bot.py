@@ -1090,6 +1090,10 @@ def parse_auction_compare_query(q: str) -> Optional[List[Dict]]:
 def format_auction_comparison(hist_data: Dict, forecast_data: Dict) -> str:
     """Format auction comparison between historical and forecast periods."""
     lines = []
+    hist_incoming_total = float(hist_data['total_incoming']) if hist_data.get('total_incoming') is not None else 0.0
+    hist_btc_avg = float(hist_data['avg_bid_to_cover']) if hist_data.get('avg_bid_to_cover') is not None else 0.0
+    forecast_incoming_total = float(forecast_data['total_incoming']) if forecast_data.get('total_incoming') is not None else 0.0
+    forecast_btc_avg = float(forecast_data['avg_bid_to_cover']) if forecast_data.get('avg_bid_to_cover') is not None else 0.0
     
     # Historical period
     hist_q = f"Q{hist_data['quarter']} {hist_data['year']}"
@@ -1098,7 +1102,7 @@ def format_auction_comparison(hist_data: Dict, forecast_data: Dict) -> str:
     for m in hist_data['monthly']:
         month_name = month_names[m['month']]
         lines.append(f"• {month_name}: Rp {m['incoming']:,.2f}T incoming, {m['bid_to_cover']:.2f}x bid-to-cover")
-    lines.append(f"<b>Total:</b> Rp {hist_data['total_incoming']:,.2f}T incoming, Avg BtC: {hist_data['avg_bid_to_cover']:.2f}x")
+    lines.append(f"<b>Total:</b> Rp {hist_incoming_total:,.2f}T incoming, Avg BtC: {hist_btc_avg:.2f}x")
     
     lines.append("")
     
@@ -1108,17 +1112,17 @@ def format_auction_comparison(hist_data: Dict, forecast_data: Dict) -> str:
     for m in forecast_data['monthly']:
         month_name = month_names[m['month']]
         lines.append(f"• {month_name}: Rp {m['incoming']:,.2f}T incoming, {m['bid_to_cover']:.2f}x bid-to-cover")
-    lines.append(f"<b>Total:</b> Rp {forecast_data['total_incoming']:,.2f}T incoming, Avg BtC: {forecast_data['avg_bid_to_cover']:.2f}x")
+    lines.append(f"<b>Total:</b> Rp {forecast_incoming_total:,.2f}T incoming, Avg BtC: {forecast_btc_avg:.2f}x")
     
     lines.append("")
     
     # YoY comparison
-    incoming_change = ((forecast_data['total_incoming'] / hist_data['total_incoming']) - 1) * 100
-    btc_change = ((forecast_data['avg_bid_to_cover'] / hist_data['avg_bid_to_cover']) - 1) * 100
+    incoming_change = ((forecast_incoming_total / hist_incoming_total) - 1) * 100 if hist_incoming_total else 0.0
+    btc_change = ((forecast_btc_avg / hist_btc_avg) - 1) * 100 if hist_btc_avg else 0.0
     
     lines.append(f"<b>Year-over-Year Change:</b>")
-    lines.append(f"• Incoming bids: {incoming_change:+.1f}% (Rp {hist_data['total_incoming']:,.0f}T → Rp {forecast_data['total_incoming']:,.0f}T)")
-    lines.append(f"• Bid-to-cover: {btc_change:+.1f}% ({hist_data['avg_bid_to_cover']:.2f}x → {forecast_data['avg_bid_to_cover']:.2f}x)")
+    lines.append(f"• Incoming bids: {incoming_change:+.1f}% (Rp {hist_incoming_total:,.0f}T → Rp {forecast_incoming_total:,.0f}T)")
+    lines.append(f"• Bid-to-cover: {btc_change:+.1f}% ({hist_btc_avg:.2f}x → {forecast_btc_avg:.2f}x)")
     
     lines.append("")
     lines.append("<blockquote>~ Kei</blockquote>")
@@ -4905,7 +4909,8 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning("Unauthorized access attempt from user_id=%s", user_id)
         return
     
-    examples_text = (
+    # Part 1: Query examples (within Telegram's 4096 char limit)
+    examples_part1 = (
         "<b>Complete Query Examples</b>\n\n"
         
         "<b>1. Bond Tables (Economist-style, Min/Max/Avg)</b>\n"
@@ -4967,8 +4972,11 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         "<b>8. Bond Return Decomposition</b>\n"
         "• /kei analyze indonesia 5 year bond returns → Carry + Duration + Roll-Down + FX\n"
-        "• /kei bond return attribution 2023 to 2025\n\n"
-        
+        "• /kei bond return attribution 2023 to 2025"
+    )
+    
+    # Part 2: Formats, tips, and reference info
+    examples_part2 = (
         "<b>Output Formats Explained</b>\n"
         "<u>Tables:</u> Economist-style borders, right-aligned numbers, summary stats\n"
         "<u>Plots:</u> Professional styling, multi-tenor overlays with macro context\n"
@@ -5014,7 +5022,10 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>Data Coverage</b>\n"
         "Bonds: 2023–2025 (historical) · Currencies: 2023–2025 · Auctions: 2010–2026 (forecast) · Updates daily"
     )
-    await update.message.reply_text(examples_text, parse_mode=ParseMode.HTML)
+    
+    # Send both messages
+    await update.message.reply_text(examples_part1, parse_mode=ParseMode.HTML)
+    await update.message.reply_text(examples_part2, parse_mode=ParseMode.HTML)
 
 
 async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6190,7 +6201,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             period_labels.append(f"(+{len(tab_req['periods']) - 3} more)")
         period_range = " to ".join([period_labels[0], period_labels[-1]]) if len(period_labels) > 1 else period_labels[0]
         headline = "📊 Auction Metrics"
-        hook = f"{metrics_display} | {period_range}"
+        hook = f"{metrics_display} | Period: {period_range}"
         
         # Check if any periods are forecasts (after today)
         from datetime import datetime

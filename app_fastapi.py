@@ -99,9 +99,16 @@ app.add_middleware(
 _DB_CACHE: Dict[str, BondDB] = {}
 
 def get_db(csv: str) -> BondDB:
-    if csv not in _DB_CACHE:
-        _DB_CACHE[csv] = BondDB(csv)
-    return _DB_CACHE[csv]
+    # Resolve CSV relative to the bundled database folder if a plain name was provided
+    csv_path = Path(csv)
+    if not csv_path.is_absolute():
+        candidate = Path(__file__).with_name("database") / csv_path
+        if candidate.exists():
+            csv_path = candidate
+    key = str(csv_path)
+    if key not in _DB_CACHE:
+        _DB_CACHE[key] = BondDB(str(csv_path))
+    return _DB_CACHE[key]
 
 
 class QueryRequest(BaseModel):
