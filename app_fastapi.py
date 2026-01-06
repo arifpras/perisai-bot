@@ -219,6 +219,9 @@ async def debug_env():
         "telegram_token_length": len(telegram_token) if telegram_token else 0,
         "telegram_app_initialized": _telegram_app is not None,
         "telegram_import_error": _telegram_import_error,
+        "git_commit": os.environ.get("RENDER_GIT_COMMIT", "unknown"),
+        "git_branch": os.environ.get("RENDER_GIT_BRANCH", "unknown"),
+        "has_parse_structural_break_query": callable(globals().get("parse_structural_break_query")),
         "all_env_keys": sorted([k for k in os.environ.keys() if not k.startswith("_")])
     }
 
