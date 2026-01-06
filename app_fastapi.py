@@ -453,24 +453,38 @@ class ChatRequest(BaseModel):
 async def chat_endpoint(req: ChatRequest):
     """Higher-level chat endpoint: returns JSON with text and optional base64 PNG if plot=True.
     If persona is specified, includes LLM-generated analysis.
+    Mirrors Telegram bot behavior for /kei, /kin, and /both prefixes.
     """
     start_time = time.time()
     error_msg = None
     query_type = "unknown"
+    user_query = req.q
     
     # Import persona functions if needed
-    if req.persona:
-        try:
-            from telegram_bot import ask_kei, ask_kin, ask_kei_then_kin
-            _has_personas = True
-        except Exception as e:
-            logger.warning(f"Could not import personas: {e}")
-            _has_personas = False
-    else:
+    try:
+        from telegram_bot import ask_kei, ask_kin, ask_kei_then_kin
+        _has_personas = True
+    except Exception as e:
+        logger.warning(f"Could not import personas: {e}")
         _has_personas = False
+    
+    # Extract persona prefix and clean query for processing
+    persona_prefix = None
+    lowered = user_query.strip().lower()
+    
+    if lowered.startswith("/kei "):
+        persona_prefix = "kei"
+        user_query = user_query.strip()[5:].strip()  # remove /kei prefix
+    elif lowered.startswith("/kin "):
+        persona_prefix = "kin"
+        user_query = user_query.strip()[5:].strip()  # remove /kin prefix
+    elif lowered.startswith("/both "):
+        persona_prefix = "both"
+        user_query = user_query.strip()[6:].strip()  # remove /both prefix
 
-    # Structural break (Chow) handling to mirror Telegram bot behavior
-    sb_req = parse_structural_break_query(req.q)
+    # Check for structural break (Chow) queries first, before persona routing
+    # This allows /kei chow... to work correctly
+    sb_req = parse_structural_break_query(user_query)
     if sb_req:
         try:
             from regression_analysis import structural_break_test, format_structural_break
@@ -531,12 +545,46 @@ async def chat_endpoint(req: ChatRequest):
             logger.error(f"Structural break processing error: {e}")
             raise HTTPException(status_code=500, detail=f"Error running structural break test: {e}")
     
+    # Handle persona-only requests (non-data queries)
+    if persona_prefix == "kei":
+        if _has_personas:
+            try:
+                result = await ask_kei(user_query)
+                return JSONResponse({"text": result, "analysis": result})
+            except Exception as e:
+                logger.error(f"Error handling /kei: {e}")
+                raise HTTPException(status_code=500, detail=f"Error processing /kei query: {e}")
+        else:
+            raise HTTPException(status_code=503, detail="Kei persona unavailable (OpenAI not configured)")
+    
+    if persona_prefix == "kin":
+        if _has_personas:
+            try:
+                result = await ask_kin(user_query)
+                return JSONResponse({"text": result, "analysis": result})
+            except Exception as e:
+                logger.error(f"Error handling /kin: {e}")
+                raise HTTPException(status_code=500, detail=f"Error processing /kin query: {e}")
+        else:
+            raise HTTPException(status_code=503, detail="Kin persona unavailable (Perplexity not configured)")
+    
+    if persona_prefix == "both":
+        if _has_personas:
+            try:
+                result = await ask_kei_then_kin(user_query)
+                return JSONResponse({"text": result, "analysis": result})
+            except Exception as e:
+                logger.error(f"Error handling /both: {e}")
+                raise HTTPException(status_code=500, detail=f"Error processing /both query: {e}")
+        else:
+            raise HTTPException(status_code=503, detail="Persona analysis unavailable")
+    
     try:
-        intent: Intent = parse_intent(req.q)
+        intent: Intent = parse_intent(user_query)
         query_type = intent.type.lower() if intent.type else "unknown"
     except Exception as e:
         error_msg = str(e)
-        metrics.log_query(0, "api", req.q, "parse_error", time.time() - start_time, False, error_msg, "api")
+        metrics.log_query(0, "api", user_query, "parse_error", time.time() - start_time, False, error_msg, "api")
         raise HTTPException(status_code=400, detail=f"Could not parse intent: {e}")
 
     db = get_db(req.csv)
@@ -557,7 +605,7 @@ async def chat_endpoint(req: ChatRequest):
 
     # RANGE / AGG_RANGE handling (support plotting without explicit aggregation)
     # Determine whether user requested a plot by keywords or by the `plot` flag
-    lower_q = (req.q or '').lower()
+    lower_q = (user_query or '').lower()
     plot_keywords = ('plot', 'chart', 'show', 'visualize', 'graph', 'compare')
     wants_plot = bool(req.plot) or any(k in lower_q for k in plot_keywords)
 
