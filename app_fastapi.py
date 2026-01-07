@@ -468,6 +468,19 @@ async def chat_endpoint(req: ChatRequest):
         logger.warning(f"Could not import personas: {e}")
         _has_personas = False
     
+    # Import special query parsers from telegram_bot for advanced analytics (MOVED BEFORE USAGE)
+    try:
+        from telegram_bot import (
+            parse_arima_query, parse_garch_query, parse_cointegration_query,
+            parse_rolling_query, parse_aggregation_query,
+            parse_auction_table_query, parse_auction_compare_query,
+            parse_bond_return_query, load_auction_period, load_auction_2026_forecast
+        )
+        _has_advanced_parsers = True
+    except ImportError as e:
+        logger.warning(f"Could not import advanced parsers: {e}")
+        _has_advanced_parsers = False
+    
     # Extract persona prefix and clean query for processing
     persona_prefix = None
     lowered = user_query.strip().lower()
@@ -613,20 +626,6 @@ async def chat_endpoint(req: ChatRequest):
                     raise HTTPException(status_code=500, detail=f"Error processing /both query: {e}")
             else:
                 raise HTTPException(status_code=503, detail="Persona analysis unavailable")
-    
-    
-    # Import special query parsers from telegram_bot for advanced analytics
-    try:
-        from telegram_bot import (
-            parse_arima_query, parse_garch_query, parse_cointegration_query,
-            parse_rolling_query, parse_aggregation_query,
-            parse_auction_table_query, parse_auction_compare_query,
-            parse_bond_return_query, load_auction_period, load_auction_2026_forecast
-        )
-        _has_advanced_parsers = True
-    except ImportError as e:
-        logger.warning(f"Could not import advanced parsers: {e}")
-        _has_advanced_parsers = False
     
     # NOTE: Advanced analytics queries (ARIMA, GARCH, coint, rolling, agg, auction, bond_return)
     # should NOT route to personas. They should be processed as data queries and return

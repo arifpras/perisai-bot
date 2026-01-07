@@ -4,7 +4,16 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 // API Configuration
-const API_URL = Constants.expoConfig?.extra?.apiUrl || 'https://perisai-api.onrender.com';
+// On native/Expo Go: use the exposed IP from app.json
+// On web: use localhost
+// Falls back to localhost if nothing is configured
+let API_URL = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:8000';
+
+// If running on web, ensure we use localhost
+if (Platform.OS === 'web') {
+  API_URL = 'http://localhost:8000';
+}
+
 const TIMEOUT = 30000; // 30 seconds
 
 // Types

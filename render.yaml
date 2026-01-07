@@ -17,6 +17,18 @@ services:
       - key: PERPLEXITY_API_KEY
         sync: false
 
+  - type: web
+    name: perisai-mobile-web
+    runtime: node
+    buildCommand: |
+      cd mobile-app
+      npm install
+      npm run build || npm run export || npm run build:web
+    startCommand: cd mobile-app && npm start -- --web
+    envVars:
+      - key: EXPO_PUBLIC_API_URL
+        value: https://perisai-api.onrender.com
+
   - type: worker
     name: perisai-telegram-bot
     runtime: python
