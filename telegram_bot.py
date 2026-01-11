@@ -4687,28 +4687,54 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
     messages.append({"role": "user", "content": question})
 
     try:
+        # Convert messages to Gemini API format
+        # Gemini API expects "contents" with "parts" instead of "messages"
+        contents = []
+        for msg in messages:
+            if msg["role"] == "system":
+                # Prepend system message as first user message
+                if not contents:
+                    contents.append({
+                        "role": "user",
+                        "parts": [{"text": msg["content"]}]
+                    })
+                else:
+                    # Append to first message if system comes after user
+                    contents[0]["parts"][0]["text"] = msg["content"] + "\n\n" + contents[0]["parts"][0]["text"]
+            else:
+                contents.append({
+                    "role": msg["role"],
+                    "parts": [{"text": msg["content"]}]
+                })
+        
         headers = {
-            "Authorization": f"Bearer {GEMINI_API_KEY}",
             "Content-Type": "application/json",
         }
         payload = {
-            "model": GEMINI_MODEL,
-            "messages": messages,
+            "contents": contents,
+            "generationConfig": {
+                "temperature": 1.0,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 2048,
+            }
         }
 
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent",
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}",
                 headers=headers,
                 json=payload,
             )
             r.raise_for_status()
             data = r.json()
 
+        # Extract content from Gemini response format
         content = (
-            data.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
+            data.get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [{}])[0]
+            .get("text", "")
             .strip()
         ) or "(empty response)"
         
@@ -5065,7 +5091,7 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         "<b>Assets & Tenors Available</b>\n"
         "<u>Bonds:</u> 5 year, 10 year\n"
-        "<u>Currencies:</u> usdidr, idrusd, indogb, gbpidr\n"
+        "<u>Currencies:</u> usdidr (exchange rate)\n"
         "<u>Macro:</u> vix (volatility index)\n\n"
         
         "<b>Tips & Tricks</b>\n"
