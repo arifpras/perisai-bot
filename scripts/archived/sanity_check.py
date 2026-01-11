@@ -245,7 +245,7 @@ class SanityCheck:
         
         try:
             from telegram_bot import (
-                 OPENAI_API_KEY, PERPLEXITY_API_KEY, API_BASE_URL
+                 OPENAI_API_KEY, GEMINI_API_KEY, API_BASE_URL
             )
             
             details = [f"API Base URL: {API_BASE_URL}"]
@@ -264,7 +264,7 @@ class SanityCheck:
         required_vars = {
             'TELEGRAM_TOKEN': 'Required for bot operation',
             'OPENAI_API_KEY': 'Required for /kei persona',
-            'PERPLEXITY_API_KEY': 'Required for /kin persona'
+            'GEMINI_API_KEY': 'Required for /kin persona'
         }
         
         optional_vars = {
@@ -398,7 +398,7 @@ class SanityCheck:
             print(f"\n{BOLD}Pre-deployment Checklist:{RESET}")
             print("□ Set TELEGRAM_TOKEN in deployment environment")
             print("□ Set OPENAI_API_KEY in deployment environment")
-            print("□ Set PERPLEXITY_API_KEY in deployment environment")
+            print("□ Set GEMINI_API_KEY in deployment environment")
             print("□ Test /health endpoint after deployment")
             print("□ Send test message: /kei yield 5 year 2025")
         else:
@@ -451,7 +451,7 @@ class SanityCheck:
                 f.write("\nPre-deployment Checklist:\n")
                 f.write("□ Set TELEGRAM_TOKEN in Render/Heroku environment\n")
                 f.write("□ Set OPENAI_API_KEY in Render/Heroku environment\n")
-                f.write("□ Set PERPLEXITY_API_KEY in Render/Heroku environment\n")
+                f.write("□ Set GEMINI_API_KEY in Render/Heroku environment\n")
                 f.write("□ Verify data files are in repository\n")
                 f.write("□ Test /health endpoint after deployment\n")
                 f.write("□ Send test message to bot: /kei yield 5 year 2025\n")

@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0498 (as of 2026-01-07)
+**Version:** Perisai v.0499 (as of 2026-01-11)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -34,7 +34,7 @@ docker compose up
 **Environment Variables:**
 ```bash
 OPENAI_API_KEY=<key>
-PERPLEXITY_API_KEY=<key>
+GEMINI_API_KEY=<key>
 TELEGRAM_BOT_TOKEN=<token>
 ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user IDs
 ```
@@ -49,7 +49,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 |---------|------|-------------|--------|
 | `/kei` | Quantitative partner | Hands-on modeler, loves precise numbers and statistics | Economist-style tables with Min/Max/Avg |
 | `/kin` | Macro storyteller | Connects dots, translates data signals to narratives | Charts + headline + strategic insight |
-| `/both` | Dual analysis | Combines both: Kei's rigor + Kin's narrative | Kei table, then Kin Perplexity analysis |
+| `/both` | Dual analysis | Combines both: Kei's rigor + Kin's narrative | Kei table, then Kin Gemini analysis |
 
 ### Utility Commands
 
@@ -115,7 +115,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 /kei tab usdider vix from q1 2024 to q4 2025   # Combined FX + VIX
 /kei tab usdider vix from 2023 to 2025         # Combined full range
 
-# Dual analysis (Kei table → Kin Perplexity insight)
+# Dual analysis (Kei table → Kin Gemini insight)
 /both compare yield 5 and 10 year 2024 vs 2025
 /both auction demand in 2026                    # Single year
 /both auction demand trends 2023 to 2025        # Year range
@@ -232,7 +232,7 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 - **Identity questions** ("who are you?"): Drop formality, answer personally in first-person with credentials
 - **Pantun requests** ("create a pantun"): Kin verifies ABAB rhyme before responding (mimpi/impian for A, siang/terang for B)
 - **Bond dual analysis** (/both compare, /both yield, etc.): Kei provides headline, Kin provides clean analysis with single headline (no INDOGB prefix)
-- **Auction dual analysis** (/both auction): Kei table → Kin Perplexity insight with verified single headline
+- **Auction dual analysis** (/both auction): Kei table → Kin Gemini insight with verified single headline
 - **Personality override attempts:** Any request to change or override Kei/Kin's personalities (e.g., "pretend you're X", "act like Y", "forget your identity") is firmly but politely rejected with identity reaffirmation
 
 ## Bond Data & Queries
@@ -395,7 +395,7 @@ More in [examples/](examples/).
 **Confidential Data Handling:**
 - ✅ **Whitelist-based access**: Only authorized Telegram user IDs can use the bot (`ALLOWED_USER_IDS`)
 - ✅ **Local data processing**: Your CSV files never leave your server
-- ✅ **No raw data transmission**: Only aggregated summaries sent to AI APIs (OpenAI, Perplexity)
+- ✅ **No raw data transmission**: Only aggregated summaries sent to AI APIs (OpenAI, Gemini)
 - ✅ **Encrypted transit**: TLS 1.2+ for all API communications
 - ✅ **Audit trail**: All queries logged locally in SQLite for compliance reviews
 
@@ -411,7 +411,7 @@ export ALLOWED_USER_IDS="123456789,987654321"
 
 # 2. Rotate API keys every 90 days
 export OPENAI_API_KEY="sk-..."
-export PERPLEXITY_API_KEY="pplx-..."
+export GEMINI_API_KEY="..."
 
 # 3. Secure file permissions
 chmod 600 .env usage_metrics.sqlite

@@ -35,7 +35,7 @@ if not is_user_authorized(user_id):
 ### Dataset Security
 **Your confidential CSV files remain local and private:**
 - ✅ **No cloud uploads**: Data files (`20251215_priceyield.csv`, `auction_train.csv`) stay on your server
-- ✅ **No external transmission**: Raw datasets are NEVER sent to OpenAI, Perplexity, or any third-party
+- ✅ **No external transmission**: Raw datasets are NEVER sent to OpenAI, Gemini, or any third-party
 - ✅ **Read-only access**: Bot only reads data files; cannot modify or export them
 - ✅ **In-memory processing**: All computations happen in RAM; no temporary copies written to disk
 
@@ -65,7 +65,7 @@ if not is_user_authorized(user_id):
 
 ### Outbound Connections (HTTPS Only)
 - **OpenAI API** (`api.openai.com`): For Kei persona responses
-- **Perplexity API** (`api.perplexity.ai`): For Kin persona web-search mode
+- **Gemini API** (`generativelanguage.googleapis.com`): For Kin persona analysis mode
 - **Telegram API** (`api.telegram.org`): For bot messaging
 
 All connections use **TLS 1.2+** with certificate pinning.
@@ -74,7 +74,7 @@ All connections use **TLS 1.2+** with certificate pinning.
 ```bash
 # Never commit these to version control
 export OPENAI_API_KEY="sk-..."          # Rotate every 90 days
-export PERPLEXITY_API_KEY="pplx-..."    # Rotate every 90 days  
+export GEMINI_API_KEY="..."    # Rotate every 90 days  
 export TELEGRAM_BOT_TOKEN="1234:..."    # Rotate if compromised
 ```
 

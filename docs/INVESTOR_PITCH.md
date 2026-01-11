@@ -100,7 +100,7 @@ Ready-to-run without coding:
 **Kin (Macro Storyteller)**
 - CFA + PhD economist persona
 - Returns: Context, headline narratives, geopolitical implications
-- Handles: Web search (Perplexity), cross-market relationships, "what does this mean?"
+- Handles: Advanced analysis (Gemini), cross-market relationships, "what does this mean?"
 - Output: Prose interpretation, market signals, forward-looking insights
 
 **`/both` Mode**: Chain both—Kei's rigor + Kin's narrative in one output.

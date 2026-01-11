@@ -614,7 +614,7 @@ async def chat_endpoint(req: ChatRequest):
                     logger.error(f"Error handling /kin: {e}")
                     raise HTTPException(status_code=500, detail=f"Error processing /kin query: {e}")
             else:
-                raise HTTPException(status_code=503, detail="Kin persona unavailable (Perplexity not configured)")
+                raise HTTPException(status_code=503, detail="Kin persona unavailable (Gemini not configured)")
         
         if persona_prefix == "both":
             if _has_personas:
@@ -729,13 +729,8 @@ async def chat_endpoint(req: ChatRequest):
                     elif req.persona == "kin":
                         analysis_text = await ask_kin(req.q)
                     elif req.persona == "both":
-                        # For plots with /both, use Kin (Perplexity) for market interpretation only
+                        # For plots with /both, use Kin (Gemini) for market interpretation only
                         analysis_text = await ask_kin(req.q)
-                except Exception as e:
-                    logger.warning(f"Error generating persona analysis: {e}")
-                    analysis_text = text  # fallback to data description
-            
-            if wants_plot:
                 # Use highlight_date from intent
                 highlight_date_obj = intent.highlight_date
                 # Use tenors list if available, otherwise single tenor
@@ -786,7 +781,7 @@ async def chat_endpoint(req: ChatRequest):
                     elif req.persona == "kin":
                         analysis_text = await ask_kin(req.q)
                     elif req.persona == "both":
-                        # For plots with /both, use Kin (Perplexity) for market interpretation only
+                        # For plots with /both, use Kin (Gemini) for market interpretation only
                         analysis_text = await ask_kin(req.q)
                 except Exception as e:
                     logger.warning(f"Error generating persona analysis: {e}")

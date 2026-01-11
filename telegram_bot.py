@@ -59,9 +59,9 @@ if OPENAI_API_KEY:
 else:
     logger.warning("OPENAI_API_KEY not set - /kei persona will be unavailable")
 
-# Perplexity configuration
-PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
-PERPLEXITY_MODEL = os.environ.get("PERPLEXITY_MODEL", "sonar-pro")
+# Gemini configuration
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
 
 # API configuration
 # Prefer explicit API_BASE_URL; else use localhost with Render's PORT; else fallback to external URL
@@ -4465,8 +4465,8 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         dual_mode: If True, use "Kei & Kin | Data → Insight" signature (for /both command)
         skip_bond_summary: If True, do not auto-compute bond_summary context (used when data is already in prompt)
     """
-    if not PERPLEXITY_API_KEY:
-        return "⚠️ Persona /kin unavailable: PERPLEXITY_API_KEY not configured."
+    if not GEMINI_API_KEY:
+        return "⚠️ Persona /kin unavailable: GEMINI_API_KEY not configured."
 
     import httpx
     from datetime import datetime
@@ -4618,17 +4618,17 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
 
     try:
         headers = {
-            "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+            "Authorization": f"Bearer {GEMINI_API_KEY}",
             "Content-Type": "application/json",
         }
         payload = {
-            "model": PERPLEXITY_MODEL,
+            "model": GEMINI_MODEL,
             "messages": messages,
         }
 
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
-                "https://api.perplexity.ai/chat/completions",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent",
                 headers=headers,
                 json=payload,
             )
@@ -4642,7 +4642,7 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
             .strip()
         ) or "(empty response)"
         
-        # Strip numbered citations in brackets (e.g., [1], [2], [3]) from Perplexity responses
+        # Strip numbered citations in brackets (e.g., [1], [2], [3]) from Gemini responses
         # Keep only [Sources: ...] at the end
         content = re.sub(r'\[\d+\]', '', content)  # Remove [1], [2], [3], etc.
         content = content.strip()
@@ -4658,7 +4658,7 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
             return html_quote_signature(convert_markdown_code_fences_to_html(identity_response))
         
         # If this is a bond query, note it for context (but don't prepend header to output)
-        # Perplexity generates its own headline in the response
+        # Gemini generates its own headline in the response
         try:
             intent = parse_intent(question)
             is_bond_intent = intent.type in ("POINT", "RANGE", "AGG_RANGE") and intent.metric in ("yield", "price")
@@ -4675,9 +4675,9 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
             error_detail = f"\nAPI response: {e.response.json()}"
         except:
             error_detail = f"\nResponse text: {e.response.text[:200]}"
-        return f"⚠️ Perplexity API error: {e.response.status_code} {e.response.reason_phrase}{error_detail}"
+        return f"⚠️ Gemini API error: {e.response.status_code} {e.response.reason_phrase}{error_detail}"
     except Exception as e:
-        return f"⚠️ Perplexity error: {e}"
+        return f"⚠️ Gemini error: {e}"
 
 
 def generate_kin_harvard_hook(question: str, response: str) -> str:
@@ -4883,7 +4883,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
-        f"<b>v.0484 (as of {current_date})</b>\n"
+        f"<b>v.0498 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
         "and policy-oriented insight.\n\n"
@@ -5000,7 +5000,7 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         "<b>Tips & Tricks</b>\n"
         "• /kei: Tables & statistical analysis, strict quantitative\n"
-        "• /kin: Plots + macro context, Perplexity web search enabled\n"
+        "• /kin: Plots + macro context, Gemini analysis enabled\n"
         "• /both: Chains Kei (numbers) → Kin (strategy)\n"
         "• Rolling regression supports currency pairs + VIX predictor\n"
         "• ARIMA/GARCH work on bonds and macro assets (usdidr, vix)\n"
@@ -6057,7 +6057,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             formatter = MacroDataFormatter()
             metric = macro_tab_req['metric']
             start_date = macro_tab_req['start_date'].isoformat()
-            end_date = macro_tab_req['end_date'].isoformat()
+            # end_date = macro_tab_req['end_date'].isoformat()
             
             if metric == 'idrusd':
                 table_text = formatter.format_idrusd_table(start_date, end_date)
@@ -6860,7 +6860,7 @@ async def kei_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/kin <question> — ask persona Kin (Perplexity)."""
+    """/kin <question> — ask persona Kin (Gemini)."""
     start_time = time.time()
     user_id = update.message.from_user.id
     username = update.message.from_user.username or f"user_{user_id}"
@@ -8154,7 +8154,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Send Kei's summary
                 await update.message.reply_text(kei_summary, parse_mode=ParseMode.HTML)
 
-                # Attempt to get Kin's analysis, but don't fail if Perplexity is unavailable
+                # Attempt to get Kin's analysis, but don't fail if Gemini is unavailable
                 try:
                     # Build richer context for Kin to prevent hallucination
                     tenor_stats_text = []
@@ -8532,7 +8532,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning(f"Failed to send typing indicator: {type(e).__name__}: {e}. Continuing anyway.")
     
     try:
-        # Persona routing: \kei (OpenAI) and \kin (Perplexity)
+        # Persona routing: \kei (OpenAI) and \kin (Gemini)
         lowered = user_query.strip().lower()
         if lowered.startswith("\\kei"):
             question = user_query.strip()[4:].strip()  # remove prefix

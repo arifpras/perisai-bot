@@ -100,7 +100,7 @@ except Exception as e:
 # ============================================================================
 validator.section("2. CONFIGURATION & ENVIRONMENT")
 
-required_env_vars = ['OPENAI_API_KEY', 'PERPLEXITY_API_KEY', 'TELEGRAM_BOT_TOKEN']
+required_env_vars = ['OPENAI_API_KEY', 'GEMINI_API_KEY', 'TELEGRAM_BOT_TOKEN']
 for var in required_env_vars:
     if os.getenv(var):
         validator.log_pass(f"Environment: {var}", "configured")

@@ -57,7 +57,7 @@
       "eas": {
         "projectId": "your-project-id-here"
       },
-      "apiUrl": "https://perisai-api.onrender.com"
+      "apiUrl": "https://perisai-app.onrender.com"
     }
   }
 }

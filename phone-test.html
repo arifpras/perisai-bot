@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PerisAI Bond Analytics - Mobile Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 30px;
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #999;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .status {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status.error {
+            border-left-color: #ff6b6b;
+            background: #fff5f5;
+        }
+
+        .status.success {
+            border-left-color: #51cf66;
+            background: #f1fdf4;
+        }
+
+        .status-text {
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .response {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .response.show {
+            display: block;
+        }
+
+        .response h3 {
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .response-content {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #333;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .examples {
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .examples h3 {
+            color: #667eea;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .example-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            border: 1px solid #e0e0e0;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+
+        .example-item:hover {
+            border-color: #667eea;
+            background: #f9f3ff;
+        }
+
+        .example-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .api-status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #e0e0e0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .api-status.online {
+            background: #f1fdf4;
+            border-left-color: #51cf66;
+            color: #2b8a3e;
+        }
+
+        .api-status.offline {
+            background: #fff5f5;
+            border-left-color: #ff6b6b;
+            color: #c92a2a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 PerisAI Bond Analytics</h1>
+        <p class="subtitle">Mobile Test Interface</p>
+
+        <div id="status" class="status">
+            <p class="status-text">🔄 Checking API connection...</p>
+        </div>
+
+        <div class="form-group">
+            <label for="query">Bond Query</label>
+            <textarea id="query" placeholder="e.g., What is the average 10 year yield for Q1 2025?"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="persona">Persona</label>
+            <select id="persona">
+                <option value="kei">Kei (Data-Driven)</option>
+                <option value="kin">Kin (Insight-Focused)</option>
+            </select>
+        </div>
+
+        <div class="button-group">
+            <button class="btn-primary" onclick="sendQuery()">Send Query</button>
+            <button class="btn-secondary" onclick="clearResponse()">Clear</button>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+
+        <div id="response" class="response">
+            <h3>Response</h3>
+            <div id="responseContent" class="response-content"></div>
+        </div>
+
+        <div class="examples">
+            <h3>💡 Quick Examples</h3>
+            <div class="example-item" onclick="loadExample('average yield 10 year Q1 2025')">
+                Average 10Y Yield (Q1 2025)
+            </div>
+            <div class="example-item" onclick="loadExample('5 year bond price January 2026')">
+                5Y Bond Price (January 2026)
+            </div>
+            <div class="example-item" onclick="loadExample('bond spread comparison 2Y vs 10Y')">
+                2Y vs 10Y Spread
+            </div>
+            <div class="example-item" onclick="loadExample('highest yielding bonds in the database')">
+                Highest Yielding Bonds
+            </div>
+        </div>
+
+        <div id="apiStatus" class="api-status">
+            <p>🔗 API Endpoint: <code>https://perisai-app.onrender.com</code></p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://perisai-app.onrender.com';
+
+        // Check API status on load
+        window.addEventListener('DOMContentLoaded', () => {
+            checkAPIStatus();
+        });
+
+        async function checkAPIStatus() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                if (response.ok) {
+                    updateStatus('✅ API Connected', 'success');
+                    document.getElementById('apiStatus').className = 'api-status online';
+                } else {
+                    updateStatus('⚠️ API Error: ' + response.status, 'error');
+                    document.getElementById('apiStatus').className = 'api-status offline';
+                }
+            } catch (error) {
+                updateStatus('❌ API Offline: ' + error.message, 'error');
+                document.getElementById('apiStatus').className = 'api-status offline';
+            }
+        }
+
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+
+        function loadExample(query) {
+            document.getElementById('query').value = query;
+            document.getElementById('query').focus();
+        }
+
+        function clearResponse() {
+            document.getElementById('query').value = '';
+            document.getElementById('response').classList.remove('show');
+            document.getElementById('responseContent').textContent = '';
+        }
+
+        async function sendQuery() {
+            const query = document.getElementById('query').value.trim();
+            const persona = document.getElementById('persona').value;
+
+            if (!query) {
+                updateStatus('⚠️ Please enter a query', 'error');
+                return;
+            }
+
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('response').classList.remove('show');
+
+            try {
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        q: query,
+                        persona: persona
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayResponse(data);
+                updateStatus('✅ Query completed', 'success');
+            } catch (error) {
+                displayResponse({ error: error.message });
+                updateStatus('❌ Error: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').classList.remove('show');
+            }
+        }
+
+        function displayResponse(data) {
+            const responseDiv = document.getElementById('response');
+            const contentDiv = document.getElementById('responseContent');
+
+            if (data.error) {
+                contentDiv.textContent = 'Error: ' + data.error;
+            } else {
+                contentDiv.textContent = JSON.stringify(data, null, 2);
+            }
+
+            responseDiv.classList.add('show');
+        }
+
+        // Allow Enter to submit
+        document.getElementById('query').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                sendQuery();
+            }
+        });
+    </script>
+</body>
+</html>

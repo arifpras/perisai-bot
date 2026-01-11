@@ -14,7 +14,7 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      - key: PERPLEXITY_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
 
   - type: web
@@ -43,7 +43,7 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      - key: PERPLEXITY_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
       - key: API_BASE_URL
         value: https://perisai-api.onrender.com
