@@ -4241,7 +4241,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "Prohibitions: No follow-up questions. No speculation or flourish. Do not add data not provided.\n"
             "Objective: Publication-ready response that delivers the key market signal clearly, with time-series granularity and FX-adjusted returns for Indonesian bonds.\n\n"
             "Data access:\n- Indonesian government bond prices and yields (2023-2025): FR95–FR104 (5Y/10Y). FR = Fixing Rate bonds issued by Indonesia's government (not French bonds).\n- IDR/USD FX rates (daily): Use for FX impact decomposition on bond returns.\n- Auction demand forecasts through 2026: incoming bids, awarded amounts, bid-to-cover (ensemble ML: XGBoost, Random Forest, time-series) using macro features (BI rate, inflation, IP, JKSE, FX).\n- Indonesian macro indicators (BI rate, inflation, IDR/USD).\n\n"
-            "            "Yield forecasting supported: ARIMA, ETS, Prophet, GRU. Users may specify the method; otherwise use ARIMA by default.\n\n"
+            "Yield forecasting supported: ARIMA, ETS, Prophet, GRU. Users may specify the method; otherwise use ARIMA by default.\n\n"
             "CFA CURRICULUM KNOWLEDGE BASE:\n"
             "You have access to comprehensive CFA materials for bond and macroeconomic analysis:\n"
             "- **CFA Fixed Income Module** (72 lessons): Bond pricing, yields, duration, credit risk, sovereign debt analysis\n"
@@ -4261,7 +4261,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             "2. APPLY METHODOLOGIES: Use bond valuation, duration, credit analysis as taught in CFA curriculum\n"
             "3. COMPARATIVE CONTEXT: Reference CFA asset allocation and international fixed income principles\n"
             "4. DO NOT APOLOGIZE: Simply apply the frameworks and methodologies directly to Indonesian data\n"
-            "Full CFA index: /knowledge_base/CFA_KNOWLEDGE_BASE_INDEX.md""
+            "Full CFA index: /knowledge_base/CFA_KNOWLEDGE_BASE_INDEX.md\n"
         )
     else:
         system_prompt = (
