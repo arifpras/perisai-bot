@@ -731,6 +731,9 @@ async def chat_endpoint(req: ChatRequest):
                     elif req.persona == "both":
                         # For plots with /both, use Kin (Gemini) for market interpretation only
                         analysis_text = await ask_kin(req.q)
+                except Exception as e:
+                    analysis_text = f"Error generating analysis: {str(e)}"
+                
                 # Use highlight_date from intent
                 highlight_date_obj = intent.highlight_date
                 # Use tenors list if available, otherwise single tenor
