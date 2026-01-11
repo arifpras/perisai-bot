@@ -14,6 +14,7 @@ from functools import lru_cache
 from typing import Optional, List, Dict
 import html as html_module
 from openai import AsyncOpenAI
+from google import genai
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram.error import BadRequest
@@ -62,6 +63,12 @@ else:
 # Gemini configuration
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
+_gemini_client = None
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    _gemini_client = genai.Client()
+else:
+    logger.warning("GEMINI_API_KEY not set - /kin persona will be unavailable")
 
 # API configuration
 # Prefer explicit API_BASE_URL; else use localhost with Render's PORT; else fallback to external URL
@@ -4687,56 +4694,29 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
     messages.append({"role": "user", "content": question})
 
     try:
-        # Convert messages to Gemini API format
-        # Gemini API expects "contents" with "parts" instead of "messages"
-        contents = []
+        if not _gemini_client:
+            return "⚠️ Persona /kin unavailable: GEMINI_API_KEY not configured."
+        
+        # Build system prompt (combine all non-user messages)
+        system_content = ""
+        user_content = question
+        
         for msg in messages:
             if msg["role"] == "system":
-                # Prepend system message as first user message
-                if not contents:
-                    contents.append({
-                        "role": "user",
-                        "parts": [{"text": msg["content"]}]
-                    })
-                else:
-                    # Append to first message if system comes after user
-                    contents[0]["parts"][0]["text"] = msg["content"] + "\n\n" + contents[0]["parts"][0]["text"]
-            else:
-                contents.append({
-                    "role": msg["role"],
-                    "parts": [{"text": msg["content"]}]
-                })
+                system_content += msg["content"] + "\n"
+            elif msg["role"] == "user" and msg["content"] != question:
+                system_content += msg["content"] + "\n"
         
-        headers = {
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "contents": contents,
-            "generationConfig": {
-                "temperature": 1.0,
-                "topK": 40,
-                "topP": 0.95,
-                "maxOutputTokens": 2048,
-            }
-        }
-
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}",
-                headers=headers,
-                json=payload,
-            )
-            r.raise_for_status()
-            data = r.json()
-
-        # Extract content from Gemini response format
-        content = (
-            data.get("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [{}])[0]
-            .get("text", "")
-            .strip()
-        ) or "(empty response)"
+        # Combine system and user content
+        full_prompt = (system_content + "\n" + user_content).strip()
+        
+        # Call Gemini API using official SDK
+        response = _gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=full_prompt,
+        )
+        
+        content = response.text.strip() if response.text else "(empty response)"
         
         # Strip numbered citations in brackets (e.g., [1], [2], [3]) from Gemini responses
         # Keep only [Sources: ...] at the end
@@ -4765,15 +4745,9 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
         content = convert_markdown_code_fences_to_html(content)
         return html_quote_signature(content)
 
-    except httpx.HTTPStatusError as e:
-        error_detail = ""
-        try:
-            error_detail = f"\nAPI response: {e.response.json()}"
-        except:
-            error_detail = f"\nResponse text: {e.response.text[:200]}"
-        return f"⚠️ Gemini API error: {e.response.status_code} {e.response.reason_phrase}{error_detail}"
     except Exception as e:
-        return f"⚠️ Gemini error: {e}"
+        error_msg = str(e)
+        return f"⚠️ Gemini API error: {error_msg[:200]}"
 
 
 def generate_kin_harvard_hook(question: str, response: str) -> str:

@@ -13,6 +13,7 @@ rich
 typer
 python-telegram-bot
 openai
+google-genai
 
 # Forecasting models
 statsmodels
