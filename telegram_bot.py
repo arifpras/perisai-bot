@@ -65,8 +65,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
 _gemini_client = None
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    _gemini_client = genai.Client()
+    _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 else:
     logger.warning("GEMINI_API_KEY not set - /kin persona will be unavailable")
 
