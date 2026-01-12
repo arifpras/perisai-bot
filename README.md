@@ -1,5 +1,5 @@
 # PerisAI — Indonesian Bond Analysis
-**Version:** Perisai v.0508 (as of 2026-01-11)
+**Version:** Perisai v.0509 (as of 2026-01-12)
 
 Indonesian government bond analysis via Telegram with dual AI personas: **Kei** (quantitative partner, hands-on with numbers) and **Kin** (macro storyteller, connecting dots across markets).
 
@@ -70,6 +70,15 @@ ALLOWED_USER_IDS=<ids>  # REQUIRED for production: comma-separated Telegram user
 ```
 /kin plot [metric] [tenor] from [date] to [date]
 ```
+
+**/kin web search control (hybrid mode):**
+```
+/kin <question>                 # default: SEC/internal data first, then web for gaps
+/kin --web <question>           # force-enable web context for real-time info
+/kin --no-web <question>        # restrict to internal data only (no web)
+```
+- Web-sourced insights are labeled `[WEB CONTEXT]`, cite real URLs, and use conditional language.
+- If most of the answer comes from web sources, Kin adds a brief disclaimer to remind users to verify with primary documents.
 
 **For `/both` (combined):**
 ```

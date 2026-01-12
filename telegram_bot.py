@@ -4507,13 +4507,38 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
         return html_quote_signature(convert_markdown_code_fences_to_html(fallback))
 
 
-async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: bool = False) -> str:
+def log_kin_sources(user_id: int, question: str, sources: List[str], web_search_used: bool) -> None:
+    """Log /kin query sources and web search usage for audit trail.
+    
+    Args:
+        user_id: Telegram user ID
+        question: The user's question
+        sources: List of sources used (e.g., ['SEC Form 18-K/A', 'Bloomberg: [URL]'])
+        web_search_used: Whether web search was invoked
+    """
+    try:
+        timestamp = datetime.now().isoformat()
+        source_list = "; ".join(sources) if sources else "internal_data_only"
+        log_entry = f"[{timestamp}] user_id={user_id} | question_hash={hash(question) % 10000} | sources={source_list} | web_search={web_search_used}"
+        logger.info(f"KIN_SOURCES: {log_entry}")
+        
+        # Optional: persist to audit database if needed
+        try:
+            metrics.log_query("/kin", user_id, {"sources": source_list, "web_search": web_search_used})
+        except Exception as audit_error:
+            logger.debug(f"Audit logging error (non-critical): {audit_error}")
+    except Exception as e:
+        logger.warning(f"Source logging failed: {e}")
+
+
+async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: bool = False, enable_web_search: bool = True) -> str:
     """Persona /kin — world-class economist & synthesizer.
     
     Args:
         question: The user question
         dual_mode: If True, use "Kei & Kin | Data → Insight" signature (for /both command)
         skip_bond_summary: If True, do not auto-compute bond_summary context (used when data is already in prompt)
+        enable_web_search: If True, allow /kin to use web search for non-SEC topics; if False, restrict to internal data only
     """
     if not GEMINI_API_KEY:
         return "⚠️ Persona /kin unavailable: GEMINI_API_KEY not configured."
@@ -4679,7 +4704,16 @@ async def ask_kin(question: str, dual_mode: bool = False, skip_bond_summary: boo
             "✓ Present factually: headline (14 words max), blank line, exactly 3 paragraphs (2 sentences max each, ≤214 words total)\n"
             "✓ Stop. No qualifications, no \"if you provide,\" no follow-up questions\n\n"
 
-            "For non-Indonesia questions or when SEC filing doesn't cover the topic: use web search for authoritative analysis; cite real URLs when available."
+            "HYBRID WEB SEARCH PROTOCOL (OPTIONAL):\n"
+            "When internal SEC/bond data does not fully answer the question, you MAY use web search—BUT with strict guardrails:\n"
+            "1. **FLAGGING REQUIRED**: Always explicitly label web-sourced insights as '[WEB CONTEXT]' in your output\n"
+            "2. **SOURCE CITATION**: Include real URLs and publication names; e.g., 'Bloomberg: [URL]', 'Reuters: [URL]'\n"
+            "3. **CONFIDENCE FRAMING**: For web-sourced statements, use conditional language: 'reports indicate', 'suggests', 'reportedly'; for SEC/internal data, use definitive language: 'according to Form 18-K/A'\n"
+            "4. **DISCLAIMER**: If >30% of your analysis relies on web sources, add a brief closing disclaimer:\n"
+            "   'NOTE: This analysis layers web sources where SEC data was unavailable. Web sources are less authoritative than official filings; verify with primary documents before decisions.'\n"
+            "5. **PRIORITY**: Always anchor to SEC/internal data first; use web search only for gaps or macro context\n"
+            "6. **PROHIBITED**: Do NOT use web search for speculative or opinion pieces; stick to news reports, official policy announcements, and established research\n\n"
+            f"WEB SEARCH ENABLED: {enable_web_search}\n"
         )
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -4952,7 +4986,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     welcome_text = (
         "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
-        f"<b>v.0503(as of {current_date})</b>\n"
+        f"<b>v.0508 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
         "and policy-oriented insight.\n\n"
@@ -4999,6 +5033,13 @@ async def examples_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /kin plot price 5 year from q3 2023 to q2 2024\n"
         "• /kin plot yield 5 and 10 year from 2023 to 2024\n"
         "• /kin plot price 10 year with fx and vix from 2023 to 2025\n\n"
+        
+            "<b>3b. Kin Analysis: Web Search Control (Hybrid Mode)</b>\n"
+            "By default, /kin uses internal SEC data first, then layers web context for gaps.\n"
+            "You control this with flags:\n"
+            "• /kin what is the BI rate outlook? (default: SEC + optional web search)\n"
+            "• /kin --web what is the latest inflation report? (prefer web sources for real-time data)\n"
+            "• /kin --no-web analyze yield curve based on internal data only\n\n"
         
         "<b>4. Dual Analysis (Kei table → Kin strategic insight)</b>\n"
         "<i>For bonds:</i>\n"
@@ -6946,6 +6987,15 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not question:
         await update.message.reply_text("Usage: /kin <question>")
         return
+
+    # Detect web search control flags (--web / --no-web)
+    enable_web_search = True  # Default: allow web search for hybrid approach
+    if "--no-web" in question:
+        enable_web_search = False
+        question = question.replace("--no-web", "").strip()
+    elif "--web" in question:
+        enable_web_search = True
+        question = question.replace("--web", "").strip()
     
     # Check for personality override attempts
     override_warning = detect_personality_override_attempt(question, "kin")
@@ -7093,19 +7143,25 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     # Have Kin analyze the quantitative summary
                     try:
-                        kin_answer = await ask_kin(kin_prompt, dual_mode=False)
+                        kin_answer = await ask_kin(kin_prompt, dual_mode=False, enable_web_search=enable_web_search)
                         if kin_answer and kin_answer.strip():
                             kin_cleaned = clean_kin_output(kin_answer)
                             await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
                         else:
                             # Fallback: send the summary if Kin fails
                             logger.warning("Kin returned empty response, sending summary instead")
-                            await update.message.reply_text(clean_kin_output(kei_summary.replace('~ Kei', '~ Kin')), parse_mode=ParseMode.HTML)
+                            await update.message.reply_text(
+                                clean_kin_output(kei_summary.replace('~ Kei', '~ Kin')),
+                                parse_mode=ParseMode.HTML,
+                            )
                     except Exception as kin_error:
                         logger.error(f"Error calling ask_kin: {kin_error}")
                         # Fallback: send the summary
-                        await update.message.reply_text(clean_kin_output(kei_summary.replace('~ Kei', '~ Kin')), parse_mode=ParseMode.HTML)
-                
+                        await update.message.reply_text(
+                            clean_kin_output(kei_summary.replace('~ Kei', '~ Kin')),
+                            parse_mode=ParseMode.HTML,
+                        )
+
                 response_time = time.time() - start_time
                 metrics.log_query(user_id, username, question, "bond_plot", response_time, True, "success", "kin")
             except Exception as e:
@@ -7247,12 +7303,17 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        answer = await ask_kin(question)
+        answer = await ask_kin(question, enable_web_search=enable_web_search)
         if not answer or not answer.strip():
             await update.message.reply_text("⚠️ Kin returned an empty response. Please try again.")
             response_time = time.time() - start_time
             metrics.log_query(user_id, username, question, "text", response_time, False, "Empty response", "kin")
             return
+
+        # Log sources used in this /kin response
+        sources = ["SEC Form 18-K/A"] if enable_web_search else ["Internal data only"]
+        log_kin_sources(user_id, question, sources, web_search_used=enable_web_search)
+
         # Format response for HTML display
         formatted_response = f"{answer}"
         try:
@@ -7261,11 +7322,18 @@ async def kin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Fallback: resend without parse mode if Telegram rejects HTML entities
             logger.warning(f"Kin BadRequest on HTML parse: {e}. Resending without parse mode.")
             await update.message.reply_text(formatted_response)
+
         response_time = time.time() - start_time
         metrics.log_query(user_id, username, question, "text", response_time, True, persona="kin")
     except Exception as e:
         logger.error(f"Error in /kin command: {e}")
         await update.message.reply_text("⚠️ Error processing query. Please try again.")
+        response_time = time.time() - start_time
+        try:
+            metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kin")
+        except Exception as log_err:
+            logger.error(f"Failed to log /kin error metrics: {log_err}")
+        return
         response_time = time.time() - start_time
         try:
             metrics.log_query(user_id, username, question, "text", response_time, False, str(e), "kin")
