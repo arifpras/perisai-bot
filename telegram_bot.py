@@ -42,9 +42,19 @@ from macro_data_tables import MacroDataFormatter
 from auction_demand_forecast import AuctionDemandForecaster
 from bond_return_analysis import analyze_bond_returns
 
+try:
+    from rag_system import RAGIntegration
+    _HAS_RAG = True
+except Exception as _rag_import_err:
+    RAGIntegration = None
+    _HAS_RAG = False
+
 # Initialize logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+if not _HAS_RAG:
+    logger.info("RAG module unavailable; /kei will run without RAG enhancement.")
 
 # Silence Prophet's optional Plotly warning (Telegram uses static PNGs, not Plotly)
 try:
@@ -4347,12 +4357,12 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
 
     # RAG enhancement for general knowledge queries (e.g., Indonesia economic development)
     if not is_data_query:
-        try:
-            from rag_system import RAGIntegration
-            rag = RAGIntegration()
-            system_prompt = rag.enhance_kei_prompt(question, system_prompt)
-        except Exception as e:
-            logger.warning(f"RAG enhancement failed for /kei query: {e}. Continuing with base system prompt.")
+        if _HAS_RAG:
+            try:
+                rag = RAGIntegration()
+                system_prompt = rag.enhance_kei_prompt(question, system_prompt)
+            except Exception as e:
+                logger.warning(f"RAG enhancement failed for /kei query: {e}. Continuing with base system prompt.")
 
     messages = [{"role": "system", "content": system_prompt}]
 
