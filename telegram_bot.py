@@ -7482,7 +7482,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 metrics_list = ['incoming', 'awarded']
                 kei_table = format_auction_metrics_table(periods_data, metrics_list)
-                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(convert_markdown_code_fences_to_html(kei_table), parse_mode=ParseMode.HTML)
 
                 # Identify forecast years (today is Dec 30, 2025, so 2026+ are forecasts)
                 from datetime import datetime
@@ -7531,7 +7531,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     return
                 metrics_list = ['incoming', 'awarded']
                 kei_table = format_auction_metrics_table([pdata], metrics_list)
-                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(convert_markdown_code_fences_to_html(kei_table), parse_mode=ParseMode.HTML)
 
                 kin_prompt = (
                     f"Original question: {question}\n\n"
@@ -7596,7 +7596,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Generate Kei's table
                 metrics_list = ['incoming', 'awarded']
                 kei_table = format_auction_metrics_table(periods_data, metrics_list)
-                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(convert_markdown_code_fences_to_html(kei_table), parse_mode=ParseMode.HTML)
                 
                 # Have Kin analyze the table
                 # Identify forecast quarters (today is Dec 30, 2025, so 2026+ are forecasts)
@@ -7679,7 +7679,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Generate Kei's table
                 metrics_list = ['incoming', 'awarded']
                 kei_table = format_auction_metrics_table(periods_data, metrics_list)
-                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(convert_markdown_code_fences_to_html(kei_table), parse_mode=ParseMode.HTML)
                 
                 # Have Kin analyze the table
                 # Identify forecast months (today is Dec 30, 2025, so 2026+ are forecasts)
@@ -7749,7 +7749,13 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Generate Kei's table using the same format as /kei tab
                     metrics_list = ['incoming', 'awarded']
                     kei_table = format_auction_metrics_table(periods_data, metrics_list)
-                    await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                    rendered_table = convert_markdown_code_fences_to_html(kei_table)
+                    try:
+                        await update.message.reply_text(rendered_table, parse_mode=ParseMode.HTML)
+                    except BadRequest as html_err:
+                        # Keep /both responsive even if Telegram rejects HTML formatting.
+                        logger.warning(f"BadRequest on /both auction year-range table HTML: {html_err}. Resending without parse_mode.")
+                        await update.message.reply_text(rendered_table)
                     
                     # Have Kin analyze the table
                     # Identify forecast years (today is Dec 30, 2025, so 2026+ are forecasts)
@@ -7768,7 +7774,11 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     kin_answer = await ask_kin(kin_prompt, dual_mode=True)
                     if kin_answer and kin_answer.strip():
                         kin_cleaned = clean_kin_output(kin_answer)
-                        await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                        try:
+                            await update.message.reply_text(kin_cleaned, parse_mode=ParseMode.HTML)
+                        except BadRequest as html_err:
+                            logger.warning(f"BadRequest on /both auction year-range Kin HTML: {html_err}. Resending without parse_mode.")
+                            await update.message.reply_text(kin_cleaned)
                     
                     response_time = time.time() - start_time
                     metrics.log_query(user_id, username, question, "text", response_time, True, "auction_table_both", "both")
@@ -7802,7 +7812,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Generate Kei's table for single quarter
                 metrics_list = ['incoming', 'awarded']
                 kei_table = format_auction_metrics_table([pdata], metrics_list)
-                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(convert_markdown_code_fences_to_html(kei_table), parse_mode=ParseMode.HTML)
                 
                 # Have Kin analyze the table
                 # Check if this is a forecast quarter (after today)
@@ -7861,7 +7871,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Generate Kei's table for single month
                 metrics_list = ['incoming', 'awarded']
                 kei_table = format_auction_metrics_table([pdata], metrics_list)
-                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(convert_markdown_code_fences_to_html(kei_table), parse_mode=ParseMode.HTML)
                 
                 # Have Kin analyze the table
                 # Check if this is a forecast month (after today)
@@ -7914,7 +7924,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Generate Kei's table for single year
                 metrics_list = ['incoming', 'awarded']
                 kei_table = format_auction_metrics_table([pdata], metrics_list)
-                await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(convert_markdown_code_fences_to_html(kei_table), parse_mode=ParseMode.HTML)
                 
                 # Have Kin analyze the table
                 # CRITICAL: Clarify that this is FULL-YEAR data, not just quarterly
@@ -8041,7 +8051,7 @@ async def both_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # If HTML parse fails, try MARKDOWN mode instead
                 logger.warning(f"BadRequest on bond table HTML (likely Unicode box chars): {html_err}. Resending as MARKDOWN.")
                 try:
-                    await update.message.reply_text(kei_table, parse_mode=ParseMode.MARKDOWN)
+                    await update.message.reply_text(convert_markdown_code_fences_to_html(kei_table), parse_mode=ParseMode.HTML)
                 except BadRequest as markdown_err:
                     # Final fallback: send without any parse mode
                     logger.warning(f"BadRequest on MARKDOWN as well: {markdown_err}. Sending plain text.")
