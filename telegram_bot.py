@@ -62,7 +62,7 @@ else:
 
 # Gemini configuration
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-pro-preview")
 _gemini_client = None
 if GEMINI_API_KEY:
     _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -4371,7 +4371,7 @@ async def ask_kei(question: str, dual_mode: bool = False) -> str:
             # Slightly higher completion allowance to reduce empty responses
             max_tokens = 260 if is_data_query else 360
             resp = await _openai_client.chat.completions.create(
-                model="gpt-5.2",
+                model="gpt-5.4",
                 messages=messages,
                 max_completion_tokens=max_tokens,
                 temperature=temperature,
@@ -4955,7 +4955,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_date = datetime.now().strftime("%Y-%m-%d")
     
     welcome_text = (
-        "<b>PerisAI</b> — Policy, Evidence & Risk Intelligence (AI-powered)\n"
+        "<b>PerisAI</b> — Policy, Evidence &amp; Risk Intelligence (AI-powered)\n"
         f"<b>v.0601 (as of {current_date})</b>\n"
         "© Arif P. Sulistiono\n\n"
         "A 24/7 analytical assistant for Indonesian bond markets, auctions, "
@@ -9198,6 +9198,19 @@ async def activity_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Catch unhandled handler exceptions and avoid silent user experience."""
+    logger.error("Unhandled Telegram update error", exc_info=context.error)
+
+    try:
+        if update and hasattr(update, "effective_message") and update.effective_message:
+            await update.effective_message.reply_text(
+                "⚠️ I hit an internal error while processing your command. Please try again in a few seconds."
+            )
+    except Exception as notify_err:
+        logger.warning(f"Failed to send fallback error message to user: {notify_err}")
+
+
 def create_telegram_app(token: str) -> Application:
     """Create and configure the Telegram application with extended HTTPX timeouts."""
     from telegram.request import HTTPXRequest
@@ -9223,5 +9236,8 @@ def create_telegram_app(token: str) -> Application:
     application.add_handler(CommandHandler("kin", kin_command))
     application.add_handler(CommandHandler("both", both_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Prevent silent failures by returning a fallback message on unhandled exceptions.
+    application.add_error_handler(global_error_handler)
     
     return application
